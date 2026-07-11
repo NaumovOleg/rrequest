@@ -117,3 +117,42 @@ describe('sendRequest', () => {
     expect(headers.get('content-type')).toBe('application/json')
   })
 })
+
+describe('sendRequest with env vars', () => {
+  it('interpolates {{var}} into url, params, headers and raw body without mutating req', async () => {
+    let seenUrl = ''
+    let seenInit: RequestInit = {}
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      seenUrl = url; seenInit = init
+      return new Response('', { status: 200 })
+    }) as unknown as typeof fetch
+
+    const req = baseReq({
+      method: 'POST',
+      url: '{{base}}/users',
+      params: [{ key: 'q', value: '{{term}}', enabled: true }],
+      headers: [{ key: 'Authorization', value: 'Bearer {{token}}', enabled: true }],
+      body: { mode: 'raw', type: 'json', text: '{"t":"{{token}}"}' },
+    })
+    const vars = [
+      { key: 'base', value: 'https://api.dev', enabled: true },
+      { key: 'term', value: 'hi', enabled: true },
+      { key: 'token', value: 'abc', enabled: true },
+    ]
+    await sendRequest(req, { fetchImpl, vars })
+
+    expect(seenUrl).toBe('https://api.dev/users?q=hi')
+    expect(new Headers(seenInit.headers).get('authorization')).toBe('Bearer abc')
+    expect(seenInit.body).toBe('{"t":"abc"}')
+    // req not mutated:
+    expect(req.url).toBe('{{base}}/users')
+    expect(req.headers[0].value).toBe('Bearer {{token}}')
+  })
+
+  it('leaves unknown placeholders literal and works with no vars', async () => {
+    let seenUrl = ''
+    const fetchImpl = (async (url: string) => { seenUrl = url; return new Response('', { status: 200 }) }) as unknown as typeof fetch
+    await sendRequest(baseReq({ url: '{{nope}}/x' }), { fetchImpl })
+    expect(seenUrl).toBe('{{nope}}/x')
+  })
+})

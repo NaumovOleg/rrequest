@@ -1,9 +1,10 @@
 import type { HttpError, HttpResponse, KeyValue, RestRequest } from '../shared/types'
+import { interpolate } from './interpolate'
 
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
 
-type Opts = { timeoutMs?: number; maxBytes?: number; fetchImpl?: typeof fetch }
+type Opts = { timeoutMs?: number; maxBytes?: number; fetchImpl?: typeof fetch; vars?: KeyValue[] }
 
 function buildUrl(req: RestRequest): string {
   const enabled = req.params.filter((p) => p.enabled && p.key)
@@ -57,7 +58,23 @@ function extractCookies(h: Headers): KeyValue[] {
   })
 }
 
-export async function sendRequest(req: RestRequest, opts: Opts = {}): Promise<HttpResponse> {
+export async function sendRequest(request: RestRequest, opts: Opts = {}): Promise<HttpResponse> {
+  const vars = opts.vars ?? []
+  const sub = (s: string) => (vars.length ? interpolate(s, vars) : s)
+  const req: RestRequest = vars.length
+    ? {
+        ...request,
+        url: sub(request.url),
+        params: request.params.map((p) => ({ ...p, key: sub(p.key), value: sub(p.value) })),
+        headers: request.headers.map((h) => ({ ...h, key: sub(h.key), value: sub(h.value) })),
+        body:
+          request.body.mode === 'raw'
+            ? { ...request.body, text: sub(request.body.text) }
+            : request.body.mode === 'urlencoded'
+            ? { ...request.body, items: request.body.items.map((i) => ({ ...i, key: sub(i.key), value: sub(i.value) })) }
+            : request.body,
+      }
+    : request
   const doFetch = opts.fetchImpl ?? fetch
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES

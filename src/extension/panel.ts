@@ -1,27 +1,29 @@
 import * as vscode from 'vscode'
+import * as crypto from 'node:crypto'
 import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
 import type { WebviewMessage } from '../shared/types'
 
-export function buildHtml(scriptUri: string, cspSource: string, nonce: string): string {
+export function buildHtml(scriptUri: string, styleUri: string, cspSource: string, nonce: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="${styleUri}" />
 </head>
 <body>
   <div id="root"></div>
-  <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`
 }
 
 function nonce(): string {
-  return Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+  return crypto.randomBytes(16).toString('hex')
 }
 
 export class RestmanPanel {
@@ -54,7 +56,10 @@ export class RestmanPanel {
     const scriptUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'),
     ).toString()
-    panel.webview.html = buildHtml(scriptUri, panel.webview.cspSource, nonce())
+    const styleUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.css'),
+    ).toString()
+    panel.webview.html = buildHtml(scriptUri, styleUri, panel.webview.cspSource, nonce())
 
     panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
       const out = await route(msg)

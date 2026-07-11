@@ -4,6 +4,7 @@ import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
+import { EnvironmentStore } from './environment-store'
 import type { WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, cspSource: string, nonce: string): string {
@@ -51,6 +52,9 @@ export class RestmanPanel {
       send: sendRequest,
       collections: new CollectionStore(base),
       history: new HistoryStore(base),
+      environments: new EnvironmentStore(base),
+      getActiveEnvId: () => context.globalState.get<string | null>('restman.activeEnvId', null),
+      setActiveEnvId: (id) => { void context.globalState.update('restman.activeEnvId', id) },
     })
 
     const scriptUri = panel.webview.asWebviewUri(

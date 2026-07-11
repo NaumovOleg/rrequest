@@ -69,6 +69,28 @@ describe('sendRequest', () => {
     expect(res.sizeBytes).toBe(1000)
   })
 
+  it('returns an error response instead of throwing when a header is invalid', async () => {
+    const fetchImpl = (async () =>
+      new Response('ok', { status: 200 })
+    ) as unknown as typeof fetch
+    const res = await sendRequest(
+      baseReq({ headers: [{ key: 'bad header', value: 'x', enabled: true }] }),
+      { fetchImpl },
+    )
+    expect(res.error?.kind).toBe('unknown')
+    expect(res.status).toBe(0)
+    expect(res.body).toBe('')
+  })
+
+  it('truncates non-ASCII bodies by byte length, not character length', async () => {
+    const big = 'é'.repeat(1000) // 2 bytes each in utf8 -> 2000 bytes total
+    const fetchImpl = (async () => new Response(big, { status: 200 })) as unknown as typeof fetch
+    const res = await sendRequest(baseReq(), { fetchImpl, maxBytes: 100 })
+    expect(res.bodyTruncated).toBe(true)
+    expect(Buffer.byteLength(res.body, 'utf8')).toBeLessThanOrEqual(100)
+    expect(res.sizeBytes).toBe(2000)
+  })
+
   it('serializes a raw json body and defaults content-type', async () => {
     let seenInit: RequestInit = {}
     const fetchImpl = (async (_url: string, init: RequestInit) => {

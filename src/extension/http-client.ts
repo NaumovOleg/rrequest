@@ -54,16 +54,25 @@ export async function sendRequest(req: RestRequest, opts: Opts = {}): Promise<Ht
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
 
-  const headers = new Headers()
-  for (const h of req.headers) if (h.enabled && h.key) headers.set(h.key, h.value)
-  const { body, contentType } = buildBody(req)
-  if (contentType && !headers.has('content-type')) headers.set('content-type', contentType)
-
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const started = Date.now()
 
   try {
+    let headers: Headers
+    try {
+      headers = new Headers()
+      for (const h of req.headers) if (h.enabled && h.key) headers.set(h.key, h.value)
+    } catch (e: any) {
+      return {
+        status: 0, statusText: '', headers: [], body: '',
+        bodyTruncated: false, timeMs: Date.now() - started, sizeBytes: 0,
+        cookies: [], error: { kind: 'unknown', message: `Invalid header: ${String(e?.message ?? e)}` },
+      }
+    }
+    const { body, contentType } = buildBody(req)
+    if (contentType && !headers.has('content-type')) headers.set('content-type', contentType)
+
     const resp = await doFetch(buildUrl(req), {
       method: req.method,
       headers,
@@ -77,7 +86,7 @@ export async function sendRequest(req: RestRequest, opts: Opts = {}): Promise<Ht
       status: resp.status,
       statusText: resp.statusText,
       headers: headersToKeyValues(resp.headers),
-      body: truncated ? full.slice(0, maxBytes) : full,
+      body: truncated ? Buffer.from(full, 'utf8').subarray(0, maxBytes).toString('utf8') : full,
       bodyTruncated: truncated,
       timeMs: Date.now() - started,
       sizeBytes,

@@ -31,6 +31,9 @@ function buildBody(req: RestRequest): { body?: string; contentType?: string } {
         .join('&')
       return { body: s, contentType: 'application/x-www-form-urlencoded' }
     }
+    case 'formdata':
+      // Multipart is assembled separately in sendRequest (fetch sets the boundary Content-Type).
+      return {}
   }
 }
 

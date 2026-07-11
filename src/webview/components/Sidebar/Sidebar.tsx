@@ -1,6 +1,7 @@
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
 import type { RestRequest } from '../../../shared/types'
+import { Environments } from '../Environments/Environments'
 
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
@@ -45,6 +46,7 @@ export function Sidebar() {
           </li>
         ))}
       </ul>
+      <Environments />
     </div>
   )
 }

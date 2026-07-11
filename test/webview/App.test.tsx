@@ -59,4 +59,12 @@ describe('App', () => {
       bodyTruncated: false, timeMs: 3, sizeBytes: 2, cookies: [] } }))
     expect(posted.some((m) => m.type === 'loadHistory')).toBe(true)
   })
+
+  it('posts loadEnvironments on mount and routes environments into the store', () => {
+    render(<App />)
+    expect(posted.some((m) => m.type === 'loadEnvironments')).toBe(true)
+    act(() => handler?.({ type: 'environments', environments: [{ id: 'e1', name: 'Dev', variables: [] }], activeId: 'e1' }))
+    expect(useStore.getState().environments).toHaveLength(1)
+    expect(useStore.getState().activeEnvId).toBe('e1')
+  })
 })

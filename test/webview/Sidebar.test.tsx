@@ -36,4 +36,9 @@ describe('Sidebar', () => {
     expect(s.tabs).toHaveLength(1)
     expect(s.tabs[0].url).toBe('https://api/hist')
   })
+
+  it('renders the Environments section', () => {
+    render(<Sidebar />)
+    expect(screen.getByText('Environments')).toBeInTheDocument()
+  })
 })

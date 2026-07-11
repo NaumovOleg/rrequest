@@ -3,10 +3,15 @@ export type HttpMethod =
 
 export type KeyValue = { key: string; value: string; enabled: boolean }
 
+export type FormDataItem =
+  | { kind: 'text'; key: string; value: string; enabled: boolean }
+  | { kind: 'file'; key: string; filename: string; path: string; enabled: boolean }
+
 export type RequestBody =
   | { mode: 'none' }
   | { mode: 'raw'; type: 'json' | 'text' | 'xml'; text: string }
   | { mode: 'urlencoded'; items: KeyValue[] }
+  | { mode: 'formdata'; items: FormDataItem[] }
 
 export type RestRequest = {
   id: string
@@ -63,6 +68,9 @@ export type WebviewMessage =
   | { type: 'saveEnvironment'; environment: Environment }
   | { type: 'deleteEnvironment'; id: string }
   | { type: 'setActiveEnv'; id: string | null }
+  | { type: 'importCollection' }
+  | { type: 'exportCollection'; id: string; format: 'native' | 'postman' }
+  | { type: 'pickFile' }
 
 // host -> webview
 export type HostMessage =
@@ -70,6 +78,7 @@ export type HostMessage =
   | { type: 'tree'; collections: Collection[] }
   | { type: 'history'; entries: HistoryEntry[] }
   | { type: 'environments'; environments: Environment[]; activeId: string | null }
+  | { type: 'pickedFile'; path: string; filename: string }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

@@ -49,11 +49,28 @@ describe('fromNative', () => {
     expect(pmOut.item[0].name).toBe('Get')
     expect(pmOut.item[0].request.method).toBe('GET')
     expect(pmOut.item[0].request.url.raw).toContain('https://api.test/x')
-    expect(pmOut.item[0].request.header).toEqual([{ key: 'Accept', value: 'json' }])
+    expect(pmOut.item[0].request.header).toEqual([{ key: 'Accept', value: 'json', disabled: false }])
   })
   it('round-trips method/url/headers', () => {
     const c = toNative(fromNative(toNative(pm)))
     expect(c.requests[0].method).toBe('GET')
     expect(c.requests[0].url).toBe('https://api.test/users')
+  })
+  it('round-trips disabled headers and params', () => {
+    const theCollection: Collection = { id: '1', name: 'API', requests: [
+      { id: 'a', name: 'Get', method: 'GET', url: 'https://api.test/x',
+        params: [{ key: 'q', value: '1', enabled: false }],
+        headers: [
+          { key: 'A', value: '1', enabled: true },
+          { key: 'B', value: '2', enabled: false },
+        ],
+        body: { mode: 'none' } },
+    ] }
+    const back = toNative(fromNative(theCollection))
+    expect(back.requests[0].headers).toEqual([
+      { key: 'A', value: '1', enabled: true },
+      { key: 'B', value: '2', enabled: false },
+    ])
+    expect(back.requests[0].params).toEqual([{ key: 'q', value: '1', enabled: false }])
   })
 })

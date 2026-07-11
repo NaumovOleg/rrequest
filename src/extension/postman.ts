@@ -61,11 +61,12 @@ export function toNative(pm: any): Collection {
 
 function nativeUrl(req: RestRequest): any {
   const enabled = req.params.filter((p) => p.enabled && p.key)
+  const all = req.params.filter((p) => p.key)
   const raw = enabled.length
-    ? `${req.url}${req.url.includes('?') ? '&' : '?'}${enabled.map((p) => `${p.key}=${p.value}`).join('&')}`
+    ? `${req.url}${req.url.includes('?') ? '&' : '?'}${enabled.map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&')}`
     : req.url
   const url: any = { raw }
-  if (enabled.length) url.query = enabled.map((p) => ({ key: p.key, value: p.value }))
+  if (all.length) url.query = all.map((p) => ({ key: p.key, value: p.value, disabled: !p.enabled }))
   return url
 }
 function nativeBody(body: RequestBody): any {
@@ -82,7 +83,7 @@ export function fromNative(c: Collection): any {
     item: c.requests.map((r) => {
       const request: any = {
         method: r.method,
-        header: r.headers.filter((h) => h.key).map((h) => ({ key: h.key, value: h.value })),
+        header: r.headers.filter((h) => h.key).map((h) => ({ key: h.key, value: h.value, disabled: !h.enabled })),
         url: nativeUrl(r),
       }
       const body = nativeBody(r.body)

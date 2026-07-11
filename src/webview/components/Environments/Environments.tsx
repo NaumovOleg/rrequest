@@ -49,33 +49,25 @@ export function Environments() {
           <div>Editing: {editing.name}</div>
           <table>
             <tbody>
-              {rows.map((r, i) => {
-                // The trailing blank row (i === vars.length) is a draft slot for the next
-                // entry. Once at least one row has been committed, suppress its placeholder
-                // text so it doesn't collide with the committed row's still-empty cells when
-                // queried by placeholder (e.g. getByPlaceholderText('var value')).
-                const isDraftRow = i === vars.length
-                const showPlaceholder = !isDraftRow || vars.length === 0
-                return (
-                  <tr key={i} className="rm-row">
-                    <td>
-                      <input type="checkbox" checked={r.enabled}
-                        onChange={(e) => i < vars.length && update(i, { enabled: e.target.checked })} />
-                    </td>
-                    <td>
-                      <input className="rm-input" placeholder={showPlaceholder ? 'var key' : undefined} value={r.key}
-                        onChange={(e) => {
-                          if (i < vars.length) update(i, { key: e.target.value })
-                          else setVars([...vars, { key: e.target.value, value: '', enabled: true }])
-                        }} />
-                    </td>
-                    <td>
-                      <input className="rm-input" placeholder={showPlaceholder ? 'var value' : undefined} value={r.value}
-                        onChange={(e) => i < vars.length && update(i, { value: e.target.value })} />
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((r, i) => (
+                <tr key={i} className="rm-row">
+                  <td>
+                    <input type="checkbox" checked={r.enabled}
+                      onChange={(e) => i < vars.length && update(i, { enabled: e.target.checked })} />
+                  </td>
+                  <td>
+                    <input className="rm-input" placeholder="var key" aria-label={`var key ${i}`} value={r.key}
+                      onChange={(e) => {
+                        if (i < vars.length) update(i, { key: e.target.value })
+                        else setVars([...vars, { key: e.target.value, value: '', enabled: true }])
+                      }} />
+                  </td>
+                  <td>
+                    <input className="rm-input" placeholder="var value" aria-label={`var value ${i}`} value={r.value}
+                      onChange={(e) => i < vars.length && update(i, { value: e.target.value })} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
           <button className="rm-btn" onClick={save}>Save Environment</button>

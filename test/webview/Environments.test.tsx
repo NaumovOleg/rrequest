@@ -24,9 +24,10 @@ describe('Environments', () => {
     render(<Environments />)
     // select the env to edit
     fireEvent.click(screen.getByRole('button', { name: 'Dev' }))
-    // type a key and value into the trailing blank row
-    fireEvent.change(screen.getByPlaceholderText('var key'), { target: { value: 'base' } })
-    fireEvent.change(screen.getByPlaceholderText('var value'), { target: { value: 'https://api.dev' } })
+    // type a key into the trailing blank row (row 0); this commits it and spawns row 1
+    fireEvent.change(screen.getByLabelText('var key 0'), { target: { value: 'base' } })
+    // fill row 0's value via its stable per-row label
+    fireEvent.change(screen.getByLabelText('var value 0'), { target: { value: 'https://api.dev' } })
     fireEvent.click(screen.getByRole('button', { name: /save environment/i }))
     const msg = posted.find((m) => m.type === 'saveEnvironment')
     expect(msg).toBeTruthy()

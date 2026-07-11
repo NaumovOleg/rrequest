@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, type Collection, type HistoryEntry, type HttpResponse, type RestRequest } from '../../shared/types'
+import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type RestRequest } from '../../shared/types'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' } }
@@ -11,6 +11,8 @@ type State = {
   tree: Collection[]
   responses: Record<string, HttpResponse | undefined>
   history: HistoryEntry[]
+  environments: Environment[]
+  activeEnvId: string | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -18,6 +20,8 @@ type State = {
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
   setHistory(entries: HistoryEntry[]): void
+  setEnvironments(list: Environment[]): void
+  setActiveEnvId(id: string | null): void
   __reset(): void
 }
 
@@ -27,6 +31,8 @@ export const useStore = create<State>((set) => ({
   tree: [],
   responses: {},
   history: [],
+  environments: [],
+  activeEnvId: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -51,5 +57,9 @@ export const useStore = create<State>((set) => ({
 
   setHistory: (entries) => set({ history: entries }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [] }),
+  setEnvironments: (environments) => set({ environments }),
+
+  setActiveEnvId: (activeEnvId) => set({ activeEnvId }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null }),
 }))

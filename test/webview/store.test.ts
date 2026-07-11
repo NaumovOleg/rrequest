@@ -54,3 +54,16 @@ describe('webview store', () => {
     expect(useStore.getState().history).toEqual([])
   })
 })
+
+describe('store environments slice', () => {
+  it('setEnvironments and setActiveEnvId update state; __reset clears them', () => {
+    const st = useStore.getState()
+    st.setEnvironments([{ id: 'e1', name: 'Dev', variables: [] }])
+    st.setActiveEnvId('e1')
+    expect(useStore.getState().environments).toHaveLength(1)
+    expect(useStore.getState().activeEnvId).toBe('e1')
+    useStore.getState().__reset()
+    expect(useStore.getState().environments).toEqual([])
+    expect(useStore.getState().activeEnvId).toBeNull()
+  })
+})

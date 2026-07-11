@@ -15,6 +15,29 @@
         "command": "restman.open",
         "title": "restman: Open"
       }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "restman",
+          "title": "restman",
+          "icon": "resources/restman.svg"
+        }
+      ]
+    },
+    "views": {
+      "restman": [
+        {
+          "id": "restman.launch",
+          "name": "restman"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "restman.launch",
+        "contents": "Open the restman REST client.\n[Open restman](command:restman.open)"
+      }
     ]
   },
   "scripts": {

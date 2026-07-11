@@ -34,4 +34,29 @@ describe('RequestPanel', () => {
     fireEvent.change(screen.getByLabelText(/method/i), { target: { value: 'POST' } })
     expect(useStore.getState().tabs[0].method).toBe('POST')
   })
+
+  it('disables Save when no collection chosen', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    render(<RequestPanel />)
+    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
+  })
+
+  it('choosing a collection enables Save and posts saveRequest', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/save to collection/i), { target: { value: 'c1' } })
+    const save = screen.getByRole('button', { name: /save/i })
+    expect(save).not.toBeDisabled()
+    fireEvent.click(save)
+    expect(posted).toHaveLength(1)
+    expect(posted[0].type).toBe('saveRequest')
+    expect(posted[0].collectionId).toBe('c1')
+    expect(posted[0].request.id).toBe(useStore.getState().activeTabId)
+  })
+
+  it('typing into the name input updates the active request', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/request name/i), { target: { value: 'My Req' } })
+    expect(useStore.getState().tabs[0].name).toBe('My Req')
+  })
 })

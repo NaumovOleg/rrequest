@@ -36,13 +36,19 @@ function KeyValueTable({ rows, onChange }: {
 
 export function RequestPanel() {
   const [sub, setSub] = useState<SubTab>('params')
+  const [saveCollectionId, setSaveCollectionId] = useState('')
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId))
   const update = useStore((s) => s.updateActive)
+  const tree = useStore((s) => s.tree)
   if (!active) return <div className="rm-panel">No request open</div>
 
   const send = () => {
     const url = buildUrlFromParams(active.url, active.params)
     postToHost({ type: 'sendRequest', requestId: active.id, payload: { ...active, url } })
+  }
+
+  const save = () => {
+    postToHost({ type: 'saveRequest', collectionId: saveCollectionId, request: active })
   }
 
   return (
@@ -58,6 +64,17 @@ export function RequestPanel() {
         <input className="rm-input" placeholder="URL" style={{ flex: 1 }} value={active.url}
           onChange={(e) => update({ url: e.target.value })} />
         <button className="rm-btn" disabled={!active.url} onClick={send}>Send</button>
+      </div>
+
+      <div className="rm-row">
+        <input className="rm-input" aria-label="request name" placeholder="Request name"
+          value={active.name} onChange={(e) => update({ name: e.target.value })} />
+        <select className="rm-select" aria-label="save to collection" value={saveCollectionId}
+          onChange={(e) => setSaveCollectionId(e.target.value)}>
+          <option value="" disabled>Select collection</option>
+          {tree.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <button className="rm-btn" disabled={!saveCollectionId} onClick={save}>Save</button>
       </div>
 
       <div className="rm-row">

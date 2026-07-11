@@ -44,4 +44,9 @@ export class CollectionStore {
     await writeJsonAtomic(this.file(collectionId), c)
     return c
   }
+
+  async saveCollection(c: import('../shared/types').Collection): Promise<import('../shared/types').Collection> {
+    await writeJsonAtomic(this.file(c.id), c)
+    return c
+  }
 }

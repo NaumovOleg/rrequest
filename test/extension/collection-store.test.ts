@@ -46,4 +46,13 @@ describe('CollectionStore', () => {
     const all = await store.list()
     expect(all.map((x) => x.name)).toEqual(['Good'])
   })
+
+  it('saveCollection writes a whole collection and lists it', async () => {
+    const c = { id: 'imp1', name: 'Imported', requests: [
+      { id: 'r', name: 'x', method: 'GET' as const, url: 'https://a', params: [], headers: [], body: { mode: 'none' as const } },
+    ] }
+    await store.saveCollection(c)
+    const all = await store.list()
+    expect(all.find((x) => x.id === 'imp1')?.requests).toHaveLength(1)
+  })
 })

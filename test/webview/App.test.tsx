@@ -31,4 +31,32 @@ describe('App', () => {
       bodyTruncated: false, timeMs: 3, sizeBytes: 2, cookies: [] } }))
     expect(useStore.getState().responses[id]?.status).toBe(201)
   })
+
+  it('posts loadHistory on mount', () => {
+    render(<App />)
+    expect(posted.some((m) => m.type === 'loadHistory')).toBe(true)
+  })
+
+  it('routes a history message into the store', () => {
+    render(<App />)
+    const entry = {
+      id: 'h1',
+      request: { id: 'r1', name: 'H', method: 'GET', url: 'https://api/hist', params: [], headers: [], body: { mode: 'none' } },
+      status: 200,
+      at: 1,
+    }
+    act(() => handler?.({ type: 'history', entries: [entry] }))
+    expect(useStore.getState().history).toEqual([entry])
+  })
+
+  it('reposts loadHistory after a response is routed', () => {
+    useStore.getState().openNewTab()
+    const id = useStore.getState().tabs[0].id
+    render(<App />)
+    posted.length = 0
+    act(() => handler?.({ type: 'response', requestId: id, payload: {
+      status: 201, statusText: 'Created', headers: [], body: 'ok',
+      bodyTruncated: false, timeMs: 3, sizeBytes: 2, cookies: [] } }))
+    expect(posted.some((m) => m.type === 'loadHistory')).toBe(true)
+  })
 })

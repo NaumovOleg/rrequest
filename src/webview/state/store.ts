@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, type Collection, type HttpResponse, type RestRequest } from '../../shared/types'
+import { newId, type Collection, type HistoryEntry, type HttpResponse, type RestRequest } from '../../shared/types'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' } }
@@ -10,12 +10,14 @@ type State = {
   activeTabId: string | undefined
   tree: Collection[]
   responses: Record<string, HttpResponse | undefined>
+  history: HistoryEntry[]
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
+  setHistory(entries: HistoryEntry[]): void
   __reset(): void
 }
 
@@ -24,6 +26,7 @@ export const useStore = create<State>((set) => ({
   activeTabId: undefined,
   tree: [],
   responses: {},
+  history: [],
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -46,5 +49,7 @@ export const useStore = create<State>((set) => ({
 
   setResponse: (id, resp) => set((s) => ({ responses: { ...s.responses, [id]: resp } })),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {} }),
+  setHistory: (entries) => set({ history: entries }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [] }),
 }))

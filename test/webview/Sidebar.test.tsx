@@ -19,4 +19,21 @@ describe('Sidebar', () => {
     expect(s.tabs).toHaveLength(1)
     expect(s.tabs[0].url).toBe('https://api/users')
   })
+
+  it('lists history and opens an entry as a tab on click', () => {
+    useStore.getState().setHistory([{
+      id: 'h1',
+      request: { id: 'r1', name: 'H', method: 'GET', url: 'https://api/hist', params: [], headers: [], body: { mode: 'none' } },
+      status: 200,
+      at: 1,
+    }])
+    render(<Sidebar />)
+    expect(screen.getByText('History')).toBeInTheDocument()
+    const entryButton = screen.getByText('GET https://api/hist')
+    expect(entryButton).toBeInTheDocument()
+    fireEvent.click(entryButton)
+    const s = useStore.getState()
+    expect(s.tabs).toHaveLength(1)
+    expect(s.tabs[0].url).toBe('https://api/hist')
+  })
 })

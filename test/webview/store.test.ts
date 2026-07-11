@@ -40,4 +40,17 @@ describe('webview store', () => {
     })
     expect(useStore.getState().responses[id]?.status).toBe(200)
   })
+
+  it('setHistory stores entries and __reset clears them', () => {
+    const entry = {
+      id: 'h1',
+      request: { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/hist', params: [], headers: [], body: { mode: 'none' as const } },
+      status: 200,
+      at: 1,
+    }
+    useStore.getState().setHistory([entry])
+    expect(useStore.getState().history).toEqual([entry])
+    useStore.getState().__reset()
+    expect(useStore.getState().history).toEqual([])
+  })
 })

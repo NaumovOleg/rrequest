@@ -4,6 +4,7 @@ import type { RestRequest } from '../../../shared/types'
 
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
+  const history = useStore((s) => s.history)
   const openNewTab = useStore((s) => s.openNewTab)
   const updateActive = useStore((s) => s.updateActive)
 
@@ -33,6 +34,17 @@ export function Sidebar() {
           </ul>
         </div>
       ))}
+      <div className="rm-row">
+        <strong>History</strong>
+      </div>
+      <ul>
+        {history.map((e) => (
+          <li key={e.id} className="rm-row">
+            <button className="rm-btn" onClick={() => openRequest(e.request)}>{e.request.method} {e.request.url}</button>
+            <span>{e.status}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

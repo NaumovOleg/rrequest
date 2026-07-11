@@ -91,6 +91,17 @@ describe('sendRequest', () => {
     expect(res.sizeBytes).toBe(2000)
   })
 
+  it('never exceeds maxBytes even when the cut lands mid multi-byte sequence', async () => {
+    // '😀' is 4 bytes in utf8; 50 repeats = 200 bytes. maxBytes 101 is NOT a
+    // multiple of 4, so a naive byte-slice lands mid-sequence.
+    const big = '😀'.repeat(50)
+    const fetchImpl = (async () => new Response(big, { status: 200 })) as unknown as typeof fetch
+    const res = await sendRequest(baseReq(), { fetchImpl, maxBytes: 101 })
+    expect(res.bodyTruncated).toBe(true)
+    expect(Buffer.byteLength(res.body, 'utf8')).toBeLessThanOrEqual(101)
+    expect(res.sizeBytes).toBe(200)
+  })
+
   it('serializes a raw json body and defaults content-type', async () => {
     let seenInit: RequestInit = {}
     const fetchImpl = (async (_url: string, init: RequestInit) => {

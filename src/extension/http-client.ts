@@ -33,6 +33,14 @@ function buildBody(req: RestRequest): { body?: string; contentType?: string } {
   }
 }
 
+function truncateUtf8(full: string, maxBytes: number): string {
+  const buf = Buffer.from(full, 'utf8')
+  let end = maxBytes
+  // back off if we're in the middle of a multi-byte sequence (continuation byte 0b10xxxxxx)
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
+  return buf.subarray(0, end).toString('utf8')
+}
+
 function headersToKeyValues(h: Headers): KeyValue[] {
   const out: KeyValue[] = []
   h.forEach((value, key) => out.push({ key, value, enabled: true }))
@@ -86,7 +94,7 @@ export async function sendRequest(req: RestRequest, opts: Opts = {}): Promise<Ht
       status: resp.status,
       statusText: resp.statusText,
       headers: headersToKeyValues(resp.headers),
-      body: truncated ? Buffer.from(full, 'utf8').subarray(0, maxBytes).toString('utf8') : full,
+      body: truncated ? truncateUtf8(full, maxBytes) : full,
       bodyTruncated: truncated,
       timeMs: Date.now() - started,
       sizeBytes,

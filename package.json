@@ -1,0 +1,38 @@
+{
+  "name": "restman",
+  "displayName": "restman",
+  "description": "A Postman-style REST client for VS Code",
+  "version": "0.0.1",
+  "publisher": "restman",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "restman.open", "title": "restman: Open" }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.js && vite build",
+    "watch": "node esbuild.js --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/vscode": "^1.85.0",
+    "@testing-library/react": "^14.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "esbuild": "^0.20.0",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.1.0",
+    "vitest": "^1.4.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zustand": "^4.5.0"
+  }
+}

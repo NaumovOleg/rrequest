@@ -1,0 +1,38 @@
+:root {
+  --app-bg: var(--vscode-editor-background);
+  --app-fg: var(--vscode-foreground);
+  --app-border: var(--vscode-panel-border, rgba(128,128,128,0.35));
+  --app-accent: var(--vscode-button-background);
+  --app-accent-fg: var(--vscode-button-foreground);
+  --app-input-bg: var(--vscode-input-background);
+  --app-input-fg: var(--vscode-input-foreground);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-fg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+.rm-btn {
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  border: none;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.rm-btn:disabled { opacity: 0.5; cursor: default; }
+
+.rm-input, .rm-select {
+  background: var(--app-input-bg);
+  color: var(--app-input-fg);
+  border: 1px solid var(--app-border);
+  padding: 4px 6px;
+}
+
+.rm-panel { border: 1px solid var(--app-border); }
+.rm-row { display: flex; gap: 8px; align-items: center; }

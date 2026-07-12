@@ -23,7 +23,7 @@ export function EditorApp() {
       else if (m.type === 'openInEditor') {
         const r = m.request
         openNewTab()
-        updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body })
+        updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body, preRequestScript: r.preRequestScript ?? '', testScript: r.testScript ?? '' })
       } else if (m.type === 'pickedFile') {
         const st = useStore.getState()
         const pending = st.pendingFilePick

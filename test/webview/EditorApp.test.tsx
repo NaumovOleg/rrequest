@@ -18,10 +18,12 @@ describe('EditorApp', () => {
   })
   it('openInEditor opens a tab populated from the request', () => {
     render(<EditorApp />)
-    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'POST', url: 'https://api/z', params: [], headers: [], body: { mode: 'none' } } }))
+    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'POST', url: 'https://api/z', params: [], headers: [], body: { mode: 'none' }, preRequestScript: 'pm.environment.set("a","1")', testScript: 'pm.test("t",()=>{})' } }))
     const s = useStore.getState()
     const active = s.tabs.find((t) => t.id === s.activeTabId)!
     expect(active.url).toBe('https://api/z'); expect(active.method).toBe('POST')
+    expect(active.preRequestScript).toBe('pm.environment.set("a","1")')
+    expect(active.testScript).toBe('pm.test("t",()=>{})')
   })
   it('routes a response into the active tab store', () => {
     useStore.getState().openNewTab()

@@ -1,18 +1,9 @@
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
-import type { RestRequest } from '../../../shared/types'
 import { Environments } from '../Environments/Environments'
 
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
-  const history = useStore((s) => s.history)
-  const openNewTab = useStore((s) => s.openNewTab)
-  const updateActive = useStore((s) => s.updateActive)
-
-  const openRequest = (r: RestRequest) => {
-    openNewTab()
-    updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body })
-  }
 
   return (
     <div className="rm-panel" style={{ minWidth: 220 }}>
@@ -36,23 +27,12 @@ export function Sidebar() {
           <ul>
             {c.requests.map((r) => (
               <li key={r.id}>
-                <button className="rm-btn" onClick={() => openRequest(r)}>{r.name}</button>
+                <button className="rm-btn" onClick={() => postToHost({ type: 'openRequest', request: r })}>{r.name}</button>
               </li>
             ))}
           </ul>
         </div>
       ))}
-      <div className="rm-row">
-        <strong>History</strong>
-      </div>
-      <ul>
-        {history.map((e) => (
-          <li key={e.id} className="rm-row">
-            <button className="rm-btn" onClick={() => openRequest(e.request)}>{e.request.method} {e.request.url}</button>
-            <span>{e.status}</span>
-          </li>
-        ))}
-      </ul>
       <Environments />
     </div>
   )

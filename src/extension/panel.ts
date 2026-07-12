@@ -6,6 +6,7 @@ import { sendRequest } from './http-client'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
 import { EnvironmentStore } from './environment-store'
+import { WorkspaceStore } from './workspace-store'
 import { parseImport, serializeExport } from './import-export'
 import type { WebviewMessage } from '../shared/types'
 
@@ -57,6 +58,9 @@ export class RestmanPanel {
       environments: new EnvironmentStore(base),
       getActiveEnvId: () => context.globalState.get<string | null>('restman.activeEnvId', null),
       setActiveEnvId: (id) => { void context.globalState.update('restman.activeEnvId', id) },
+      workspaces: new WorkspaceStore(base),
+      getActiveWorkspaceId: () => context.globalState.get<string>('restman.activeWorkspaceId', ''),
+      setActiveWorkspaceId: (id) => { void context.globalState.update('restman.activeWorkspaceId', id) },
       openImport: async () => {
         const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { JSON: ['json'] } })
         if (!picked || !picked[0]) return null

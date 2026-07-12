@@ -3,6 +3,7 @@ import type { sendRequest as SendFn } from './http-client'
 import type { CollectionStore } from './collection-store'
 import type { HistoryStore } from './history-store'
 import type { EnvironmentStore } from './environment-store'
+import type { WorkspaceStore } from './workspace-store'
 
 export type RouterDeps = {
   send: typeof SendFn
@@ -14,6 +15,9 @@ export type RouterDeps = {
   openImport?: () => Promise<import('../shared/types').Collection | null>
   runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman') => Promise<void>
   pickFile?: () => Promise<{ path: string; filename: string } | null>
+  workspaces: WorkspaceStore
+  getActiveWorkspaceId: () => string
+  setActiveWorkspaceId: (id: string) => void
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -26,6 +30,9 @@ export function createRouter(deps: RouterDeps) {
     const env = (await deps.environments.list()).find((e) => e.id === id)
     return env ? env.variables : []
   }
+  async function wsSnapshot(): Promise<HostMessage> {
+    return { type: 'workspaces', workspaces: await deps.workspaces.list(), activeId: deps.getActiveWorkspaceId() }
+  }
 
   return async function route(msg: WebviewMessage): Promise<HostMessage | undefined> {
     switch (msg.type) {
@@ -37,7 +44,7 @@ export function createRouter(deps: RouterDeps) {
       case 'loadTree':
         return { type: 'tree', collections: await deps.collections.list() }
       case 'createCollection':
-        await deps.collections.createCollection(msg.name)
+        await deps.collections.createCollection(msg.name, deps.getActiveWorkspaceId())
         return { type: 'tree', collections: await deps.collections.list() }
       case 'saveRequest':
         await deps.collections.saveRequest(msg.collectionId, msg.request)
@@ -63,7 +70,7 @@ export function createRouter(deps: RouterDeps) {
         return await envSnapshot()
       case 'importCollection': {
         const c = deps.openImport ? await deps.openImport() : null
-        if (c) await deps.collections.saveCollection(c)
+        if (c) await deps.collections.saveCollection({ ...c, workspaceId: deps.getActiveWorkspaceId() })
         return { type: 'tree', collections: await deps.collections.list() }
       }
       case 'exportCollection': {
@@ -74,6 +81,32 @@ export function createRouter(deps: RouterDeps) {
       case 'pickFile': {
         const f = deps.pickFile ? await deps.pickFile() : null
         return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
+      }
+      case 'openRequest':
+        return { type: 'openInEditor', request: msg.request }
+      case 'loadWorkspaces':
+        return await wsSnapshot()
+      case 'createWorkspace':
+        await deps.workspaces.create(msg.name)
+        return await wsSnapshot()
+      case 'renameWorkspace':
+        await deps.workspaces.rename(msg.id, msg.name)
+        return await wsSnapshot()
+      case 'setActiveWorkspace':
+        deps.setActiveWorkspaceId(msg.id)
+        return await wsSnapshot()
+      case 'deleteWorkspace': {
+        await deps.workspaces.delete(msg.id)
+        if (deps.getActiveWorkspaceId() === msg.id) {
+          const remaining = await deps.workspaces.list()
+          const fallback = remaining[0] ?? (await deps.workspaces.create('Default'))
+          deps.setActiveWorkspaceId(fallback.id)
+          // reassign orphaned collections to the fallback workspace
+          for (const c of await deps.collections.list()) {
+            if (c.workspaceId === msg.id) await deps.collections.saveCollection({ ...c, workspaceId: fallback.id })
+          }
+        }
+        return await wsSnapshot()
       }
       default:
         return undefined

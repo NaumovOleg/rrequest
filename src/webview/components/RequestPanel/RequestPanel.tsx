@@ -3,6 +3,7 @@ import { useStore } from '../../state/store'
 import { buildUrlFromParams } from '../../state/url-sync'
 import { postToHost } from '../../ipc'
 import type { HttpMethod, KeyValue } from '../../../shared/types'
+import { FormDataEditor } from './FormDataEditor'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 type SubTab = 'params' | 'headers' | 'body'
@@ -90,9 +91,28 @@ export function RequestPanel() {
         <KeyValueTable rows={active.headers} onChange={(headers) => update({ headers })} />
       )}
       {sub === 'body' && (
-        <textarea className="rm-input" aria-label="body" rows={8} style={{ width: '100%' }}
-          value={active.body.mode === 'raw' ? active.body.text : ''}
-          onChange={(e) => update({ body: { mode: 'raw', type: 'json', text: e.target.value } })} />
+        <div>
+          <div className="rm-row">
+            <select className="rm-select" aria-label="body mode"
+              value={active.body.mode}
+              onChange={(e) => {
+                const mode = e.target.value
+                if (mode === 'none') update({ body: { mode: 'none' } })
+                else if (mode === 'raw') update({ body: { mode: 'raw', type: 'json', text: active.body.mode === 'raw' ? active.body.text : '' } })
+                else if (mode === 'formdata') update({ body: { mode: 'formdata', items: active.body.mode === 'formdata' ? active.body.items : [] } })
+              }}>
+              <option value="none">none</option>
+              <option value="raw">raw</option>
+              <option value="formdata">form-data</option>
+            </select>
+          </div>
+          {active.body.mode === 'raw' && (
+            <textarea className="rm-input" aria-label="body" rows={8} style={{ width: '100%' }}
+              value={active.body.text}
+              onChange={(e) => update({ body: { mode: 'raw', type: 'json', text: e.target.value } })} />
+          )}
+          {active.body.mode === 'formdata' && <FormDataEditor />}
+        </div>
       )}
     </div>
   )

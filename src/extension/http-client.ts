@@ -1,5 +1,6 @@
 import type { HttpError, HttpResponse, KeyValue, RestRequest } from '../shared/types'
 import { interpolate } from './interpolate'
+import * as fs from 'node:fs/promises'
 
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
@@ -35,6 +36,20 @@ function buildBody(req: RestRequest): { body?: string; contentType?: string } {
       // Multipart is assembled separately in sendRequest (fetch sets the boundary Content-Type).
       return {}
   }
+}
+
+async function buildFormData(req: RestRequest, sub: (s: string) => string): Promise<FormData> {
+  const fd = new FormData()
+  if (req.body.mode !== 'formdata') return fd
+  for (const it of req.body.items) {
+    if (!it.enabled || !it.key) continue
+    if (it.kind === 'text') fd.append(sub(it.key), sub(it.value))
+    else {
+      const buf = await fs.readFile(it.path)
+      fd.append(sub(it.key), new Blob([new Uint8Array(buf)]), sub(it.filename))
+    }
+  }
+  return fd
 }
 
 function truncateUtf8(full: string, maxBytes: number): string {
@@ -98,13 +113,20 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
         cookies: [], error: { kind: 'unknown', message: `Invalid header: ${String(e?.message ?? e)}` },
       }
     }
-    const { body, contentType } = buildBody(req)
-    if (contentType && !headers.has('content-type')) headers.set('content-type', contentType)
+    let fetchBody: BodyInit | undefined
+    if (req.body.mode === 'formdata') {
+      fetchBody = await buildFormData(req, sub)   // fs.readFile may throw -> caught by the existing try/catch -> error result
+      // do NOT set content-type; FormData sets the multipart boundary
+    } else {
+      const { body, contentType } = buildBody(req)
+      if (contentType && !headers.has('content-type')) headers.set('content-type', contentType)
+      fetchBody = req.method === 'GET' || req.method === 'HEAD' ? undefined : body
+    }
 
     const resp = await doFetch(buildUrl(req), {
       method: req.method,
       headers,
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
+      body: fetchBody,
       signal: controller.signal,
     })
     const full = await resp.text()

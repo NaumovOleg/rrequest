@@ -1,6 +1,16 @@
+// @vitest-environment node
+//
+// This file is switched off the default jsdom environment because jsdom's
+// File/Blob implementation (returned from FormData#get) does not implement
+// `.text()` / `.arrayBuffer()`, which the form-data multipart tests below
+// need. None of the tests in this file rely on DOM globals, so running them
+// under Node's native fetch/FormData/Blob/File is both necessary and safe.
 import { describe, it, expect } from 'vitest'
 import { sendRequest } from '../../src/extension/http-client'
 import type { RestRequest } from '../../src/shared/types'
+import * as fsp from 'node:fs/promises'
+import * as ospath from 'node:path'
+import * as osmod from 'node:os'
 
 function baseReq(over: Partial<RestRequest> = {}): RestRequest {
   return {
@@ -154,5 +164,52 @@ describe('sendRequest with env vars', () => {
     const fetchImpl = (async (url: string) => { seenUrl = url; return new Response('', { status: 200 }) }) as unknown as typeof fetch
     await sendRequest(baseReq({ url: '{{nope}}/x' }), { fetchImpl })
     expect(seenUrl).toBe('{{nope}}/x')
+  })
+})
+
+describe('sendRequest form-data', () => {
+  it('sends text and file fields as multipart FormData', async () => {
+    const dir = await fsp.mkdtemp(ospath.join(osmod.tmpdir(), 'rm-fd-'))
+    const fpath = ospath.join(dir, 'a.txt')
+    await fsp.writeFile(fpath, 'FILEBODY')
+
+    let seenBody: any
+    let seenHeaders: Headers = new Headers()
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      seenBody = init.body; seenHeaders = new Headers(init.headers)
+      return new Response('', { status: 200 })
+    }) as unknown as typeof fetch
+
+    await sendRequest(baseReq({
+      method: 'POST',
+      body: { mode: 'formdata', items: [
+        { kind: 'text', key: 'name', value: 'bob', enabled: true },
+        { kind: 'file', key: 'file', filename: 'a.txt', path: fpath, enabled: true },
+        { kind: 'text', key: 'off', value: 'x', enabled: false },
+      ] },
+    }), { fetchImpl })
+
+    expect(seenBody).toBeInstanceOf(FormData)
+    expect(seenBody.get('name')).toBe('bob')
+    expect(seenBody.get('off')).toBeNull()
+    const file = seenBody.get('file')
+    expect(file).toBeInstanceOf(Blob)
+    expect(await (file as Blob).text()).toBe('FILEBODY')
+    // Content-Type not manually set (fetch/undici sets multipart boundary itself)
+    expect(seenHeaders.get('content-type')).toBeNull()
+    await fsp.rm(dir, { recursive: true, force: true })
+  })
+
+  it('interpolates {{var}} in text fields and returns an error (no throw) for a missing file', async () => {
+    let seenBody: any
+    const fetchImpl = (async (_u: string, init: RequestInit) => { seenBody = init.body; return new Response('', { status: 200 }) }) as unknown as typeof fetch
+    await sendRequest(baseReq({ method: 'POST', body: { mode: 'formdata', items: [{ kind: 'text', key: 'k', value: '{{v}}', enabled: true }] } }),
+      { fetchImpl, vars: [{ key: 'v', value: 'V', enabled: true }] })
+    expect(seenBody.get('k')).toBe('V')
+
+    const res = await sendRequest(baseReq({ method: 'POST', body: { mode: 'formdata', items: [{ kind: 'file', key: 'f', filename: 'x', path: '/no/such/file', enabled: true }] } }),
+      { fetchImpl: (async () => new Response('', { status: 200 })) as unknown as typeof fetch })
+    expect(res.error).toBeTruthy()
+    expect(res.status).toBe(0)
   })
 })

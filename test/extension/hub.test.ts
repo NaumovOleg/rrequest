@@ -1,0 +1,42 @@
+import { describe, it, expect, vi } from 'vitest'
+import { Hub } from '../../src/extension/hub'
+import type { HostMessage, WebviewMessage } from '../../src/shared/types'
+
+const snapshot = async (): Promise<HostMessage[]> => ([
+  { type: 'tree', collections: [] },
+  { type: 'environments', environments: [], activeId: null },
+  { type: 'workspaces', workspaces: [], activeId: 'w1' },
+  { type: 'history', entries: [] },
+])
+
+function setup(route: (m: WebviewMessage) => Promise<HostMessage | undefined>) {
+  const hub = new Hub(route, snapshot)
+  const editor: HostMessage[] = []
+  const sidebar: HostMessage[] = []
+  hub.register('editor', (m) => editor.push(m))
+  hub.register('sidebar', (m) => sidebar.push(m))
+  return { hub, editor, sidebar }
+}
+
+describe('Hub', () => {
+  it('broadcasts the state snapshot to both surfaces after any dispatch', async () => {
+    const { hub, editor, sidebar } = setup(async () => undefined)
+    await hub.dispatch('sidebar', { type: 'loadWorkspaces' })
+    expect(editor.map((m) => m.type)).toEqual(['tree', 'environments', 'workspaces', 'history'])
+    expect(sidebar.map((m) => m.type)).toEqual(['tree', 'environments', 'workspaces', 'history'])
+  })
+  it('sends a response reply only to the sender', async () => {
+    const resp: HostMessage = { type: 'response', requestId: 'q', payload: {} as any }
+    const { editor, sidebar, hub } = setup(async () => resp)
+    await hub.dispatch('editor', { type: 'sendRequest', requestId: 'q', payload: {} as any })
+    expect(editor[0]).toEqual(resp)               // targeted to sender first
+    expect(sidebar.find((m) => m.type === 'response')).toBeUndefined()
+  })
+  it('routes openInEditor to the editor even when the sidebar sent openRequest', async () => {
+    const oie: HostMessage = { type: 'openInEditor', request: {} as any }
+    const { editor, sidebar, hub } = setup(async () => oie)
+    await hub.dispatch('sidebar', { type: 'openRequest', request: {} as any })
+    expect(editor.find((m) => m.type === 'openInEditor')).toEqual(oie)
+    expect(sidebar.find((m) => m.type === 'openInEditor')).toBeUndefined()
+  })
+})

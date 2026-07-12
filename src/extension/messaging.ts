@@ -1,4 +1,4 @@
-import type { HostMessage, WebviewMessage } from '../shared/types'
+import type { HostMessage, KeyValue, WebviewMessage } from '../shared/types'
 import type { sendRequest as SendFn } from './http-client'
 import type { CollectionStore } from './collection-store'
 import type { HistoryStore } from './history-store'
@@ -18,6 +18,8 @@ export type RouterDeps = {
   workspaces: WorkspaceStore
   getActiveWorkspaceId: () => string
   setActiveWorkspaceId: (id: string) => void
+  runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
+  runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -33,13 +35,47 @@ export function createRouter(deps: RouterDeps) {
   async function wsSnapshot(): Promise<HostMessage> {
     return { type: 'workspaces', workspaces: await deps.workspaces.list(), activeId: deps.getActiveWorkspaceId() }
   }
+  async function persistEnvSets(sets: KeyValue[]): Promise<void> {
+    if (!sets.length) return
+    const id = deps.getActiveEnvId()
+    if (!id) return
+    const env = (await deps.environments.list()).find((e) => e.id === id)
+    if (!env) return
+    const vars = [...env.variables]
+    for (const s of sets) {
+      const i = vars.findIndex((v) => v.key === s.key)
+      if (i >= 0) vars[i] = { ...vars[i], value: s.value, enabled: true }
+      else vars.push(s)
+    }
+    await deps.environments.saveEnvironment({ ...env, variables: vars })
+  }
 
   return async function route(msg: WebviewMessage): Promise<HostMessage | undefined> {
     switch (msg.type) {
       case 'sendRequest': {
-        const payload = await deps.send(msg.payload, { vars: await activeVars() })
-        await deps.history.append(msg.payload, payload.status)
-        return { type: 'response', requestId: msg.requestId, payload }
+        const raw = msg.payload
+        const logs: string[] = []
+        let vars = await activeVars()
+        let effective = raw
+        if (raw.preRequestScript && deps.runPreScript) {
+          const pre = deps.runPreScript(raw.preRequestScript, { request: raw, vars })
+          logs.push(...pre.logs)
+          if (pre.error) logs.push(`[pre-request error] ${pre.error}`)
+          if (pre.envSets.length) { await persistEnvSets(pre.envSets); vars = await activeVars() }
+          effective = pre.request
+        }
+        const payload = await deps.send(effective, { vars })
+        let testResults: import('../shared/types').TestResult[] = []
+        if (raw.testScript && deps.runTestScript) {
+          const post = deps.runTestScript(raw.testScript, { response: payload, vars })
+          logs.push(...post.logs)
+          if (post.error) logs.push(`[test error] ${post.error}`)
+          testResults = post.tests
+          if (post.envSets.length) await persistEnvSets(post.envSets)
+        }
+        const withMeta = { ...payload, testResults, consoleLogs: logs }
+        await deps.history.append(raw, payload.status)
+        return { type: 'response', requestId: msg.requestId, payload: withMeta }
       }
       case 'loadTree':
         return { type: 'tree', collections: await deps.collections.list() }

@@ -34,6 +34,8 @@ function deps() {
       delete: vi.fn(async () => {}),
     } as any,
     activeWorkspaceId: 'w1',
+    runPreScript: vi.fn((_s: string, c: any) => ({ request: { ...c.request, url: c.request.url + '?pre=1' }, envSets: [{ key: 'x', value: '1', enabled: true }], logs: ['pre log'] })),
+    runTestScript: vi.fn(() => ({ tests: [{ name: 't', passed: true }], envSets: [], logs: ['post log'] })),
   }
 }
 
@@ -44,7 +46,7 @@ describe('createRouter', () => {
       getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id } })
     const msg: WebviewMessage = { type: 'sendRequest', requestId: 'q1', payload: req() }
     const out = await route(msg)
-    expect(out).toEqual({ type: 'response', requestId: 'q1', payload: fakeResp })
+    expect(out).toEqual({ type: 'response', requestId: 'q1', payload: { ...fakeResp, testResults: [], consoleLogs: [] } })
     expect(d.send).toHaveBeenCalledWith(expect.anything(), { vars: [] })
     expect(d.history.append).toHaveBeenCalledOnce()
   })
@@ -153,5 +155,29 @@ describe('createRouter workspace + openRequest', () => {
     d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w2', requests: [] }])
     await router(d)({ type: 'deleteWorkspace', id: 'w2' })
     expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
+  })
+})
+
+describe('createRouter sendRequest with scripts', () => {
+  function router(d: any) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id },
+      runPreScript: d.runPreScript, runTestScript: d.runTestScript })
+  }
+  it('runs pre-script (mutated request sent), test-script, and attaches testResults + consoleLogs', async () => {
+    const d = deps(); d.activeEnvId = 'e1'
+    d.environments.list = vi.fn(async () => [{ id: 'e1', name: 'Dev', variables: [] }])
+    const payload: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'https://api/x', params: [], headers: [], body: { mode: 'none' }, preRequestScript: 'x', testScript: 'y' }
+    const out = await router(d)({ type: 'sendRequest', requestId: 'q1', payload }) as any
+    // the mutated request (url + ?pre=1) was sent, not the raw one:
+    expect((d.send as any).mock.calls[0][0].url).toBe('https://api/x?pre=1')
+    // response carries test results + logs (pre then post):
+    expect(out.payload.testResults).toEqual([{ name: 't', passed: true }])
+    expect(out.payload.consoleLogs).toEqual(['pre log', 'post log'])
+    // pre-script env write persisted:
+    expect(d.environments.saveEnvironment).toHaveBeenCalled()
+    // history recorded the RAW payload (no ?pre=1):
+    expect(d.history.append.mock.calls[0][0].url).toBe('https://api/x')
   })
 })

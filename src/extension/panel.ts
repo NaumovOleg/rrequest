@@ -3,6 +3,7 @@ import * as crypto from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
+import { runPreScript, runTestScript } from './sandbox'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
 import { EnvironmentStore } from './environment-store'
@@ -63,6 +64,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     workspaces,
     getActiveWorkspaceId: () => context.globalState.get<string>('restman.activeWorkspaceId', ''),
     setActiveWorkspaceId: (id) => { void context.globalState.update('restman.activeWorkspaceId', id) },
+    runPreScript,
+    runTestScript,
     openImport: async () => {
       const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { JSON: ['json'] } })
       if (!picked || !picked[0]) return null

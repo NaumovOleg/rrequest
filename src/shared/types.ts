@@ -21,12 +21,16 @@ export type RestRequest = {
   params: KeyValue[]
   headers: KeyValue[]
   body: RequestBody
+  preRequestScript?: string
+  testScript?: string
 }
 
 export type HttpError = {
   kind: 'dns' | 'connection' | 'timeout' | 'unknown'
   message: string
 }
+
+export type TestResult = { name: string; passed: boolean; error?: string }
 
 export type HttpResponse = {
   status: number
@@ -38,6 +42,8 @@ export type HttpResponse = {
   sizeBytes: number
   cookies: KeyValue[]
   error?: HttpError
+  testResults?: TestResult[]
+  consoleLogs?: string[]
 }
 
 export type Collection = { id: string; name: string; workspaceId: string; requests: RestRequest[] }

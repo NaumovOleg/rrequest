@@ -16,7 +16,7 @@ beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 describe('Sidebar', () => {
   it('lists collections and opens a request as a tab on click', () => {
     useStore.getState().setTree([{
-      id: 'c1', name: 'My Coll',
+      id: 'c1', name: 'My Coll', workspaceId: '',
       requests: [{ id: newId(), name: 'Get Users', method: 'GET', url: 'https://api/users', params: [], headers: [], body: { mode: 'none' } }],
     }])
     render(<Sidebar />)
@@ -56,7 +56,7 @@ describe('Sidebar', () => {
   })
 
   it('Export posts exportCollection with the collection id and format', () => {
-    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: /export postman for C/i }))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })

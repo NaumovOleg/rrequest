@@ -30,14 +30,14 @@ export class CollectionStore {
   }
 
   async createCollection(name: string): Promise<Collection> {
-    const c: Collection = { id: newId(), name, requests: [] }
+    const c: Collection = { id: newId(), name, workspaceId: '', requests: [] }
     await writeJsonAtomic(this.file(c.id), c)
     return c
   }
 
   async saveRequest(collectionId: string, request: RestRequest): Promise<Collection> {
     const c = (await readJsonSafe<Collection>(this.file(collectionId)))
-      ?? { id: collectionId, name: 'Collection', requests: [] }
+      ?? { id: collectionId, name: 'Collection', workspaceId: '', requests: [] }
     const i = c.requests.findIndex((r) => r.id === request.id)
     if (i >= 0) c.requests[i] = request
     else c.requests.push(request)

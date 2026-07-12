@@ -36,13 +36,13 @@ describe('RequestPanel', () => {
   })
 
   it('disables Save when no collection chosen', () => {
-    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
     render(<RequestPanel />)
     expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
   })
 
   it('choosing a collection enables Save and posts saveRequest', () => {
-    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
     render(<RequestPanel />)
     fireEvent.change(screen.getByLabelText(/save to collection/i), { target: { value: 'c1' } })
     const save = screen.getByRole('button', { name: /save/i })

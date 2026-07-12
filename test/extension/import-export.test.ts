@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { detectFormat, parseImport, serializeExport } from '../../src/extension/import-export'
 import type { Collection } from '../../src/shared/types'
 
-const native: Collection = { id: 'c1', name: 'N', requests: [
+const native: Collection = { id: 'c1', name: 'N', workspaceId: '', requests: [
   { id: 'r', name: 'x', method: 'GET', url: 'https://a/x', params: [], headers: [], body: { mode: 'none' } },
 ] }
 const pm = { info: { name: 'P', schema: 'v2.1.0' }, item: [{ name: 'x', request: { method: 'GET', url: { raw: 'https://a/x' }, header: [] } }] }

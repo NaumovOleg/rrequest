@@ -40,7 +40,9 @@ export type HttpResponse = {
   error?: HttpError
 }
 
-export type Collection = { id: string; name: string; requests: RestRequest[] }
+export type Collection = { id: string; name: string; workspaceId: string; requests: RestRequest[] }
+
+export type Workspace = { id: string; name: string }
 
 export type Environment = {
   id: string
@@ -71,6 +73,12 @@ export type WebviewMessage =
   | { type: 'importCollection' }
   | { type: 'exportCollection'; id: string; format: 'native' | 'postman' }
   | { type: 'pickFile' }
+  | { type: 'openRequest'; request: RestRequest }
+  | { type: 'loadWorkspaces' }
+  | { type: 'createWorkspace'; name: string }
+  | { type: 'renameWorkspace'; id: string; name: string }
+  | { type: 'deleteWorkspace'; id: string }
+  | { type: 'setActiveWorkspace'; id: string }
 
 // host -> webview
 export type HostMessage =
@@ -79,6 +87,8 @@ export type HostMessage =
   | { type: 'history'; entries: HistoryEntry[] }
   | { type: 'environments'; environments: Environment[]; activeId: string | null }
   | { type: 'pickedFile'; path: string; filename: string }
+  | { type: 'openInEditor'; request: RestRequest }
+  | { type: 'workspaces'; workspaces: Workspace[]; activeId: string }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

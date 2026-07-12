@@ -14,7 +14,7 @@ export function parseImport(text: string): Collection {
   const parsed = JSON.parse(text) // throws on non-JSON
   const fmt = detectFormat(parsed)
   if (fmt === 'postman') return toNative(parsed)
-  if (fmt === 'native') return { ...(parsed as Collection), id: (parsed as Collection).id || newId() }
+  if (fmt === 'native') return { ...(parsed as Collection), id: (parsed as Collection).id || newId(), workspaceId: (parsed as any).workspaceId ?? '' }
   throw new Error('Unrecognized collection format')
 }
 

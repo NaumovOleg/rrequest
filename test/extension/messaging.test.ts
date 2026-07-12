@@ -24,7 +24,7 @@ function deps() {
     activeEnvId: null as string | null,
     getActiveEnvId() { return this.activeEnvId },
     setActiveEnvId(id: string | null) { this.activeEnvId = id },
-    openImport: vi.fn(async () => ({ id: 'imp', name: 'Imp', requests: [] })),
+    openImport: vi.fn(async () => ({ id: 'imp', name: 'Imp', workspaceId: '', requests: [] })),
     runExport: vi.fn(async () => {}),
     pickFile: vi.fn(async () => ({ path: '/tmp/a', filename: 'a' })),
   }
@@ -93,7 +93,7 @@ describe('createRouter io routes', () => {
     const d = deps()
     const out = await fullRouter(d)({ type: 'importCollection' }) as any
     expect(d.openImport).toHaveBeenCalledOnce()
-    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'imp', name: 'Imp', requests: [] })
+    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'imp', name: 'Imp', workspaceId: '', requests: [] })
     expect(out.type).toBe('tree')
   })
   it('exportCollection runs export for the found collection', async () => {

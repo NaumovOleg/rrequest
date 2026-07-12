@@ -56,7 +56,7 @@ function flatten(items: any[], prefix: string, out: RestRequest[]): void {
 export function toNative(pm: any): Collection {
   const out: RestRequest[] = []
   flatten(pm?.item ?? [], '', out)
-  return { id: newId(), name: String(pm?.info?.name ?? 'Imported'), requests: out }
+  return { id: newId(), name: String(pm?.info?.name ?? 'Imported'), workspaceId: '', requests: out }
 }
 
 function nativeUrl(req: RestRequest): any {

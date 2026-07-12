@@ -48,7 +48,7 @@ describe('CollectionStore', () => {
   })
 
   it('saveCollection writes a whole collection and lists it', async () => {
-    const c = { id: 'imp1', name: 'Imported', requests: [
+    const c = { id: 'imp1', name: 'Imported', workspaceId: '', requests: [
       { id: 'r', name: 'x', method: 'GET' as const, url: 'https://a', params: [], headers: [], body: { mode: 'none' as const } },
     ] }
     await store.saveCollection(c)

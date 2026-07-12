@@ -37,7 +37,7 @@ describe('toNative', () => {
 
 describe('fromNative', () => {
   it('emits a v2.1 collection with flat items', () => {
-    const c: Collection = { id: '1', name: 'API', requests: [
+    const c: Collection = { id: '1', name: 'API', workspaceId: '', requests: [
       { id: 'a', name: 'Get', method: 'GET', url: 'https://api.test/x',
         params: [{ key: 'q', value: '1', enabled: true }],
         headers: [{ key: 'Accept', value: 'json', enabled: true }], body: { mode: 'none' } },
@@ -57,7 +57,7 @@ describe('fromNative', () => {
     expect(c.requests[0].url).toBe('https://api.test/users')
   })
   it('round-trips disabled headers and params', () => {
-    const theCollection: Collection = { id: '1', name: 'API', requests: [
+    const theCollection: Collection = { id: '1', name: 'API', workspaceId: '', requests: [
       { id: 'a', name: 'Get', method: 'GET', url: 'https://api.test/x',
         params: [{ key: 'q', value: '1', enabled: false }],
         headers: [

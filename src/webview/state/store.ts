@@ -16,6 +16,7 @@ type State = {
   pendingFilePick: { tabId: string; index: number } | null
   workspaces: Workspace[]
   activeWorkspaceId: string | null
+  pendingSaveCollectionId: string | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -28,6 +29,7 @@ type State = {
   setActiveEnvId(id: string | null): void
   setPendingFilePick(p: { tabId: string; index: number } | null): void
   setWorkspaces(list: Workspace[], activeId: string | null): void
+  setPendingSaveCollectionId(id: string | null): void
   __reset(): void
 }
 
@@ -42,6 +44,7 @@ export const useStore = create<State>((set) => ({
   pendingFilePick: null,
   workspaces: [],
   activeWorkspaceId: null,
+  pendingSaveCollectionId: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -76,5 +79,7 @@ export const useStore = create<State>((set) => ({
 
   setWorkspaces: (workspaces, activeWorkspaceId) => set({ workspaces, activeWorkspaceId }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null }),
+  setPendingSaveCollectionId: (pendingSaveCollectionId) => set({ pendingSaveCollectionId }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null }),
 }))

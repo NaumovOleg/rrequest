@@ -94,3 +94,12 @@ it('openNewTab seeds empty script fields', () => {
   expect(t.preRequestScript).toBe('')
   expect(t.testScript).toBe('')
 })
+
+describe('store pendingSaveCollectionId', () => {
+  it('sets and resets pendingSaveCollectionId', () => {
+    useStore.getState().setPendingSaveCollectionId('c1')
+    expect(useStore.getState().pendingSaveCollectionId).toBe('c1')
+    useStore.getState().__reset()
+    expect(useStore.getState().pendingSaveCollectionId).toBeNull()
+  })
+})

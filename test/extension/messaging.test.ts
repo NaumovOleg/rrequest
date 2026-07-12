@@ -13,7 +13,7 @@ const fakeResp: HttpResponse = {
 function deps() {
   return {
     send: vi.fn(async () => fakeResp),
-    collections: { list: vi.fn(async () => []), createCollection: vi.fn(async (n: string) => ({ id: 'c1', name: n, requests: [] })), saveRequest: vi.fn(async () => ({ id: 'c1', name: 'c', requests: [] })) } as any,
+    collections: { list: vi.fn(async () => []), createCollection: vi.fn(async (n: string) => ({ id: 'c1', name: n, requests: [] })), saveRequest: vi.fn(async () => ({ id: 'c1', name: 'c', requests: [] })), saveCollection: vi.fn(async (c: any) => c) } as any,
     history: { append: vi.fn(async () => {}), list: vi.fn(async () => []) } as any,
     environments: {
       list: vi.fn(async () => [] as any[]),
@@ -24,6 +24,9 @@ function deps() {
     activeEnvId: null as string | null,
     getActiveEnvId() { return this.activeEnvId },
     setActiveEnvId(id: string | null) { this.activeEnvId = id },
+    openImport: vi.fn(async () => ({ id: 'imp', name: 'Imp', requests: [] })),
+    runExport: vi.fn(async () => {}),
+    pickFile: vi.fn(async () => ({ path: '/tmp/a', filename: 'a' })),
   }
 }
 
@@ -77,5 +80,31 @@ describe('createRouter env routes', () => {
       environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id } })
     await route({ type: 'sendRequest', requestId: 'q1', payload: req() })
     expect(d.send).toHaveBeenCalledWith(expect.anything(), { vars: [{ key: 'base', value: 'V', enabled: true }] })
+  })
+})
+
+describe('createRouter io routes', () => {
+  function fullRouter(d: any) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
+      openImport: d.openImport, runExport: d.runExport, pickFile: d.pickFile })
+  }
+  it('importCollection saves the imported collection and returns tree', async () => {
+    const d = deps()
+    const out = await fullRouter(d)({ type: 'importCollection' }) as any
+    expect(d.openImport).toHaveBeenCalledOnce()
+    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'imp', name: 'Imp', requests: [] })
+    expect(out.type).toBe('tree')
+  })
+  it('exportCollection runs export for the found collection', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', requests: [] }])
+    await fullRouter(d)({ type: 'exportCollection', id: 'c1', format: 'postman' })
+    expect(d.runExport).toHaveBeenCalledWith({ id: 'c1', name: 'C', requests: [] }, 'postman')
+  })
+  it('pickFile returns a pickedFile message', async () => {
+    const d = deps()
+    const out = await fullRouter(d)({ type: 'pickFile' })
+    expect(out).toEqual({ type: 'pickedFile', path: '/tmp/a', filename: 'a' })
   })
 })

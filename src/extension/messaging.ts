@@ -11,6 +11,9 @@ export type RouterDeps = {
   environments: EnvironmentStore
   getActiveEnvId: () => string | null
   setActiveEnvId: (id: string | null) => void
+  openImport?: () => Promise<import('../shared/types').Collection | null>
+  runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman') => Promise<void>
+  pickFile?: () => Promise<{ path: string; filename: string } | null>
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -58,6 +61,20 @@ export function createRouter(deps: RouterDeps) {
       case 'setActiveEnv':
         deps.setActiveEnvId(msg.id)
         return await envSnapshot()
+      case 'importCollection': {
+        const c = deps.openImport ? await deps.openImport() : null
+        if (c) await deps.collections.saveCollection(c)
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'exportCollection': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.id)
+        if (c && deps.runExport) await deps.runExport(c, msg.format)
+        return undefined
+      }
+      case 'pickFile': {
+        const f = deps.pickFile ? await deps.pickFile() : null
+        return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
+      }
       default:
         return undefined
     }

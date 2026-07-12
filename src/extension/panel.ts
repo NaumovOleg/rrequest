@@ -1,10 +1,12 @@
 import * as vscode from 'vscode'
 import * as crypto from 'node:crypto'
+import * as fs from 'node:fs/promises'
 import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
 import { EnvironmentStore } from './environment-store'
+import { parseImport, serializeExport } from './import-export'
 import type { WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, cspSource: string, nonce: string): string {
@@ -55,6 +57,32 @@ export class RestmanPanel {
       environments: new EnvironmentStore(base),
       getActiveEnvId: () => context.globalState.get<string | null>('restman.activeEnvId', null),
       setActiveEnvId: (id) => { void context.globalState.update('restman.activeEnvId', id) },
+      openImport: async () => {
+        const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { JSON: ['json'] } })
+        if (!picked || !picked[0]) return null
+        try {
+          const text = await fs.readFile(picked[0].fsPath, 'utf8')
+          return parseImport(text)
+        } catch (e: any) {
+          void vscode.window.showErrorMessage(`restman import failed: ${e?.message ?? e}`)
+          return null
+        }
+      },
+      runExport: async (c, format) => {
+        const target = await vscode.window.showSaveDialog({ filters: { JSON: ['json'] }, saveLabel: 'Export' })
+        if (!target) return
+        try {
+          await fs.writeFile(target.fsPath, serializeExport(c, format), 'utf8')
+        } catch (e: any) {
+          void vscode.window.showErrorMessage(`restman export failed: ${e?.message ?? e}`)
+        }
+      },
+      pickFile: async () => {
+        const picked = await vscode.window.showOpenDialog({ canSelectMany: false })
+        if (!picked || !picked[0]) return null
+        const p = picked[0].fsPath
+        return { path: p, filename: p.split(/[\\/]/).pop() ?? p }
+      },
     })
 
     const scriptUri = panel.webview.asWebviewUri(

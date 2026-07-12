@@ -1,10 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 import { newId } from '../../src/shared/types'
+
+const posted: any[] = []
+vi.mock('../../src/webview/ipc', () => ({
+  postToHost: (m: any) => posted.push(m),
+  onHostMessage: () => () => {},
+}))
+
 import { Sidebar } from '../../src/webview/components/Sidebar/Sidebar'
 
-beforeEach(() => useStore.getState().__reset())
+beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 
 describe('Sidebar', () => {
   it('lists collections and opens a request as a tab on click', () => {
@@ -40,5 +47,18 @@ describe('Sidebar', () => {
   it('renders the Environments section', () => {
     render(<Sidebar />)
     expect(screen.getByText('Environments')).toBeInTheDocument()
+  })
+
+  it('Import button posts importCollection', () => {
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /^import$/i }))
+    expect(posted).toContainEqual({ type: 'importCollection' })
+  })
+
+  it('Export posts exportCollection with the collection id and format', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', requests: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /export postman for C/i }))
+    expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })
   })
 })

@@ -67,3 +67,12 @@ describe('store environments slice', () => {
     expect(useStore.getState().activeEnvId).toBeNull()
   })
 })
+
+describe('store pendingFilePick', () => {
+  it('sets and resets pendingFilePick', () => {
+    useStore.getState().setPendingFilePick({ tabId: 't1', index: 2 })
+    expect(useStore.getState().pendingFilePick).toEqual({ tabId: 't1', index: 2 })
+    useStore.getState().__reset()
+    expect(useStore.getState().pendingFilePick).toBeNull()
+  })
+})

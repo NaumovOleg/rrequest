@@ -13,6 +13,7 @@ type State = {
   history: HistoryEntry[]
   environments: Environment[]
   activeEnvId: string | null
+  pendingFilePick: { tabId: string; index: number } | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -22,6 +23,7 @@ type State = {
   setHistory(entries: HistoryEntry[]): void
   setEnvironments(list: Environment[]): void
   setActiveEnvId(id: string | null): void
+  setPendingFilePick(p: { tabId: string; index: number } | null): void
   __reset(): void
 }
 
@@ -33,6 +35,7 @@ export const useStore = create<State>((set) => ({
   history: [],
   environments: [],
   activeEnvId: null,
+  pendingFilePick: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -61,5 +64,7 @@ export const useStore = create<State>((set) => ({
 
   setActiveEnvId: (activeEnvId) => set({ activeEnvId }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null }),
+  setPendingFilePick: (pendingFilePick) => set({ pendingFilePick }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null }),
 }))

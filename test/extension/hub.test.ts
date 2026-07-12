@@ -39,4 +39,20 @@ describe('Hub', () => {
     expect(editor.find((m) => m.type === 'openInEditor')).toEqual(oie)
     expect(sidebar.find((m) => m.type === 'openInEditor')).toBeUndefined()
   })
+  it('reveals the editor before posting openInEditor', async () => {
+    const oie: HostMessage = { type: 'openInEditor', request: {} as any }
+    const { hub } = setup(async () => oie)
+    const reveal = vi.fn()
+    hub.setEditorReveal(reveal)
+    await hub.dispatch('sidebar', { type: 'openRequest', request: {} as any })
+    expect(reveal).toHaveBeenCalledOnce()
+  })
+  it('does not call the editor-reveal hook for non-openInEditor replies', async () => {
+    const resp: HostMessage = { type: 'response', requestId: 'q', payload: {} as any }
+    const { hub } = setup(async () => resp)
+    const reveal = vi.fn()
+    hub.setEditorReveal(reveal)
+    await hub.dispatch('editor', { type: 'sendRequest', requestId: 'q', payload: {} as any })
+    expect(reveal).not.toHaveBeenCalled()
+  })
 })

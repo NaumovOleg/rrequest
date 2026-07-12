@@ -28,20 +28,15 @@
     "views": {
       "restman": [
         {
-          "id": "restman.launch",
-          "name": "restman"
+          "id": "restman.sidebar",
+          "name": "restman",
+          "type": "webview"
         }
       ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "restman.launch",
-        "contents": "Open the restman REST client.\n[Open restman](command:restman.open)"
-      }
-    ]
+    }
   },
   "scripts": {
-    "build": "node esbuild.js && vite build",
+    "build": "node esbuild.js && RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build",
     "watch": "node esbuild.js --watch",
     "test": "vitest run"
   },

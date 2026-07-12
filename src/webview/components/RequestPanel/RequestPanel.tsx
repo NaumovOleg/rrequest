@@ -4,6 +4,7 @@ import { buildUrlFromParams } from '../../state/url-sync'
 import { postToHost } from '../../ipc'
 import type { HttpMethod, KeyValue } from '../../../shared/types'
 import { FormDataEditor } from './FormDataEditor'
+import { parseCurl, toCurl } from '../../curl'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 type SubTab = 'params' | 'headers' | 'body'
@@ -38,8 +39,10 @@ function KeyValueTable({ rows, onChange }: {
 export function RequestPanel() {
   const [sub, setSub] = useState<SubTab>('params')
   const [saveCollectionId, setSaveCollectionId] = useState('')
+  const [curlText, setCurlText] = useState('')
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId))
   const update = useStore((s) => s.updateActive)
+  const openNewTab = useStore((s) => s.openNewTab)
   const tree = useStore((s) => s.tree)
   if (!active) return <div className="rm-panel">No request open</div>
 
@@ -76,6 +79,13 @@ export function RequestPanel() {
           {tree.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button className="rm-btn" disabled={!saveCollectionId} onClick={save}>Save</button>
+      </div>
+
+      <div className="rm-row">
+        <button className="rm-btn" onClick={() => { void navigator.clipboard.writeText(toCurl(active)) }}>Copy as cURL</button>
+        <input className="rm-input" aria-label="curl command" placeholder="Paste curl command" value={curlText}
+          onChange={(e) => setCurlText(e.target.value)} />
+        <button className="rm-btn" onClick={() => { const p = parseCurl(curlText); openNewTab(); update(p); setCurlText('') }}>Import from cURL</button>
       </div>
 
       <div className="rm-row">

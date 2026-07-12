@@ -20,7 +20,7 @@ describe('RequestPanel', () => {
 
   it('enables Send and posts a sendRequest with folded params', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByPlaceholderText(/url/i), { target: { value: 'https://api.test/x' } })
+    fireEvent.change(screen.getByPlaceholderText('URL'), { target: { value: 'https://api.test/x' } })
     const send = screen.getByRole('button', { name: /send/i })
     expect(send).not.toBeDisabled()
     fireEvent.click(send)
@@ -58,5 +58,22 @@ describe('RequestPanel', () => {
     render(<RequestPanel />)
     fireEvent.change(screen.getByLabelText(/request name/i), { target: { value: 'My Req' } })
     expect(useStore.getState().tabs[0].name).toBe('My Req')
+  })
+
+  it('Copy as cURL writes the request as a curl command to the clipboard', () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+    useStore.getState().updateActive({ method: 'GET', url: 'https://api.test/x' })
+    render(<RequestPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /copy as curl/i }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`curl -X GET 'https://api.test/x'`))
+  })
+
+  it('Import from cURL creates a new tab from the pasted command', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/curl command/i), { target: { value: 'curl -X POST https://api.test/y' } })
+    fireEvent.click(screen.getByRole('button', { name: /import from curl/i }))
+    const s = useStore.getState(); const active = s.tabs.find((t) => t.id === s.activeTabId)!
+    expect(active.url).toBe('https://api.test/y'); expect(active.method).toBe('POST')
   })
 })

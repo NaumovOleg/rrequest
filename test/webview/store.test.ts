@@ -87,3 +87,10 @@ describe('store workspaces slice', () => {
     expect(useStore.getState().activeWorkspaceId).toBeNull()
   })
 })
+
+it('openNewTab seeds empty script fields', () => {
+  useStore.getState().openNewTab()
+  const t = useStore.getState().tabs[0]
+  expect(t.preRequestScript).toBe('')
+  expect(t.testScript).toBe('')
+})

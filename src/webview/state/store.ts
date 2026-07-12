@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type RestRequest, type Workspace } from '../../shared/types'
 
 function blankRequest(): RestRequest {
-  return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' } }
+  return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
 }
 
 type State = {

@@ -76,4 +76,14 @@ describe('RequestPanel', () => {
     const s = useStore.getState(); const active = s.tabs.find((t) => t.id === s.activeTabId)!
     expect(active.url).toBe('https://api.test/y'); expect(active.method).toBe('POST')
   })
+
+  it('edits the pre-request and test scripts', () => {
+    render(<RequestPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /pre-request/i }))
+    fireEvent.change(screen.getByLabelText(/pre-request script/i), { target: { value: 'pm.environment.set("a","1")' } })
+    expect(useStore.getState().tabs[0].preRequestScript).toBe('pm.environment.set("a","1")')
+    fireEvent.click(screen.getByRole('button', { name: /^tests$/i }))
+    fireEvent.change(screen.getByLabelText(/test script/i), { target: { value: 'pm.test("t", () => {})' } })
+    expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
+  })
 })

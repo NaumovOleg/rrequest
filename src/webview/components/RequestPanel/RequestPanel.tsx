@@ -7,7 +7,7 @@ import { FormDataEditor } from './FormDataEditor'
 import { parseCurl, toCurl } from '../../curl'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-type SubTab = 'params' | 'headers' | 'body'
+type SubTab = 'params' | 'headers' | 'body' | 'pre-request' | 'tests'
 
 function KeyValueTable({ rows, onChange }: {
   rows: KeyValue[]; onChange: (rows: KeyValue[]) => void
@@ -89,7 +89,7 @@ export function RequestPanel() {
       </div>
 
       <div className="rm-row">
-        {(['params', 'headers', 'body'] as SubTab[]).map((t) => (
+        {(['params', 'headers', 'body', 'pre-request', 'tests'] as SubTab[]).map((t) => (
           <button key={t} className="rm-btn" onClick={() => setSub(t)}>{t}</button>
         ))}
       </div>
@@ -123,6 +123,16 @@ export function RequestPanel() {
           )}
           {active.body.mode === 'formdata' && <FormDataEditor />}
         </div>
+      )}
+      {sub === 'pre-request' && (
+        <textarea className="rm-input" aria-label="pre-request script" rows={8} style={{ width: '100%' }}
+          value={active.preRequestScript ?? ''}
+          onChange={(e) => update({ preRequestScript: e.target.value })} />
+      )}
+      {sub === 'tests' && (
+        <textarea className="rm-input" aria-label="test script" rows={8} style={{ width: '100%' }}
+          value={active.testScript ?? ''}
+          onChange={(e) => update({ testScript: e.target.value })} />
       )}
     </div>
   )

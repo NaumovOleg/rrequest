@@ -29,8 +29,8 @@ export class CollectionStore {
     return out
   }
 
-  async createCollection(name: string): Promise<Collection> {
-    const c: Collection = { id: newId(), name, workspaceId: '', requests: [] }
+  async createCollection(name: string, workspaceId: string): Promise<Collection> {
+    const c: Collection = { id: newId(), name, workspaceId, requests: [] }
     await writeJsonAtomic(this.file(c.id), c)
     return c
   }

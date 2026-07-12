@@ -22,15 +22,15 @@ describe('CollectionStore', () => {
     expect(await store.list()).toEqual([])
   })
 
-  it('creates a collection and lists it', async () => {
-    const c = await store.createCollection('My Coll')
+  it('creates a collection with a workspace id and lists it', async () => {
+    const c = await store.createCollection('My Coll', 'ws1')
     expect(c.name).toBe('My Coll')
-    const all = await store.list()
-    expect(all.map((x) => x.name)).toEqual(['My Coll'])
+    expect(c.workspaceId).toBe('ws1')
+    expect((await store.list()).map((x) => x.name)).toEqual(['My Coll'])
   })
 
   it('saves a request into a collection and upserts by id', async () => {
-    const c = await store.createCollection('C')
+    const c = await store.createCollection('C', 'ws1')
     const r = req('First')
     await store.saveRequest(c.id, r)
     const updated = { ...r, name: 'Renamed' }
@@ -41,7 +41,7 @@ describe('CollectionStore', () => {
   })
 
   it('skips a corrupt collection file when listing', async () => {
-    await store.createCollection('Good')
+    await store.createCollection('Good', 'ws1')
     await fs.writeFile(path.join(dir, 'collections', 'bad.json'), '{ broken')
     const all = await store.list()
     expect(all.map((x) => x.name)).toEqual(['Good'])

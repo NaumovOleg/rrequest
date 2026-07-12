@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 import { ResponsePanel } from '../../src/webview/components/ResponsePanel/ResponsePanel'
 
@@ -35,5 +35,22 @@ describe('ResponsePanel', () => {
     })
     render(<ResponsePanel />)
     expect(screen.getByText(/too large|truncated/i)).toBeInTheDocument()
+  })
+
+  it('renders test results and console logs', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: '{}',
+      bodyTruncated: false, timeMs: 1, sizeBytes: 2, cookies: [],
+      testResults: [{ name: 'status is 200', passed: true }, { name: 'has id', passed: false, error: 'expected undefined to equal 1' }],
+      consoleLogs: ['log line one'],
+    })
+    render(<ResponsePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /test results/i }))
+    expect(screen.getByText(/PASS/)).toBeInTheDocument()
+    expect(screen.getByText(/status is 200/)).toBeInTheDocument()
+    expect(screen.getByText(/FAIL/)).toBeInTheDocument()
+    expect(screen.getByText(/expected undefined to equal 1/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /console/i }))
+    expect(screen.getByText('log line one')).toBeInTheDocument()
   })
 })

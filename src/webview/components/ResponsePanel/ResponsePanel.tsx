@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../../state/store'
 import type { HttpResponse } from '../../../shared/types'
 
-type SubTab = 'body' | 'headers' | 'cookies'
+type SubTab = 'body' | 'headers' | 'cookies' | 'test-results' | 'console'
 
 function prettyBody(resp: HttpResponse): string {
   const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
@@ -35,8 +35,8 @@ export function ResponsePanel() {
         <span>Size: {resp.sizeBytes} B</span>
       </div>
       <div className="rm-row">
-        {(['body', 'headers', 'cookies'] as SubTab[]).map((t) => (
-          <button key={t} className="rm-btn" onClick={() => setSub(t)}>{t}</button>
+        {(['body', 'headers', 'cookies', 'test-results', 'console'] as SubTab[]).map((t) => (
+          <button key={t} className="rm-btn" onClick={() => setSub(t)}>{t.replace('-', ' ')}</button>
         ))}
       </div>
       {sub === 'body' && (
@@ -58,6 +58,21 @@ export function ResponsePanel() {
             <tr key={i}><td>{c.key}</td><td>{c.value}</td></tr>
           ))}
         </tbody></table>
+      )}
+      {sub === 'test-results' && (
+        <table><tbody>
+          {(resp.testResults ?? []).map((t, i) => (
+            <tr key={i}>
+              <td style={{ color: t.passed ? 'var(--vscode-testing-iconPassed, green)' : 'var(--vscode-errorForeground)' }}>
+                {t.passed ? 'PASS' : 'FAIL'}
+              </td>
+              <td>{t.name}{t.error ? `: ${t.error}` : ''}</td>
+            </tr>
+          ))}
+        </tbody></table>
+      )}
+      {sub === 'console' && (
+        <pre className="rm-input" style={{ whiteSpace: 'pre-wrap' }}>{(resp.consoleLogs ?? []).join('\n')}</pre>
       )}
     </div>
   )

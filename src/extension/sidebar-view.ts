@@ -30,9 +30,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     ).toString()
     view.webview.html = buildSidebarHtml(scriptUri, styleUri, view.webview.cspSource, nonce())
 
+    // Subscribe to dispose BEFORE awaiting the bootstrap: if the view is disposed
+    // during the await window, the emitter won't replay, so guard registration.
+    let disposed = false
+    let unregister: (() => void) | undefined
+    view.onDidDispose(() => { disposed = true; unregister?.() })
+
     const hub = await ensureBootstrap(this.context)
-    const unregister = hub.register('sidebar', (m) => { void view.webview.postMessage(m) })
+    if (disposed) return
+    unregister = hub.register('sidebar', (m) => { void view.webview.postMessage(m) })
     view.webview.onDidReceiveMessage((msg: WebviewMessage) => { void hub.dispatch('sidebar', msg) })
-    view.onDidDispose(() => unregister())
   }
 }

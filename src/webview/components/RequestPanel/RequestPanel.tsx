@@ -46,7 +46,7 @@ export function RequestPanel() {
   const tree = useStore((s) => s.tree)
   const pendingSaveCollectionId = useStore((s) => s.pendingSaveCollectionId)
   useEffect(() => {
-    if (pendingSaveCollectionId) setSaveCollectionId(pendingSaveCollectionId)
+    setSaveCollectionId(pendingSaveCollectionId ?? '')
   }, [pendingSaveCollectionId])
   if (!active) return <div className="rm-panel">No request open</div>
 

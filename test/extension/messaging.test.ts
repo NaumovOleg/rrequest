@@ -147,7 +147,13 @@ describe('createRouter workspace + openRequest', () => {
     const d = deps()
     const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
     const out = await router(d)({ type: 'openRequest', request: req })
-    expect(out).toEqual({ type: 'openInEditor', request: req })
+    expect(out).toEqual({ type: 'openInEditor', request: req, targetCollectionId: undefined })
+  })
+  it('openRequest forwards targetCollectionId to the openInEditor message', async () => {
+    const d = deps()
+    const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    const out = await router(d)({ type: 'openRequest', request: req, targetCollectionId: 'c1' })
+    expect(out).toEqual({ type: 'openInEditor', request: req, targetCollectionId: 'c1' })
   })
   it('deleteWorkspace reassigns collections of a non-active deleted workspace to the active workspace', async () => {
     const d = deps()

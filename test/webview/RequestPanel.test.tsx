@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 
 const posted: any[] = []
@@ -92,5 +92,14 @@ describe('RequestPanel', () => {
     useStore.getState().setPendingSaveCollectionId('c2')
     render(<RequestPanel />)
     expect((screen.getByLabelText(/save to collection/i) as HTMLSelectElement).value).toBe('c2')
+  })
+
+  it('clears the Save collection dropdown when pendingSaveCollectionId is reset to null', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C1', workspaceId: 'w1', requests: [] }, { id: 'c2', name: 'C2', workspaceId: 'w1', requests: [] }])
+    useStore.getState().setPendingSaveCollectionId('c1')
+    render(<RequestPanel />)
+    expect((screen.getByLabelText(/save to collection/i) as HTMLSelectElement).value).toBe('c1')
+    act(() => { useStore.getState().setPendingSaveCollectionId(null) })
+    expect((screen.getByLabelText(/save to collection/i) as HTMLSelectElement).value).toBe('')
   })
 })

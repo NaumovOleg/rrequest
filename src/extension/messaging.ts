@@ -119,7 +119,7 @@ export function createRouter(deps: RouterDeps) {
         return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
       }
       case 'openRequest':
-        return { type: 'openInEditor', request: msg.request }
+        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId }
       case 'loadWorkspaces':
         return await wsSnapshot()
       case 'createWorkspace':

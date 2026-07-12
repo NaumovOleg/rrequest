@@ -36,9 +36,10 @@ function nonce(): string {
 // dialog impls used by both surfaces), builds a snapshot() that returns the
 // workspace-filtered tree + environments + workspaces + history, and creates a
 // singleton Hub shared by both the editor panel and the sidebar view.
-let hubSingleton: Hub | undefined
-async function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
-  if (hubSingleton) return hubSingleton
+let bootstrapPromise: Promise<Hub> | undefined
+function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
+  if (bootstrapPromise) return bootstrapPromise
+  bootstrapPromise = (async () => {
   const base = context.globalStorageUri.fsPath
   const collections = new CollectionStore(base)
   const environments = new EnvironmentStore(base)
@@ -104,8 +105,9 @@ async function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   const hub = new Hub(route, snapshot)
   // Let the Hub reveal/create the editor panel when routing openInEditor.
   hub.setEditorReveal(() => { RestmanPanel.createOrShow(context) })
-  hubSingleton = hub
-  return hubSingleton
+  return hub
+  })()
+  return bootstrapPromise
 }
 
 export { ensureBootstrap }
@@ -139,7 +141,11 @@ export class RestmanPanel {
     panel.webview.html = buildHtml(scriptUri, styleUri, panel.webview.cspSource, nonce())
 
     let unregister: (() => void) | undefined
+    let disposed = false
     void ensureBootstrap(context).then((hub) => {
+      // If the panel was disposed before bootstrap resolved, do not register a
+      // sink to an already-dead webview (it would never be cleaned up).
+      if (disposed) return
       unregister = hub.register('editor', (m) => { void panel.webview.postMessage(m) })
     })
     panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
@@ -148,6 +154,7 @@ export class RestmanPanel {
     })
 
     panel.onDidDispose(() => {
+      disposed = true
       unregister?.()
       RestmanPanel.current = undefined
     })

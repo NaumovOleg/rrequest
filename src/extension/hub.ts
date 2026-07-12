@@ -6,6 +6,9 @@ type Sink = (m: HostMessage) => void
 export class Hub {
   private readonly sinks = new Map<SurfaceId, Sink>()
   private onOpenInEditor?: () => void
+  // openInEditor messages routed while no 'editor' sink exists yet are queued
+  // here and flushed when the editor registers (fixes the first-click race).
+  private readonly pendingEditor: HostMessage[] = []
   constructor(
     private readonly route: (m: WebviewMessage) => Promise<HostMessage | undefined>,
     private readonly snapshot: () => Promise<HostMessage[]>,
@@ -13,6 +16,10 @@ export class Hub {
 
   register(id: SurfaceId, post: Sink): () => void {
     this.sinks.set(id, post)
+    if (id === 'editor' && this.pendingEditor.length > 0) {
+      for (const m of this.pendingEditor) post(m)
+      this.pendingEditor.length = 0
+    }
     return () => { if (this.sinks.get(id) === post) this.sinks.delete(id) }
   }
 
@@ -29,7 +36,8 @@ export class Hub {
       if (reply.type === 'response' || reply.type === 'pickedFile') this.postTo(fromId, reply)
       else if (reply.type === 'openInEditor') {
         this.onOpenInEditor?.()
-        this.postTo('editor', reply)
+        if (this.sinks.has('editor')) this.postTo('editor', reply)
+        else this.pendingEditor.push(reply)
       }
       // tree/environments/workspaces/history replies are covered by the snapshot below
     }

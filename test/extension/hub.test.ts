@@ -55,4 +55,17 @@ describe('Hub', () => {
     await hub.dispatch('editor', { type: 'sendRequest', requestId: 'q', payload: {} as any })
     expect(reveal).not.toHaveBeenCalled()
   })
+  it('queues openInEditor until an editor sink registers, then flushes it', async () => {
+    const oie: HostMessage = { type: 'openInEditor', request: {} as any }
+    const hub = new Hub(async () => oie, snapshot)
+    const sidebar: HostMessage[] = []
+    hub.register('sidebar', (m) => sidebar.push(m))
+    // No editor sink registered yet: dispatch must not throw and must queue.
+    await expect(hub.dispatch('sidebar', { type: 'openRequest', request: {} as any })).resolves.toBeUndefined()
+    expect(sidebar.find((m) => m.type === 'openInEditor')).toBeUndefined()
+    // Registering the editor sink flushes the queued openInEditor in order.
+    const editor: HostMessage[] = []
+    hub.register('editor', (m) => editor.push(m))
+    expect(editor).toEqual([oie])
+  })
 })

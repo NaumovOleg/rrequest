@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../../state/store'
 import { buildUrlFromParams } from '../../state/url-sync'
 import { postToHost } from '../../ipc'
@@ -44,6 +44,10 @@ export function RequestPanel() {
   const update = useStore((s) => s.updateActive)
   const openNewTab = useStore((s) => s.openNewTab)
   const tree = useStore((s) => s.tree)
+  const pendingSaveCollectionId = useStore((s) => s.pendingSaveCollectionId)
+  useEffect(() => {
+    if (pendingSaveCollectionId) setSaveCollectionId(pendingSaveCollectionId)
+  }, [pendingSaveCollectionId])
   if (!active) return <div className="rm-panel">No request open</div>
 
   const send = () => {

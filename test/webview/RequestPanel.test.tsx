@@ -86,4 +86,11 @@ describe('RequestPanel', () => {
     fireEvent.change(screen.getByLabelText(/test script/i), { target: { value: 'pm.test("t", () => {})' } })
     expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
   })
+
+  it('the Save collection dropdown initializes from pendingSaveCollectionId', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C1', workspaceId: 'w1', requests: [] }, { id: 'c2', name: 'C2', workspaceId: 'w1', requests: [] }])
+    useStore.getState().setPendingSaveCollectionId('c2')
+    render(<RequestPanel />)
+    expect((screen.getByLabelText(/save to collection/i) as HTMLSelectElement).value).toBe('c2')
+  })
 })

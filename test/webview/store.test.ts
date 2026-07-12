@@ -76,3 +76,14 @@ describe('store pendingFilePick', () => {
     expect(useStore.getState().pendingFilePick).toBeNull()
   })
 })
+
+describe('store workspaces slice', () => {
+  it('setWorkspaces sets list + active and __reset clears them', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Default' }], 'w1')
+    expect(useStore.getState().workspaces).toHaveLength(1)
+    expect(useStore.getState().activeWorkspaceId).toBe('w1')
+    useStore.getState().__reset()
+    expect(useStore.getState().workspaces).toEqual([])
+    expect(useStore.getState().activeWorkspaceId).toBeNull()
+  })
+})

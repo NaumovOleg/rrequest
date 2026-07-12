@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type RestRequest } from '../../shared/types'
+import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type RestRequest, type Workspace } from '../../shared/types'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' } }
@@ -14,6 +14,8 @@ type State = {
   environments: Environment[]
   activeEnvId: string | null
   pendingFilePick: { tabId: string; index: number } | null
+  workspaces: Workspace[]
+  activeWorkspaceId: string | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -24,6 +26,7 @@ type State = {
   setEnvironments(list: Environment[]): void
   setActiveEnvId(id: string | null): void
   setPendingFilePick(p: { tabId: string; index: number } | null): void
+  setWorkspaces(list: Workspace[], activeId: string | null): void
   __reset(): void
 }
 
@@ -36,6 +39,8 @@ export const useStore = create<State>((set) => ({
   environments: [],
   activeEnvId: null,
   pendingFilePick: null,
+  workspaces: [],
+  activeWorkspaceId: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -66,5 +71,7 @@ export const useStore = create<State>((set) => ({
 
   setPendingFilePick: (pendingFilePick) => set({ pendingFilePick }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null }),
+  setWorkspaces: (workspaces, activeWorkspaceId) => set({ workspaces, activeWorkspaceId }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null }),
 }))

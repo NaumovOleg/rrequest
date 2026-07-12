@@ -20,6 +20,7 @@ type State = {
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
+  setTabBody(tabId: string, body: RestRequest['body']): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
   setHistory(entries: HistoryEntry[]): void
@@ -58,6 +59,8 @@ export const useStore = create<State>((set) => ({
   updateActive: (patch) => set((s) => ({
     tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch } : t)),
   })),
+
+  setTabBody: (tabId, body) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, body } : t)) })),
 
   setTree: (tree) => set({ tree }),
 

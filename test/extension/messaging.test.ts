@@ -147,4 +147,11 @@ describe('createRouter workspace + openRequest', () => {
     const out = await router(d)({ type: 'openRequest', request: req })
     expect(out).toEqual({ type: 'openInEditor', request: req })
   })
+  it('deleteWorkspace reassigns collections of a non-active deleted workspace to the active workspace', async () => {
+    const d = deps()
+    d.activeWorkspaceId = 'w1'
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w2', requests: [] }])
+    await router(d)({ type: 'deleteWorkspace', id: 'w2' })
+    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
+  })
 })

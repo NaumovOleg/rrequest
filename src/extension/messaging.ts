@@ -97,14 +97,16 @@ export function createRouter(deps: RouterDeps) {
         return await wsSnapshot()
       case 'deleteWorkspace': {
         await deps.workspaces.delete(msg.id)
+        // if the active workspace was deleted, pick/create a fallback and make it active
         if (deps.getActiveWorkspaceId() === msg.id) {
           const remaining = await deps.workspaces.list()
           const fallback = remaining[0] ?? (await deps.workspaces.create('Default'))
           deps.setActiveWorkspaceId(fallback.id)
-          // reassign orphaned collections to the fallback workspace
-          for (const c of await deps.collections.list()) {
-            if (c.workspaceId === msg.id) await deps.collections.saveCollection({ ...c, workspaceId: fallback.id })
-          }
+        }
+        // reassign orphaned collections to the (now-)active workspace, regardless of which ws was deleted
+        const target = deps.getActiveWorkspaceId()
+        for (const c of await deps.collections.list()) {
+          if (c.workspaceId === msg.id) await deps.collections.saveCollection({ ...c, workspaceId: target })
         }
         return await wsSnapshot()
       }

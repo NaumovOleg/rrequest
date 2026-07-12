@@ -107,6 +107,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   hub.setEditorReveal(() => { RestmanPanel.createOrShow(context) })
   return hub
   })()
+  bootstrapPromise.catch(() => { bootstrapPromise = undefined })
   return bootstrapPromise
 }
 

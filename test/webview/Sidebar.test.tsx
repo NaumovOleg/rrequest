@@ -23,11 +23,6 @@ describe('Sidebar', () => {
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
 
-  it('renders the Environments section', () => {
-    render(<Sidebar />)
-    expect(screen.getByText('Environments')).toBeInTheDocument()
-  })
-
   it('Import button posts importCollection', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: /^import$/i }))

@@ -14,6 +14,7 @@ export function EditorApp() {
   const setActiveEnvId = useStore((s) => s.setActiveEnvId)
   const openNewTab = useStore((s) => s.openNewTab)
   const updateActive = useStore((s) => s.updateActive)
+  const setPendingSaveCollectionId = useStore((s) => s.setPendingSaveCollectionId)
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -24,6 +25,7 @@ export function EditorApp() {
         const r = m.request
         openNewTab()
         updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body, preRequestScript: r.preRequestScript ?? '', testScript: r.testScript ?? '' })
+        setPendingSaveCollectionId(m.targetCollectionId ?? null)
       } else if (m.type === 'pickedFile') {
         const st = useStore.getState()
         const pending = st.pendingFilePick
@@ -40,8 +42,9 @@ export function EditorApp() {
     })
     postToHost({ type: 'ready' })
     postToHost({ type: 'loadEnvironments' })
+    if (useStore.getState().tabs.length === 0) openNewTab()
     return off
-  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive])
+  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId])
 
   return (
     <div className="rm-row" style={{ alignItems: 'stretch', height: '100vh' }}>

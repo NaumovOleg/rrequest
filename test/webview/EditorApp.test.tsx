@@ -43,4 +43,14 @@ describe('EditorApp', () => {
     expect(item).toMatchObject({ path: '/tmp/a.png', filename: 'a.png' })
     expect(useStore.getState().pendingFilePick).toBeNull()
   })
+  it('opens a blank tab on mount when there are no tabs', () => {
+    expect(useStore.getState().tabs).toHaveLength(0)
+    render(<EditorApp />)
+    expect(useStore.getState().tabs).toHaveLength(1)
+  })
+  it('openInEditor with targetCollectionId sets pendingSaveCollectionId', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, targetCollectionId: 'c9' }))
+    expect(useStore.getState().pendingSaveCollectionId).toBe('c9')
+  })
 })

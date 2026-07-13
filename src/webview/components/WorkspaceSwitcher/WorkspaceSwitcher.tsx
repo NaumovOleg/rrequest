@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
+import { IconButton } from '../common/IconButton'
+import { RenameInput } from '../common/RenameInput'
 
 export function WorkspaceSwitcher() {
   const workspaces = useStore((s) => s.workspaces)
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
   const active = workspaces.find((w) => w.id === activeWorkspaceId)
-  const [renameValue, setRenameValue] = useState(active?.name ?? '')
-
-  useEffect(() => {
-    setRenameValue(active?.name ?? '')
-  }, [active?.id, active?.name])
+  const [renaming, setRenaming] = useState(false)
 
   return (
     <div className="rm-section">
@@ -20,15 +18,19 @@ export function WorkspaceSwitcher() {
           onChange={(e) => postToHost({ type: 'setActiveWorkspace', id: e.target.value })}>
           {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
-        <button className="rm-btn" onClick={() => postToHost({ type: 'createWorkspace', name: 'New Workspace' })}>+ New Workspace</button>
-        <input className="rm-input" aria-label="rename workspace" value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)} />
-        <button className="rm-btn" onClick={() => {
-          if (activeWorkspaceId && renameValue.trim()) postToHost({ type: 'renameWorkspace', id: activeWorkspaceId, name: renameValue })
-        }}>Rename</button>
-        <button className="rm-btn" onClick={() => {
-          if (activeWorkspaceId) postToHost({ type: 'deleteWorkspace', id: activeWorkspaceId })
-        }}>Delete Workspace</button>
+        <div className="rm-actions">
+          <IconButton icon="add" label="new workspace" onClick={() => postToHost({ type: 'createWorkspace', name: 'New Workspace' })} />
+          {renaming
+            ? <RenameInput initial={active?.name ?? ''}
+                onCommit={(name) => { if (activeWorkspaceId) postToHost({ type: 'renameWorkspace', id: activeWorkspaceId, name }); setRenaming(false) }}
+                onCancel={() => setRenaming(false)} />
+            : <IconButton icon="edit" label="rename workspace" onClick={() => setRenaming(true)} />}
+          <IconButton icon="trash" label="delete workspace" onClick={() => {
+            if (activeWorkspaceId) postToHost({ type: 'deleteWorkspace', id: activeWorkspaceId })
+          }} />
+          <IconButton icon="add" label="new environment" onClick={() => postToHost({ type: 'createEnvironment', name: 'New Environment' })} />
+          <IconButton icon="gear" label="environments" onClick={() => postToHost({ type: 'openEnvironments' })} />
+        </div>
       </div>
     </div>
   )

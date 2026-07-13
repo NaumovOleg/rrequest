@@ -43,15 +43,20 @@ function KeyValueTable({ rows, onChange }: {
 export function RequestPanel() {
   const [sub, setSub] = useState<SubTab>('params')
   const [saveCollectionId, setSaveCollectionId] = useState('')
+  const [saveFolderId, setSaveFolderId] = useState('')
   const [curlText, setCurlText] = useState('')
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId))
   const update = useStore((s) => s.updateActive)
   const openNewTab = useStore((s) => s.openNewTab)
   const tree = useStore((s) => s.tree)
   const pendingSaveCollectionId = useStore((s) => s.pendingSaveCollectionId)
+  const pendingSaveFolderId = useStore((s) => s.pendingSaveFolderId)
   useEffect(() => {
     setSaveCollectionId(pendingSaveCollectionId ?? '')
   }, [pendingSaveCollectionId])
+  useEffect(() => {
+    setSaveFolderId(pendingSaveFolderId ?? '')
+  }, [pendingSaveFolderId])
   if (!active) return <div className="rm-panel">No request open</div>
 
   const send = () => {
@@ -60,8 +65,10 @@ export function RequestPanel() {
   }
 
   const save = () => {
-    postToHost({ type: 'saveRequest', collectionId: saveCollectionId, request: active })
+    postToHost({ type: 'saveRequest', collectionId: saveCollectionId, folderId: saveFolderId || null, request: active })
   }
+
+  const saveFolders = tree.find((c) => c.id === saveCollectionId)?.folders ?? []
 
   return (
     <div className="rm-panel">
@@ -85,6 +92,11 @@ export function RequestPanel() {
           onChange={(e) => setSaveCollectionId(e.target.value)}>
           <option value="" disabled>Select collection</option>
           {tree.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select className="rm-select" aria-label="save to folder" value={saveFolderId}
+          onChange={(e) => setSaveFolderId(e.target.value)}>
+          <option value="">(root)</option>
+          {saveFolders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
         </select>
         <button className="rm-btn" disabled={!saveCollectionId} onClick={save}>Save</button>
       </div>

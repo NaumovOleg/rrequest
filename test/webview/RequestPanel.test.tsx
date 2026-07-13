@@ -111,4 +111,14 @@ describe('RequestPanel', () => {
     // params sub-tab active by default
     expect(document.querySelector('.rm-subtab.is-active')).toBeTruthy()
   })
+
+  it('Save posts the pending folder id', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }] }])
+    useStore.getState().setPendingSaveCollectionId('c1')
+    useStore.getState().setPendingSaveFolderId('f1')
+    render(<RequestPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    const msg = posted.find((m) => m.type === 'saveRequest')
+    expect(msg.collectionId).toBe('c1'); expect(msg.folderId).toBe('f1')
+  })
 })

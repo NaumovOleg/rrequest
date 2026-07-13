@@ -9,18 +9,21 @@ function WsHeadersTable({ rows, onChange }: {
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const withBlank = [...rows, { key: '', value: '', enabled: true }]
   return (
-    <table>
+    <table className="rm-kvtable">
+      <thead>
+        <tr><th></th><th>Key</th><th>Value</th></tr>
+      </thead>
       <tbody>
         {withBlank.map((r, i) => (
           <tr key={i} className="rm-row">
             <td><input type="checkbox" aria-label={`ws header enabled ${i}`} checked={r.enabled}
               onChange={(e) => i < rows.length && update(i, { enabled: e.target.checked })} /></td>
-            <td><input className="rm-input" aria-label={`ws header key ${i}`} placeholder="key" value={r.key}
+            <td><input className="rm-input rm-kv-input" aria-label={`ws header key ${i}`} placeholder="key" value={r.key}
               onChange={(e) => {
                 if (i < rows.length) update(i, { key: e.target.value })
                 else onChange([...rows, { key: e.target.value, value: '', enabled: true }])
               }} /></td>
-            <td><input className="rm-input" aria-label={`ws header value ${i}`} placeholder="value" value={r.value}
+            <td><input className="rm-input rm-kv-input" aria-label={`ws header value ${i}`} placeholder="value" value={r.value}
               onChange={(e) => i < rows.length && update(i, { value: e.target.value })} /></td>
           </tr>
         ))}
@@ -56,25 +59,25 @@ export function WebSocketPanel() {
   }
 
   return (
-    <div className="rm-panel" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div className="rm-row">
-        <input className="rm-input" aria-label="websocket url" placeholder="wss://..." style={{ flex: 1 }}
+    <div className="rm-surface">
+      <div className="rm-urlbar">
+        <input className="rm-input rm-url-input" aria-label="websocket url" placeholder="wss://..."
           value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} />
         {wsStatus === 'closed'
-          ? <button className="rm-btn" disabled={!wsUrl} onClick={connect}>Connect</button>
+          ? <button className="rm-btn rm-btn--primary" disabled={!wsUrl} onClick={connect}>Connect</button>
           : <button className="rm-btn" onClick={disconnect}>Disconnect</button>}
-        <span>{wsStatus}</span>
+        <span className={`rm-status-pill ${wsStatus === 'open' ? 'is-2xx' : wsStatus === 'connecting' ? 'is-4xx' : 'is-err'}`}>{wsStatus}</span>
       </div>
       <WsHeadersTable rows={wsHeaders} onChange={setWsHeaders} />
-      <div className="rm-row">
+      <div className="rm-urlbar">
         <input className="rm-input" aria-label="websocket message" placeholder="message" style={{ flex: 1 }}
           value={wsInput} onChange={(e) => setWsInput(e.target.value)} />
-        <button className="rm-btn" disabled={wsStatus !== 'open'} onClick={send}>Send</button>
+        <button className="rm-btn rm-btn--primary" disabled={wsStatus !== 'open'} onClick={send}>Send</button>
       </div>
-      <div className="rm-panel" style={{ flex: 1, overflow: 'auto' }}>
+      <div className="rm-log">
         {wsLog.map((e, i) => (
-          <div key={i} className="rm-row">
-            <span style={{ opacity: 0.6, minWidth: 40 }}>{e.dir}</span>
+          <div key={i} className={`rm-log-row is-${e.dir}`}>
+            <span className="rm-log-dir">{e.dir}</span>
             <span>{e.data}</span>
           </div>
         ))}

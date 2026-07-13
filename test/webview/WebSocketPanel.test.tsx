@@ -62,4 +62,11 @@ describe('WebSocketPanel', () => {
     expect(msg).toBeTruthy()
     expect(msg.headers).toContainEqual({ key: 'X-Auth', value: 'tok', enabled: true })
   })
+  it('shows a status pill and colored log rows', () => {
+    useStore.getState().wsStartConnect('c1'); useStore.getState().wsSetStatus('open')
+    useStore.getState().wsAppendLog({ dir: 'in', data: 'hi', at: 1 })
+    render(<WebSocketPanel />)
+    expect(document.querySelector('.rm-status-pill.is-2xx')).toBeTruthy()
+    expect(document.querySelector('.rm-log-row.is-in')).toBeTruthy()
+  })
 })

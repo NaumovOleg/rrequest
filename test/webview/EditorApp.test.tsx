@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, act } from '@testing-library/react'
+import { render, act, fireEvent, screen } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 let handler: ((m: any) => void) | undefined
 const posted: any[] = []
@@ -52,5 +52,19 @@ describe('EditorApp', () => {
     render(<EditorApp />)
     act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, targetCollectionId: 'c9' }))
     expect(useStore.getState().pendingSaveCollectionId).toBe('c9')
+  })
+  it('toggles the WebSocket panel and handles ws events', () => {
+    render(<EditorApp />)
+    // toggle to WS mode
+    fireEvent.click(screen.getByRole('button', { name: /websocket/i }))
+    expect(useStore.getState().wsMode).toBe(true)
+    expect(screen.getByLabelText(/websocket url/i)).toBeInTheDocument()
+    // ws events
+    act(() => handler?.({ type: 'wsOpen', connId: 'c1' }))
+    expect(useStore.getState().wsStatus).toBe('open')
+    act(() => handler?.({ type: 'wsMessage', connId: 'c1', data: 'srv-msg', at: 1 }))
+    expect(useStore.getState().wsLog.some((e) => e.dir === 'in' && e.data === 'srv-msg')).toBe(true)
+    act(() => handler?.({ type: 'wsClosed', connId: 'c1', code: 1000, reason: 'bye' }))
+    expect(useStore.getState().wsStatus).toBe('closed')
   })
 })

@@ -6,6 +6,7 @@ import { EnvDropdown } from '../components/EnvDropdown/EnvDropdown'
 import { Tabs } from '../components/Tabs/Tabs'
 import { RequestPanel } from '../components/RequestPanel/RequestPanel'
 import { ResponsePanel } from '../components/ResponsePanel/ResponsePanel'
+import { WebSocketPanel } from '../components/WebSocket/WebSocketPanel'
 
 export function EditorApp() {
   const setTree = useStore((s) => s.setTree)
@@ -15,6 +16,10 @@ export function EditorApp() {
   const openNewTab = useStore((s) => s.openNewTab)
   const updateActive = useStore((s) => s.updateActive)
   const setPendingSaveCollectionId = useStore((s) => s.setPendingSaveCollectionId)
+  const wsMode = useStore((s) => s.wsMode)
+  const setWsMode = useStore((s) => s.setWsMode)
+  const wsSetStatus = useStore((s) => s.wsSetStatus)
+  const wsAppendLog = useStore((s) => s.wsAppendLog)
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -39,22 +44,33 @@ export function EditorApp() {
           st.setPendingFilePick(null)
         }
       }
+      else if (m.type === 'wsOpen') { wsSetStatus('open'); wsAppendLog({ dir: 'status', data: 'connected', at: Date.now() }) }
+      else if (m.type === 'wsMessage') { wsAppendLog({ dir: 'in', data: m.data, at: m.at }) }
+      else if (m.type === 'wsClosed') { wsSetStatus('closed'); wsAppendLog({ dir: 'status', data: `closed: ${m.code}`, at: Date.now() }) }
+      else if (m.type === 'wsError') { wsAppendLog({ dir: 'status', data: `error: ${m.message}`, at: Date.now() }) }
     })
     postToHost({ type: 'ready' })
     postToHost({ type: 'loadEnvironments' })
     if (useStore.getState().tabs.length === 0) openNewTab()
     return off
-  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId])
+  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId, wsSetStatus, wsAppendLog])
 
   return (
     <div className="rm-row" style={{ alignItems: 'stretch', height: '100vh' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div className="rm-row" style={{ justifyContent: 'flex-end', padding: '4px 8px' }}>
+        <div className="rm-row" style={{ justifyContent: 'space-between', padding: '4px 8px' }}>
+          <button className="rm-btn" aria-pressed={wsMode} onClick={() => setWsMode(!wsMode)}>WebSocket</button>
           <EnvDropdown />
         </div>
-        <Tabs />
-        <RequestPanel />
-        <ResponsePanel />
+        {wsMode ? (
+          <WebSocketPanel />
+        ) : (
+          <>
+            <Tabs />
+            <RequestPanel />
+            <ResponsePanel />
+          </>
+        )}
       </div>
     </div>
   )

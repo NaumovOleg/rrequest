@@ -22,11 +22,4 @@ describe('SidebarApp', () => {
     expect(screen.getByText('C')).toBeInTheDocument()
   })
 
-  it('renders exactly one Environments panel', () => {
-    render(<SidebarApp />)
-    act(() => {
-      handler?.({ type: 'environments', environments: [{ id: 'e1', name: 'Dev', variables: [] }], activeId: null })
-    })
-    expect(screen.getAllByText('Environments')).toHaveLength(1)
-  })
 })

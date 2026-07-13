@@ -4,7 +4,6 @@ import { useStore } from '../state/store'
 import { onHostMessage, postToHost } from '../ipc'
 import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { Sidebar } from '../components/Sidebar/Sidebar'
-import { Environments } from '../components/Environments/Environments'
 import { History } from '../components/History/History'
 
 export function SidebarApp() {
@@ -32,7 +31,6 @@ export function SidebarApp() {
     <div className="rm-surface rm-scroll">
       <WorkspaceSwitcher />
       <Sidebar />
-      <Environments />
       <History />
     </div>
   )

@@ -4,6 +4,7 @@ import type { CollectionStore } from './collection-store'
 import type { HistoryStore } from './history-store'
 import type { EnvironmentStore } from './environment-store'
 import type { WorkspaceStore } from './workspace-store'
+import type { WsManager } from './ws-manager'
 
 export type RouterDeps = {
   send: typeof SendFn
@@ -20,6 +21,7 @@ export type RouterDeps = {
   setActiveWorkspaceId: (id: string) => void
   runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
   runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
+  ws?: WsManager
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -146,6 +148,15 @@ export function createRouter(deps: RouterDeps) {
         }
         return await wsSnapshot()
       }
+      case 'wsConnect':
+        deps.ws?.connect(msg.connId, msg.url, msg.headers)
+        return undefined
+      case 'wsSend':
+        deps.ws?.send(msg.connId, msg.data)
+        return undefined
+      case 'wsDisconnect':
+        deps.ws?.disconnect(msg.connId)
+        return undefined
       default:
         return undefined
     }

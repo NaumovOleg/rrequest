@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs/promises'
+import WebSocket from 'ws'
 import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
 import { runPreScript, runTestScript } from './sandbox'
@@ -10,6 +11,7 @@ import { EnvironmentStore } from './environment-store'
 import { WorkspaceStore } from './workspace-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
+import { WsManager, type WsFactory } from './ws-manager'
 import type { HostMessage, WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, cspSource: string, nonce: string): string {
@@ -54,6 +56,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     await context.globalState.update('restman.activeWorkspaceId', list[0].id)
   }
 
+  // createRouter runs before the Hub exists, so the WsManager's emit is a
+  // lazily-bound closure over hubRef, which is assigned right after the Hub
+  // is constructed below.
+  const wsFactory: WsFactory = (url, opts) => new WebSocket(url, { headers: opts.headers }) as unknown as import('./ws-manager').WsSocket
+  let hubRef: Hub | undefined
+  const wsManager = new WsManager((m) => hubRef?.emitToEditor(m), wsFactory)
+
   const route = createRouter({
     send: sendRequest,
     collections,
@@ -92,6 +101,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       const p = picked[0].fsPath
       return { path: p, filename: p.split(/[\\/]/).pop() ?? p }
     },
+    ws: wsManager,
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -106,6 +116,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   }
 
   const hub = new Hub(route, snapshot)
+  hubRef = hub
   // Let the Hub reveal/create the editor panel when routing openInEditor.
   hub.setEditorReveal(() => { RestmanPanel.createOrShow(context) })
   return hub

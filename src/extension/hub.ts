@@ -27,6 +27,8 @@ export class Hub {
   // panel before routing an openInEditor message to it.
   setEditorReveal(fn: () => void) { this.onOpenInEditor = fn }
 
+  emitToEditor(m: HostMessage): void { this.postTo('editor', m) }
+
   private postTo(id: SurfaceId, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }
 

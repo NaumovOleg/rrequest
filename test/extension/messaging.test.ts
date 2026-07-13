@@ -187,3 +187,22 @@ describe('createRouter sendRequest with scripts', () => {
     expect(d.history.append.mock.calls[0][0].url).toBe('https://api/x')
   })
 })
+
+describe('createRouter ws routes', () => {
+  function wsRouter(d: any, ws: any) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id },
+      ws })
+  }
+  it('wsConnect/wsSend/wsDisconnect call the manager and return undefined', async () => {
+    const ws = { connect: vi.fn(), send: vi.fn(), disconnect: vi.fn() }
+    const route = wsRouter(deps(), ws)
+    expect(await route({ type: 'wsConnect', connId: 'c1', url: 'wss://e', headers: [] })).toBeUndefined()
+    expect(await route({ type: 'wsSend', connId: 'c1', data: 'hi' })).toBeUndefined()
+    expect(await route({ type: 'wsDisconnect', connId: 'c1' })).toBeUndefined()
+    expect(ws.connect).toHaveBeenCalledWith('c1', 'wss://e', [])
+    expect(ws.send).toHaveBeenCalledWith('c1', 'hi')
+    expect(ws.disconnect).toHaveBeenCalledWith('c1')
+  })
+})

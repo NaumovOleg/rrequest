@@ -68,4 +68,10 @@ describe('Hub', () => {
     hub.register('editor', (m) => editor.push(m))
     expect(editor).toEqual([oie])
   })
+  it('emitToEditor posts only to the editor sink', () => {
+    const { hub, editor, sidebar } = setup(async () => undefined)
+    hub.emitToEditor({ type: 'wsOpen', connId: 'c1' })
+    expect(editor).toContainEqual({ type: 'wsOpen', connId: 'c1' })
+    expect(sidebar.find((m) => m.type === 'wsOpen')).toBeUndefined()
+  })
 })

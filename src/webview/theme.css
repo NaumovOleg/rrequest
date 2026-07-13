@@ -136,3 +136,4 @@ body {
 .rm-actions { display: flex; flex-wrap: wrap; gap: var(--rm-sp-1); align-items: center; }
 .rm-row { flex-wrap: wrap; }
 .codicon { font-size: 15px; line-height: 1; }
+.rm-rename-input { padding: 1px 4px; }

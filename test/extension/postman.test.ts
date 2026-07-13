@@ -21,17 +21,13 @@ const pm = {
 }
 
 describe('toNative', () => {
-  it('flattens folders and maps requests', () => {
+  it('preserves one level of folders and root requests', () => {
     const c = toNative(pm)
-    expect(c.name).toBe('API')
-    expect(c.requests).toHaveLength(2)
+    expect(c.requests).toHaveLength(1)             // "Get Users" at root
     expect(c.requests[0].name).toBe('Get Users')
-    expect(c.requests[0].method).toBe('GET')
-    expect(c.requests[0].url).toBe('https://api.test/users')
-    expect(c.requests[0].params).toEqual([{ key: 'page', value: '1', enabled: true }])
-    expect(c.requests[0].headers).toEqual([{ key: 'Accept', value: 'application/json', enabled: true }])
-    expect(c.requests[1].name).toBe('Folder / Create')
-    expect(c.requests[1].body).toEqual({ mode: 'raw', type: 'text', text: '{"a":1}' })
+    expect(c.folders).toHaveLength(1)
+    expect(c.folders?.[0].name).toBe('Folder')
+    expect(c.folders?.[0].requests[0].name).toBe('Create')
   })
 })
 
@@ -50,6 +46,15 @@ describe('fromNative', () => {
     expect(pmOut.item[0].request.method).toBe('GET')
     expect(pmOut.item[0].request.url.raw).toContain('https://api.test/x')
     expect(pmOut.item[0].request.header).toEqual([{ key: 'Accept', value: 'json', disabled: false }])
+  })
+  it('fromNative emits folders as nested items', () => {
+    const c = { id: '1', name: 'API', workspaceId: 'w1', requests: [], folders: [{ id: 'f', name: 'Auth', requests: [
+      { id: 'a', name: 'Login', method: 'POST' as const, url: 'https://x', params: [], headers: [], body: { mode: 'none' as const } },
+    ] }] }
+    const pmOut = fromNative(c as any)
+    const folderItem = pmOut.item.find((i: any) => i.name === 'Auth')
+    expect(folderItem.item).toHaveLength(1)
+    expect(folderItem.item[0].name).toBe('Login')
   })
   it('round-trips method/url/headers', () => {
     const c = toNative(fromNative(toNative(pm)))

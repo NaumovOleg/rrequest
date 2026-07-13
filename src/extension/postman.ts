@@ -1,4 +1,4 @@
-import { newId, type Collection, type KeyValue, type RequestBody, type RestRequest, type HttpMethod } from '../shared/types'
+import { newId, type Collection, type Folder, type KeyValue, type RequestBody, type RestRequest, type HttpMethod } from '../shared/types'
 
 const V21 = 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -33,30 +33,43 @@ function pmBody(body: any): RequestBody {
   return { mode: 'none' }
 }
 
-function flatten(items: any[], prefix: string, out: RestRequest[]): void {
+function pmRequestToNative(it: any): RestRequest {
+  const r = it.request
+  const method = (String(r.method ?? 'GET').toUpperCase()) as HttpMethod
+  return {
+    id: newId(),
+    name: String(it.name ?? 'Request'),
+    method: METHODS.includes(method) ? method : 'GET',
+    url: pmUrlRaw(r.url),
+    params: pmParams(r.url),
+    headers: pmHeaders(r.header),
+    body: pmBody(r.body),
+  }
+}
+
+function collectRequests(items: any[], out: RestRequest[]): void {
   for (const it of items ?? []) {
     if (Array.isArray(it.item)) {
-      flatten(it.item, prefix ? `${prefix} / ${it.name ?? ''}` : String(it.name ?? ''), out)
+      collectRequests(it.item, out)
     } else if (it.request) {
-      const r = it.request
-      const method = (String(r.method ?? 'GET').toUpperCase()) as HttpMethod
-      out.push({
-        id: newId(),
-        name: prefix ? `${prefix} / ${it.name ?? ''}` : String(it.name ?? 'Request'),
-        method: METHODS.includes(method) ? method : 'GET',
-        url: pmUrlRaw(r.url),
-        params: pmParams(r.url),
-        headers: pmHeaders(r.header),
-        body: pmBody(r.body),
-      })
+      out.push(pmRequestToNative(it))
     }
   }
 }
 
 export function toNative(pm: any): Collection {
-  const out: RestRequest[] = []
-  flatten(pm?.item ?? [], '', out)
-  return { id: newId(), name: String(pm?.info?.name ?? 'Imported'), workspaceId: '', requests: out }
+  const rootReqs: RestRequest[] = []
+  const folders: Folder[] = []
+  for (const it of pm?.item ?? []) {
+    if (Array.isArray(it.item)) {
+      const fReqs: RestRequest[] = []
+      collectRequests(it.item, fReqs)
+      folders.push({ id: newId(), name: String(it.name ?? 'Folder'), requests: fReqs })
+    } else if (it.request) {
+      rootReqs.push(pmRequestToNative(it))
+    }
+  }
+  return { id: newId(), name: String(pm?.info?.name ?? 'Imported'), workspaceId: '', requests: rootReqs, folders }
 }
 
 function nativeUrl(req: RestRequest): any {
@@ -77,18 +90,21 @@ function nativeBody(body: RequestBody): any {
   return undefined
 }
 
-export function fromNative(c: Collection): any {
-  return {
-    info: { name: c.name, schema: V21 },
-    item: c.requests.map((r) => {
-      const request: any = {
-        method: r.method,
-        header: r.headers.filter((h) => h.key).map((h) => ({ key: h.key, value: h.value, disabled: !h.enabled })),
-        url: nativeUrl(r),
-      }
-      const body = nativeBody(r.body)
-      if (body) request.body = body
-      return { name: r.name, request }
-    }),
+function nativeRequestItem(r: RestRequest): any {
+  const request: any = {
+    method: r.method,
+    header: r.headers.filter((h) => h.key).map((h) => ({ key: h.key, value: h.value, disabled: !h.enabled })),
+    url: nativeUrl(r),
   }
+  const body = nativeBody(r.body)
+  if (body) request.body = body
+  return { name: r.name, request }
+}
+
+export function fromNative(c: Collection): any {
+  const item: any[] = c.requests.map(nativeRequestItem)
+  for (const f of c.folders ?? []) {
+    item.push({ name: f.name, item: f.requests.map(nativeRequestItem) })
+  }
+  return { info: { name: c.name, schema: V21 }, item }
 }

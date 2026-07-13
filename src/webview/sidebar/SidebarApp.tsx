@@ -29,7 +29,7 @@ export function SidebarApp() {
   }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
+    <div className="rm-surface rm-scroll">
       <WorkspaceSwitcher />
       <Sidebar />
       <Environments />

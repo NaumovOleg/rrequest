@@ -56,22 +56,21 @@ export function EditorApp() {
   }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId, wsSetStatus, wsAppendLog])
 
   return (
-    <div className="rm-row" style={{ alignItems: 'stretch', height: '100vh' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div className="rm-row" style={{ justifyContent: 'space-between', padding: '4px 8px' }}>
-          <button className="rm-btn" aria-pressed={wsMode} onClick={() => setWsMode(!wsMode)}>WebSocket</button>
-          <EnvDropdown />
-        </div>
-        {wsMode ? (
-          <WebSocketPanel />
-        ) : (
-          <>
-            <Tabs />
-            <RequestPanel />
-            <ResponsePanel />
-          </>
-        )}
+    <div className="rm-surface">
+      <div className="rm-topbar">
+        <button className={`rm-btn${wsMode ? ' is-active' : ''}`} aria-pressed={wsMode} onClick={() => setWsMode(!wsMode)}>WebSocket</button>
+        <div className="rm-spacer" />
+        <EnvDropdown />
       </div>
+      {wsMode ? (
+        <WebSocketPanel />
+      ) : (
+        <>
+          <Tabs />
+          <RequestPanel />
+          <ResponsePanel />
+        </>
+      )}
     </div>
   )
 }

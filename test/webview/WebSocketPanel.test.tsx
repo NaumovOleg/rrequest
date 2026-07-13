@@ -17,6 +17,11 @@ describe('WebSocketPanel', () => {
     expect(useStore.getState().wsStatus).toBe('connecting')
     expect(useStore.getState().wsConnId).toBe(msg.connId)
   })
+  it('Connect is disabled on empty URL', () => {
+    render(<WebSocketPanel />)
+    const connectBtn = screen.getByRole('button', { name: /^connect$/i })
+    expect(connectBtn).toBeDisabled()
+  })
   it('when open, Send posts wsSend and logs an out entry', () => {
     useStore.getState().setWsUrl('wss://echo')
     useStore.getState().wsStartConnect('c1')
@@ -26,6 +31,15 @@ describe('WebSocketPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /^send$/i }))
     expect(posted).toContainEqual({ type: 'wsSend', connId: 'c1', data: 'ping' })
     expect(useStore.getState().wsLog.at(-1)).toMatchObject({ dir: 'out', data: 'ping' })
+    expect(useStore.getState().wsInput).toBe('')
+  })
+  it('Send is disabled when status is not open', () => {
+    useStore.getState().setWsUrl('wss://echo')
+    useStore.getState().wsStartConnect('c1')
+    useStore.getState().wsSetStatus('closed')
+    render(<WebSocketPanel />)
+    const sendBtn = screen.getByRole('button', { name: /^send$/i })
+    expect(sendBtn).toBeDisabled()
   })
   it('when open, Disconnect posts wsDisconnect', () => {
     useStore.getState().wsStartConnect('c1'); useStore.getState().wsSetStatus('open')

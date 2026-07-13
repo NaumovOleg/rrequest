@@ -120,3 +120,12 @@ describe('store ws slice', () => {
     expect(r.wsMode).toBe(false); expect(r.wsStatus).toBe('closed'); expect(r.wsLog).toEqual([]); expect(r.wsConnId).toBeNull()
   })
 })
+
+describe('store pendingSaveFolderId + envMode', () => {
+  it('set + reset', () => {
+    useStore.getState().setPendingSaveFolderId('f1'); useStore.getState().setEnvMode(true)
+    expect(useStore.getState().pendingSaveFolderId).toBe('f1'); expect(useStore.getState().envMode).toBe(true)
+    useStore.getState().__reset()
+    expect(useStore.getState().pendingSaveFolderId).toBeNull(); expect(useStore.getState().envMode).toBe(false)
+  })
+})

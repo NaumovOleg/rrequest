@@ -17,6 +17,7 @@ type State = {
   workspaces: Workspace[]
   activeWorkspaceId: string | null
   pendingSaveCollectionId: string | null
+  pendingSaveFolderId: string | null
   wsMode: boolean
   wsUrl: string
   wsHeaders: KeyValue[]
@@ -24,6 +25,7 @@ type State = {
   wsStatus: 'closed' | 'connecting' | 'open'
   wsConnId: string | null
   wsLog: { dir: 'in' | 'out' | 'status'; data: string; at: number }[]
+  envMode: boolean
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -37,6 +39,7 @@ type State = {
   setPendingFilePick(p: { tabId: string; index: number } | null): void
   setWorkspaces(list: Workspace[], activeId: string | null): void
   setPendingSaveCollectionId(id: string | null): void
+  setPendingSaveFolderId(id: string | null): void
   setWsMode(v: boolean): void
   setWsUrl(v: string): void
   setWsHeaders(v: KeyValue[]): void
@@ -45,6 +48,7 @@ type State = {
   wsSetStatus(status: 'closed' | 'connecting' | 'open'): void
   wsAppendLog(entry: { dir: 'in' | 'out' | 'status'; data: string; at: number }): void
   wsClear(): void
+  setEnvMode(v: boolean): void
   __reset(): void
 }
 
@@ -60,6 +64,7 @@ export const useStore = create<State>((set) => ({
   workspaces: [],
   activeWorkspaceId: null,
   pendingSaveCollectionId: null,
+  pendingSaveFolderId: null,
   wsMode: false,
   wsUrl: '',
   wsHeaders: [],
@@ -67,6 +72,7 @@ export const useStore = create<State>((set) => ({
   wsStatus: 'closed',
   wsConnId: null,
   wsLog: [],
+  envMode: false,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -112,5 +118,8 @@ export const useStore = create<State>((set) => ({
   wsAppendLog: (entry) => set((s) => ({ wsLog: [...s.wsLog, entry] })),
   wsClear: () => set({ wsLog: [] }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [] }),
+  setPendingSaveFolderId: (pendingSaveFolderId) => set({ pendingSaveFolderId }),
+  setEnvMode: (envMode) => set({ envMode }),
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false }),
 }))

@@ -12,4 +12,23 @@ describe('RenameInput', () => {
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalled()
   })
+
+  it('does not let keydowns bubble to an ancestor row handler', () => {
+    const onCommit = vi.fn(); const onCancel = vi.fn()
+    const wrapperKeyDown = vi.fn()
+    render(
+      <div onKeyDown={wrapperKeyDown}>
+        <RenameInput initial="Old" onCommit={onCommit} onCancel={onCancel} />
+      </div>
+    )
+    const input = screen.getByDisplayValue('Old')
+
+    fireEvent.keyDown(input, { key: ' ' })
+    expect(wrapperKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'New' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledWith('New')
+    expect(wrapperKeyDown).not.toHaveBeenCalled()
+  })
 })

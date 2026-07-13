@@ -6,7 +6,7 @@ export function RenameInput({ initial, onCommit, onCancel }: { initial: string; 
     <input className="rm-input rm-rename-input" autoFocus aria-label="rename input" value={value}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } else if (e.key === 'Escape') { e.preventDefault(); onCancel() } }}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); commit() } else if (e.key === 'Escape') { e.preventDefault(); onCancel() } }}
       onBlur={commit} />
   )
 }

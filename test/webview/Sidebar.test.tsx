@@ -113,4 +113,19 @@ describe('Sidebar', () => {
     fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
     expect(posted).toContainEqual({ type: 'renameRequest', collectionId: 'c1', folderId: null, requestId: 'r1', name: 'Renamed' })
   })
+
+  it('renaming a collection does not toggle it when Enter commits the rename', () => {
+    const request = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /rename collection My Coll/i }))
+    fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'New Folder Name' } })
+    fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
+
+    expect(posted.filter((m) => m.type === 'renameCollection')).toHaveLength(1)
+    expect(posted).toContainEqual({ type: 'renameCollection', id: 'c1', name: 'New Folder Name' })
+    // The collection should still be collapsed — the Enter keydown must not have
+    // bubbled to the row's own onKeyDown handler and toggled it open.
+    expect(screen.queryByText('Get Users')).toBeNull()
+  })
 })

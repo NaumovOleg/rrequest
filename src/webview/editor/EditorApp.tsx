@@ -7,6 +7,7 @@ import { Tabs } from '../components/Tabs/Tabs'
 import { RequestPanel } from '../components/RequestPanel/RequestPanel'
 import { ResponsePanel } from '../components/ResponsePanel/ResponsePanel'
 import { WebSocketPanel } from '../components/WebSocket/WebSocketPanel'
+import { Environments } from '../components/Environments/Environments'
 
 export function EditorApp() {
   const setTree = useStore((s) => s.setTree)
@@ -16,10 +17,13 @@ export function EditorApp() {
   const openNewTab = useStore((s) => s.openNewTab)
   const updateActive = useStore((s) => s.updateActive)
   const setPendingSaveCollectionId = useStore((s) => s.setPendingSaveCollectionId)
+  const setPendingSaveFolderId = useStore((s) => s.setPendingSaveFolderId)
   const wsMode = useStore((s) => s.wsMode)
   const setWsMode = useStore((s) => s.setWsMode)
   const wsSetStatus = useStore((s) => s.wsSetStatus)
   const wsAppendLog = useStore((s) => s.wsAppendLog)
+  const envMode = useStore((s) => s.envMode)
+  const setEnvMode = useStore((s) => s.setEnvMode)
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -31,6 +35,9 @@ export function EditorApp() {
         openNewTab()
         updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body, preRequestScript: r.preRequestScript ?? '', testScript: r.testScript ?? '' })
         setPendingSaveCollectionId(m.targetCollectionId ?? null)
+        setPendingSaveFolderId(m.targetFolderId ?? null)
+      } else if (m.type === 'showEnvironments') {
+        setEnvMode(true)
       } else if (m.type === 'pickedFile') {
         const st = useStore.getState()
         const pending = st.pendingFilePick
@@ -53,16 +60,19 @@ export function EditorApp() {
     postToHost({ type: 'loadEnvironments' })
     if (useStore.getState().tabs.length === 0) openNewTab()
     return off
-  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId, wsSetStatus, wsAppendLog])
+  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId, setPendingSaveFolderId, wsSetStatus, wsAppendLog, setEnvMode])
 
   return (
     <div className="rm-surface">
       <div className="rm-topbar">
         <button className={`rm-btn${wsMode ? ' is-active' : ''}`} aria-pressed={wsMode} onClick={() => setWsMode(!wsMode)}>WebSocket</button>
+        <button className={`rm-btn${envMode ? ' is-active' : ''}`} aria-pressed={envMode} onClick={() => setEnvMode(!envMode)}>Environments</button>
         <div className="rm-spacer" />
         <EnvDropdown />
       </div>
-      {wsMode ? (
+      {envMode ? (
+        <Environments />
+      ) : wsMode ? (
         <WebSocketPanel />
       ) : (
         <>

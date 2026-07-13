@@ -79,4 +79,15 @@ describe('EditorApp', () => {
     act(() => handler?.({ type: 'wsClosed', connId: 'c1', code: 1000, reason: '' }))
     expect(useStore.getState().wsStatus).toBe('connecting')
   })
+  it('showEnvironments opens the environments editor', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'showEnvironments' }))
+    expect(useStore.getState().envMode).toBe(true)
+    expect(screen.getAllByText('Environments').length).toBeGreaterThan(0)
+  })
+  it('openInEditor sets the pending folder target', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, targetCollectionId: 'c1', targetFolderId: 'f1' }))
+    expect(useStore.getState().pendingSaveFolderId).toBe('f1')
+  })
 })

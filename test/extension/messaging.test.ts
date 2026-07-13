@@ -39,6 +39,12 @@ function deps() {
   }
 }
 
+function routerAll(d: any) {
+  return createRouter({ send: d.send, collections: d.collections, history: d.history,
+    environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+    workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id } })
+}
+
 describe('createRouter', () => {
   it('routes sendRequest to send and returns a response message', async () => {
     const d = deps()
@@ -241,5 +247,22 @@ describe('createRouter ws routes', () => {
     expect(ws.connect).toHaveBeenCalledWith('c1', 'wss://e', [])
     expect(ws.send).toHaveBeenCalledWith('c1', 'hi')
     expect(ws.disconnect).toHaveBeenCalledWith('c1')
+  })
+})
+
+describe('createRouter moveRequest', () => {
+  it('moveRequest moves a request between collections and saves both', async () => {
+    const d = deps()
+    const req = { id: 'r1', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    d.collections.list = vi.fn(async () => [
+      { id: 'c1', name: 'A', workspaceId: 'w1', requests: [req], folders: [] },
+      { id: 'c2', name: 'B', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }] },
+    ])
+    const out = await routerAll(d)({ type: 'moveRequest', fromCollectionId: 'c1', fromFolderId: null, toCollectionId: 'c2', toFolderId: 'f1', requestId: 'r1' }) as any
+    const saved = (d.collections.saveCollection as any).mock.calls.map((c: any) => c[0])
+    const src = saved.find((c: any) => c.id === 'c1'); const dst = saved.find((c: any) => c.id === 'c2')
+    expect(src.requests).toHaveLength(0)
+    expect(dst.folders[0].requests).toHaveLength(1)
+    expect(out.type).toBe('tree')
   })
 })

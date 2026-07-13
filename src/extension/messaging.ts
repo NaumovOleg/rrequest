@@ -184,6 +184,24 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'tree', collections: await deps.collections.list() }
       case 'openEnvironments':
         return { type: 'showEnvironments' }
+      case 'moveRequest': {
+        const all = await deps.collections.list()
+        const from = all.find((c) => c.id === msg.fromCollectionId)
+        const to = all.find((c) => c.id === msg.toCollectionId)
+        if (!from || !to) return { type: 'tree', collections: all }
+        const fromBucket = reqBucket(from, msg.fromFolderId)
+        const req = fromBucket?.find((r) => r.id === msg.requestId)
+        if (!req || !fromBucket) return { type: 'tree', collections: all }
+        // remove from source
+        const idx = fromBucket.findIndex((r) => r.id === msg.requestId)
+        fromBucket.splice(idx, 1)
+        // add to dest
+        const toBucket = reqBucket(to, msg.toFolderId)
+        if (toBucket) toBucket.push(req)
+        await deps.collections.saveCollection(from)
+        if (to.id !== from.id) await deps.collections.saveCollection(to)
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
       default:
         return undefined
     }

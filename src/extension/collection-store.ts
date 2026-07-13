@@ -35,12 +35,20 @@ export class CollectionStore {
     return c
   }
 
-  async saveRequest(collectionId: string, request: RestRequest): Promise<Collection> {
+  async saveRequest(collectionId: string, request: RestRequest, folderId?: string | null): Promise<Collection> {
     const c = (await readJsonSafe<Collection>(this.file(collectionId)))
-      ?? { id: collectionId, name: 'Collection', workspaceId: '', requests: [] }
-    const i = c.requests.findIndex((r) => r.id === request.id)
-    if (i >= 0) c.requests[i] = request
-    else c.requests.push(request)
+      ?? { id: collectionId, name: 'Collection', workspaceId: '', requests: [], folders: [] }
+    if (!c.folders) c.folders = []
+    if (folderId) {
+      const folder = c.folders.find((f) => f.id === folderId)
+      if (folder) {
+        const i = folder.requests.findIndex((r) => r.id === request.id)
+        if (i >= 0) folder.requests[i] = request; else folder.requests.push(request)
+      }
+    } else {
+      const i = c.requests.findIndex((r) => r.id === request.id)
+      if (i >= 0) c.requests[i] = request; else c.requests.push(request)
+    }
     await writeJsonAtomic(this.file(collectionId), c)
     return c
   }
@@ -48,5 +56,9 @@ export class CollectionStore {
   async saveCollection(c: import('../shared/types').Collection): Promise<import('../shared/types').Collection> {
     await writeJsonAtomic(this.file(c.id), c)
     return c
+  }
+
+  async delete(id: string): Promise<void> {
+    await fs.rm(this.file(id), { force: true })
   }
 }

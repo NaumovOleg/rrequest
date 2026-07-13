@@ -55,4 +55,20 @@ describe('CollectionStore', () => {
     const all = await store.list()
     expect(all.find((x) => x.id === 'imp1')?.requests).toHaveLength(1)
   })
+
+  it('deletes a collection', async () => {
+    const c = await store.createCollection('X', 'w1')
+    await store.delete(c.id)
+    expect(await store.list()).toEqual([])
+  })
+
+  it('saveRequest into a folder upserts into that folder', async () => {
+    const c = await store.createCollection('X', 'w1')
+    await store.saveCollection({ ...c, folders: [{ id: 'f1', name: 'F', requests: [] }] })
+    const r = { id: 'r1', name: 'req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    await store.saveRequest(c.id, r, 'f1')
+    const all = await store.list()
+    expect(all[0].folders?.[0].requests).toHaveLength(1)
+    expect(all[0].requests).toHaveLength(0)
+  })
 })

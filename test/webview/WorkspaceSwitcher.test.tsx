@@ -37,12 +37,11 @@ describe('WorkspaceSwitcher', () => {
     fireEvent.click(screen.getByRole('button', { name: /delete/i }))
     expect(posted).toContainEqual({ type: 'deleteWorkspace', id: 'w2' })
   })
-  it('add-env + open-env icons post the right messages', () => {
+  it('Environments text button posts openEnvironments and new environment icon is gone', () => {
     useStore.getState().setWorkspaces([{ id: 'w1', name: 'Dev' }], 'w1')
     render(<WorkspaceSwitcher />)
-    fireEvent.click(screen.getByRole('button', { name: /new environment/i }))
-    expect(posted).toContainEqual({ type: 'createEnvironment', name: 'New Environment' })
-    fireEvent.click(screen.getByRole('button', { name: /^environments$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /environments/i }))
     expect(posted).toContainEqual({ type: 'openEnvironments' })
+    expect(screen.queryByRole('button', { name: /new environment/i })).toBeNull()
   })
 })

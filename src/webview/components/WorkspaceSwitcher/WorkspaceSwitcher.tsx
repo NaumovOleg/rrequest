@@ -28,8 +28,7 @@ export function WorkspaceSwitcher() {
           <IconButton icon="trash" label="delete workspace" onClick={() => {
             if (activeWorkspaceId) postToHost({ type: 'deleteWorkspace', id: activeWorkspaceId })
           }} />
-          <IconButton icon="add" label="new environment" onClick={() => postToHost({ type: 'createEnvironment', name: 'New Environment' })} />
-          <IconButton icon="gear" label="environments" onClick={() => postToHost({ type: 'openEnvironments' })} />
+          <button className="rm-btn" title="Environments" onClick={() => postToHost({ type:'openEnvironments' })}>Environments</button>
         </div>
       </div>
     </div>

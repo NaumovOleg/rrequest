@@ -7,10 +7,11 @@ function nonce(): string {
   return crypto.randomBytes(16).toString('hex')
 }
 
-export function buildSidebarHtml(scriptUri: string, styleUri: string, cspSource: string, n: string): string {
+export function buildSidebarHtml(scriptUri: string, styleUri: string, codiconUri: string, cspSource: string, n: string): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${n}';" />
-<link rel="stylesheet" href="${styleUri}" /></head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; font-src ${cspSource}; script-src 'nonce-${n}';" />
+<link rel="stylesheet" href="${styleUri}" />
+<link rel="stylesheet" href="${codiconUri}" /></head>
 <body><div id="root"></div><script nonce="${n}" src="${scriptUri}"></script></body></html>`
 }
 
@@ -28,7 +29,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const styleUri = view.webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sidebar.css'),
     ).toString()
-    view.webview.html = buildSidebarHtml(scriptUri, styleUri, view.webview.cspSource, nonce())
+    const codiconUri = view.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, 'media', 'codicon.css'),
+    ).toString()
+    view.webview.html = buildSidebarHtml(scriptUri, styleUri, codiconUri, view.webview.cspSource, nonce())
 
     // Subscribe to dispose BEFORE awaiting the bootstrap: if the view is disposed
     // during the await window, the emitter won't replay, so guard registration.

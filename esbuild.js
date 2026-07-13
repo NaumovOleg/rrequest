@@ -1,4 +1,5 @@
 const esbuild = require('esbuild')
+const fs = require('node:fs')
 const watch = process.argv.includes('--watch')
 
 const options = {
@@ -12,13 +13,22 @@ const options = {
   sourcemap: true,
 }
 
+function copyCodicons() {
+  fs.mkdirSync('media', { recursive: true })
+  const src = 'node_modules/@vscode/codicons/dist'
+  fs.copyFileSync(`${src}/codicon.css`, 'media/codicon.css')
+  fs.copyFileSync(`${src}/codicon.ttf`, 'media/codicon.ttf')
+}
+
 async function main() {
   if (watch) {
     const ctx = await esbuild.context(options)
     await ctx.watch()
+    copyCodicons()
     console.log('esbuild watching...')
   } else {
     await esbuild.build(options)
+    copyCodicons()
     console.log('esbuild done')
   }
 }

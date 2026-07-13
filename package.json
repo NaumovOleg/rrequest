@@ -36,7 +36,7 @@
     }
   },
   "scripts": {
-    "build": "node esbuild.js && RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build",
+    "build": "RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build && node esbuild.js",
     "watch": "node esbuild.js --watch",
     "test": "vitest run"
   },
@@ -56,6 +56,7 @@
     "vitest": "^1.4.0"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.45",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ws": "^8.16.0",

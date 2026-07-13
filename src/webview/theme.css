@@ -128,3 +128,11 @@ body {
 .rm-log-row.is-in .rm-log-dir { color: var(--rm-m-get); }
 .rm-log-row.is-out .rm-log-dir { color: var(--rm-m-put); }
 .rm-log-row.is-status .rm-log-dir { color: var(--rm-muted); }
+
+/* icon buttons + action wrapping */
+.rm-icon-btn { background: transparent; border: none; color: var(--rm-fg); cursor: pointer; padding: 2px 4px; border-radius: var(--rm-radius); display: inline-flex; align-items: center; }
+.rm-icon-btn:hover { background: var(--rm-hover); }
+.rm-icon-btn:disabled { opacity: .4; cursor: default; }
+.rm-actions { display: flex; flex-wrap: wrap; gap: var(--rm-sp-1); align-items: center; }
+.rm-row { flex-wrap: wrap; }
+.codicon { font-size: 15px; line-height: 1; }

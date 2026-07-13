@@ -14,14 +14,15 @@ import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
 import type { HostMessage, WebviewMessage } from '../shared/types'
 
-export function buildHtml(scriptUri: string, styleUri: string, cspSource: string, nonce: string): string {
+export function buildHtml(scriptUri: string, styleUri: string, codiconUri: string, cspSource: string, nonce: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; font-src ${cspSource}; script-src 'nonce-${nonce}';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="${styleUri}" />
+  <link rel="stylesheet" href="${codiconUri}" />
 </head>
 <body>
   <div id="root"></div>
@@ -153,7 +154,10 @@ export class RestmanPanel {
     const styleUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'editor.css'),
     ).toString()
-    panel.webview.html = buildHtml(scriptUri, styleUri, panel.webview.cspSource, nonce())
+    const codiconUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'),
+    ).toString()
+    panel.webview.html = buildHtml(scriptUri, styleUri, codiconUri, panel.webview.cspSource, nonce())
 
     let unregister: (() => void) | undefined
     let disposed = false

@@ -1,0 +1,15 @@
+import { describe, it, expect } from 'vitest'
+import { methodClass } from '../../src/webview/method-color'
+
+describe('methodClass', () => {
+  it('maps known methods to rm-method--<METHOD>', () => {
+    expect(methodClass('GET')).toBe('rm-method--GET')
+    expect(methodClass('POST')).toBe('rm-method--POST')
+    expect(methodClass('DELETE')).toBe('rm-method--DELETE')
+  })
+  it('maps HEAD/OPTIONS/unknown to rm-method--OTHER', () => {
+    expect(methodClass('HEAD')).toBe('rm-method--OTHER')
+    expect(methodClass('OPTIONS')).toBe('rm-method--OTHER')
+    expect(methodClass('WAT' as any)).toBe('rm-method--OTHER')
+  })
+})

@@ -72,4 +72,13 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('My Coll'))
     expect(document.querySelector('.rm-method--GET')).toBeTruthy()
   })
+
+  it('pressing Enter on a focused request row posts openRequest (keyboard operable)', () => {
+    const request = { id: newId(), name: 'Get Users', method: 'GET' as const, url: 'https://api/users', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('My Coll'))
+    fireEvent.keyDown(screen.getByText('Get Users'), { key: 'Enter' })
+    expect(posted).toContainEqual({ type: 'openRequest', request })
+  })
 })

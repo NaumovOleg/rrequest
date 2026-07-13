@@ -53,18 +53,24 @@ export function ResponsePanel() {
         </>
       )}
       {sub === 'headers' && (
-        <table><tbody>
-          {resp.headers.map((h, i) => (
-            <tr key={i}><td>{h.key}</td><td>{h.value}</td></tr>
-          ))}
-        </tbody></table>
+        <table className="rm-kvtable">
+          <thead><tr><th>Key</th><th>Value</th></tr></thead>
+          <tbody>
+            {resp.headers.map((h, i) => (
+              <tr key={i}><td>{h.key}</td><td>{h.value}</td></tr>
+            ))}
+          </tbody>
+        </table>
       )}
       {sub === 'cookies' && (
-        <table><tbody>
-          {resp.cookies.map((c, i) => (
-            <tr key={i}><td>{c.key}</td><td>{c.value}</td></tr>
-          ))}
-        </tbody></table>
+        <table className="rm-kvtable">
+          <thead><tr><th>Key</th><th>Value</th></tr></thead>
+          <tbody>
+            {resp.cookies.map((c, i) => (
+              <tr key={i}><td>{c.key}</td><td>{c.value}</td></tr>
+            ))}
+          </tbody>
+        </table>
       )}
       {sub === 'test-results' && (
         <table><tbody>

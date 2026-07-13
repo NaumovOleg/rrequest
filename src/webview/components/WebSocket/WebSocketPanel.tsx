@@ -78,6 +78,7 @@ export function WebSocketPanel() {
         {wsLog.map((e, i) => (
           <div key={i} className={`rm-log-row is-${e.dir}`}>
             <span className="rm-log-dir">{e.dir}</span>
+            <span className="rm-log-time">{new Date(e.at).toLocaleTimeString()}</span>
             <span>{e.data}</span>
           </div>
         ))}

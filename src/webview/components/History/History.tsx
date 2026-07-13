@@ -9,7 +9,9 @@ export function History() {
       <span className="rm-section-title">History</span>
       <div>
         {history.map((e) => (
-          <div key={e.id} className="rm-req-row" onClick={() => postToHost({ type: 'openRequest', request: e.request })}>
+          <div key={e.id} className="rm-req-row" role="button" tabIndex={0}
+            onClick={() => postToHost({ type: 'openRequest', request: e.request })}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); postToHost({ type: 'openRequest', request: e.request }) } }}>
             <MethodBadge method={e.request.method} />
             <span>{e.request.method} {e.request.url}</span>
           </div>

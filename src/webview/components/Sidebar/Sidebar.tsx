@@ -40,7 +40,9 @@ export function Sidebar() {
             {expanded.has(c.id) && (
               <div className="rm-tree-children">
                 {c.requests.map((r) => (
-                  <div key={r.id} className="rm-req-row" onClick={() => postToHost({ type: 'openRequest', request: r })}>
+                  <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
+                    onClick={() => postToHost({ type: 'openRequest', request: r })}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); postToHost({ type: 'openRequest', request: r }) } }}>
                     <MethodBadge method={r.method} /> <span>{r.name}</span>
                   </div>
                 ))}

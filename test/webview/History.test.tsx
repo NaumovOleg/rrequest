@@ -22,4 +22,12 @@ describe('History', () => {
     render(<History />)
     expect(document.querySelector('.rm-method--DELETE')).toBeTruthy()
   })
+
+  it('pressing Enter on a focused history entry posts openRequest (keyboard operable)', () => {
+    const request = { id: newId(), name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', request, status: 200, at: 1 }])
+    render(<History />)
+    fireEvent.keyDown(screen.getByText('GET https://api/h'), { key: 'Enter' })
+    expect(posted).toContainEqual({ type: 'openRequest', request })
+  })
 })

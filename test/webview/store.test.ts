@@ -103,3 +103,20 @@ describe('store pendingSaveCollectionId', () => {
     expect(useStore.getState().pendingSaveCollectionId).toBeNull()
   })
 })
+
+describe('store ws slice', () => {
+  it('ws actions update state and __reset clears them', () => {
+    const s = useStore.getState()
+    s.setWsMode(true); s.setWsUrl('wss://e'); s.setWsInput('hi')
+    s.wsStartConnect('c1')
+    s.wsSetStatus('open')
+    s.wsAppendLog({ dir: 'in', data: 'hello', at: 1 })
+    const st = useStore.getState()
+    expect(st.wsMode).toBe(true); expect(st.wsUrl).toBe('wss://e'); expect(st.wsInput).toBe('hi')
+    expect(st.wsConnId).toBe('c1'); expect(st.wsStatus).toBe('open')
+    expect(st.wsLog).toEqual([{ dir: 'in', data: 'hello', at: 1 }])
+    useStore.getState().__reset()
+    const r = useStore.getState()
+    expect(r.wsMode).toBe(false); expect(r.wsStatus).toBe('closed'); expect(r.wsLog).toEqual([]); expect(r.wsConnId).toBeNull()
+  })
+})

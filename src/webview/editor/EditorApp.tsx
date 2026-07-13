@@ -44,10 +44,10 @@ export function EditorApp() {
           st.setPendingFilePick(null)
         }
       }
-      else if (m.type === 'wsOpen') { wsSetStatus('open'); wsAppendLog({ dir: 'status', data: 'connected', at: Date.now() }) }
-      else if (m.type === 'wsMessage') { wsAppendLog({ dir: 'in', data: m.data, at: m.at }) }
-      else if (m.type === 'wsClosed') { wsSetStatus('closed'); wsAppendLog({ dir: 'status', data: `closed: ${m.code}`, at: Date.now() }) }
-      else if (m.type === 'wsError') { wsAppendLog({ dir: 'status', data: `error: ${m.message}`, at: Date.now() }) }
+      else if (m.type === 'wsOpen') { if (m.connId === useStore.getState().wsConnId) { wsSetStatus('open'); wsAppendLog({ dir: 'status', data: 'connected', at: Date.now() }) } }
+      else if (m.type === 'wsMessage') { if (m.connId === useStore.getState().wsConnId) wsAppendLog({ dir: 'in', data: m.data, at: m.at }) }
+      else if (m.type === 'wsClosed') { if (m.connId === useStore.getState().wsConnId) { wsSetStatus('closed'); wsAppendLog({ dir: 'status', data: `closed: ${m.code}`, at: Date.now() }) } }
+      else if (m.type === 'wsError') { if (m.connId === useStore.getState().wsConnId) wsAppendLog({ dir: 'status', data: `error: ${m.message}`, at: Date.now() }) }
     })
     postToHost({ type: 'ready' })
     postToHost({ type: 'loadEnvironments' })

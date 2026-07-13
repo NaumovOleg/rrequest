@@ -1,6 +1,33 @@
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
-import { newId } from '../../../shared/types'
+import { newId, type KeyValue } from '../../../shared/types'
+
+function WsHeadersTable({ rows, onChange }: {
+  rows: KeyValue[]; onChange: (rows: KeyValue[]) => void
+}) {
+  const update = (i: number, patch: Partial<KeyValue>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const withBlank = [...rows, { key: '', value: '', enabled: true }]
+  return (
+    <table>
+      <tbody>
+        {withBlank.map((r, i) => (
+          <tr key={i} className="rm-row">
+            <td><input type="checkbox" aria-label={`ws header enabled ${i}`} checked={r.enabled}
+              onChange={(e) => i < rows.length && update(i, { enabled: e.target.checked })} /></td>
+            <td><input className="rm-input" aria-label={`ws header key ${i}`} placeholder="key" value={r.key}
+              onChange={(e) => {
+                if (i < rows.length) update(i, { key: e.target.value })
+                else onChange([...rows, { key: e.target.value, value: '', enabled: true }])
+              }} /></td>
+            <td><input className="rm-input" aria-label={`ws header value ${i}`} placeholder="value" value={r.value}
+              onChange={(e) => i < rows.length && update(i, { value: e.target.value })} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
 
 export function WebSocketPanel() {
   const wsUrl = useStore((s) => s.wsUrl)
@@ -11,6 +38,7 @@ export function WebSocketPanel() {
   const wsLog = useStore((s) => s.wsLog)
   const setWsUrl = useStore((s) => s.setWsUrl)
   const setWsInput = useStore((s) => s.setWsInput)
+  const setWsHeaders = useStore((s) => s.setWsHeaders)
   const wsStartConnect = useStore((s) => s.wsStartConnect)
   const wsAppendLog = useStore((s) => s.wsAppendLog)
 
@@ -37,6 +65,7 @@ export function WebSocketPanel() {
           : <button className="rm-btn" onClick={disconnect}>Disconnect</button>}
         <span>{wsStatus}</span>
       </div>
+      <WsHeadersTable rows={wsHeaders} onChange={setWsHeaders} />
       <div className="rm-row">
         <input className="rm-input" aria-label="websocket message" placeholder="message" style={{ flex: 1 }}
           value={wsInput} onChange={(e) => setWsInput(e.target.value)} />

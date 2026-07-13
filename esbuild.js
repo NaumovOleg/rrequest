@@ -7,7 +7,7 @@ const options = {
   platform: 'node',
   target: 'node18',
   format: 'cjs',
-  external: ['vscode'],
+  external: ['vscode', 'bufferutil', 'utf-8-validate'],
   outfile: 'dist/extension.js',
   sourcemap: true,
 }

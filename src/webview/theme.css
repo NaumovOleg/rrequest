@@ -48,6 +48,7 @@ body {
 .rm-btn { background: transparent; color: var(--rm-fg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); padding: 3px 10px; cursor: pointer; font-size: 0.95em; }
 .rm-btn:hover { background: var(--rm-hover); }
 .rm-btn:disabled { opacity: .5; cursor: default; }
+.rm-btn.is-active { background: var(--rm-active); border-color: var(--rm-accent); }
 .rm-btn--primary { background: var(--rm-accent); color: var(--rm-accent-fg); border-color: transparent; }
 .rm-btn--primary:hover { background: var(--rm-accent-hover); }
 .rm-btn--ghost, .rm-btn--icon { border-color: transparent; background: transparent; padding: 2px 6px; }

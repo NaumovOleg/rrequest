@@ -13,7 +13,7 @@ const fakeResp: HttpResponse = {
 function deps() {
   return {
     send: vi.fn(async () => fakeResp),
-    collections: { list: vi.fn(async () => []), createCollection: vi.fn(async (n: string, ws: string) => ({ id: 'c1', name: n, workspaceId: ws, requests: [] })), saveRequest: vi.fn(async () => ({ id: 'c1', name: 'c', requests: [] })), saveCollection: vi.fn(async (c: any) => c) } as any,
+    collections: { list: vi.fn(async () => []), createCollection: vi.fn(async (n: string, ws: string) => ({ id: 'c1', name: n, workspaceId: ws, requests: [] })), saveRequest: vi.fn(async () => ({ id: 'c1', name: 'c', requests: [] })), saveCollection: vi.fn(async (c: any) => c), delete: vi.fn(async () => {}) } as any,
     history: { append: vi.fn(async () => {}), list: vi.fn(async () => []) } as any,
     environments: {
       list: vi.fn(async () => [] as any[]),
@@ -185,6 +185,43 @@ describe('createRouter sendRequest with scripts', () => {
     expect(d.environments.saveEnvironment).toHaveBeenCalled()
     // history recorded the RAW payload (no ?pre=1):
     expect(d.history.append.mock.calls[0][0].url).toBe('https://api/x')
+  })
+})
+
+describe('createRouter item + folder routes', () => {
+  function r(d: any) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id } })
+  }
+  it('deleteCollection deletes and returns tree', async () => {
+    const d = deps()
+    const out = await r(d)({ type: 'deleteCollection', id: 'c1' }) as any
+    expect(d.collections.delete).toHaveBeenCalledWith('c1')
+    expect(out.type).toBe('tree')
+  })
+  it('renameCollection loads, renames, saves', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'Old', workspaceId: 'w1', requests: [], folders: [] }])
+    await r(d)({ type: 'renameCollection', id: 'c1', name: 'New' })
+    expect(d.collections.saveCollection).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', name: 'New' }))
+  })
+  it('createFolder adds a folder and saves', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
+    await r(d)({ type: 'createFolder', collectionId: 'c1', name: 'Auth' })
+    const saved = (d.collections.saveCollection as any).mock.calls[0][0]
+    expect(saved.folders).toHaveLength(1)
+    expect(saved.folders[0].name).toBe('Auth')
+  })
+  it('saveRequest forwards folderId', async () => {
+    const d = deps()
+    await r(d)({ type: 'saveRequest', collectionId: 'c1', folderId: 'f1', request: req() })
+    expect(d.collections.saveRequest).toHaveBeenCalledWith('c1', expect.anything(), 'f1')
+  })
+  it('openEnvironments returns showEnvironments', async () => {
+    const out = await r(deps())({ type: 'openEnvironments' })
+    expect(out).toEqual({ type: 'showEnvironments' })
   })
 })
 

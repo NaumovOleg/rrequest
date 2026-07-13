@@ -1,4 +1,4 @@
-import type { HostMessage, KeyValue, WebviewMessage } from '../shared/types'
+import { newId, type HostMessage, type KeyValue, type WebviewMessage } from '../shared/types'
 import type { sendRequest as SendFn } from './http-client'
 import type { CollectionStore } from './collection-store'
 import type { HistoryStore } from './history-store'
@@ -25,6 +25,10 @@ export type RouterDeps = {
 }
 
 export function createRouter(deps: RouterDeps) {
+  async function withCollection(id: string, fn: (c: import('../shared/types').Collection) => void) {
+    const c = (await deps.collections.list()).find((x) => x.id === id)
+    if (c) { fn(c); await deps.collections.saveCollection(c) }
+  }
   async function envSnapshot(): Promise<{ type: 'environments'; environments: import('../shared/types').Environment[]; activeId: string | null }> {
     return { type: 'environments', environments: await deps.environments.list(), activeId: deps.getActiveEnvId() }
   }
@@ -85,7 +89,7 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.createCollection(msg.name, deps.getActiveWorkspaceId())
         return { type: 'tree', collections: await deps.collections.list() }
       case 'saveRequest':
-        await deps.collections.saveRequest(msg.collectionId, msg.request)
+        await deps.collections.saveRequest(msg.collectionId, msg.request, msg.folderId ?? null)
         return { type: 'tree', collections: await deps.collections.list() }
       case 'loadHistory':
         return { type: 'history', entries: await deps.history.list() }
@@ -121,7 +125,7 @@ export function createRouter(deps: RouterDeps) {
         return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
       }
       case 'openRequest':
-        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId }
+        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId, targetFolderId: msg.targetFolderId }
       case 'loadWorkspaces':
         return await wsSnapshot()
       case 'createWorkspace':
@@ -157,8 +161,44 @@ export function createRouter(deps: RouterDeps) {
       case 'wsDisconnect':
         deps.ws?.disconnect(msg.connId)
         return undefined
+      case 'deleteCollection':
+        await deps.collections.delete(msg.id)
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'renameCollection':
+        await withCollection(msg.id, (c) => { c.name = msg.name })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'createFolder':
+        await withCollection(msg.collectionId, (c) => { (c.folders ??= []).push({ id: newId(), name: msg.name, requests: [] }) })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'renameFolder':
+        await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) f.name = msg.name })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'deleteFolder':
+        await withCollection(msg.collectionId, (c) => { c.folders = (c.folders ?? []).filter((x) => x.id !== msg.folderId) })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'renameRequest':
+        await withCollection(msg.collectionId, (c) => { renameReqIn(c, msg.folderId, msg.requestId, msg.name) })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'deleteRequest':
+        await withCollection(msg.collectionId, (c) => { deleteReqIn(c, msg.folderId, msg.requestId) })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'openEnvironments':
+        return { type: 'showEnvironments' }
       default:
         return undefined
     }
   }
+}
+
+function reqBucket(c: import('../shared/types').Collection, folderId: string | null) {
+  if (folderId) return ((c.folders ?? []).find((f) => f.id === folderId)?.requests) ?? null
+  return c.requests
+}
+function renameReqIn(c: import('../shared/types').Collection, folderId: string | null, reqId: string, name: string) {
+  const b = reqBucket(c, folderId); if (!b) return
+  const r = b.find((x) => x.id === reqId); if (r) r.name = name
+}
+function deleteReqIn(c: import('../shared/types').Collection, folderId: string | null, reqId: string) {
+  if (folderId) { const f = (c.folders ?? []).find((x) => x.id === folderId); if (f) f.requests = f.requests.filter((x) => x.id !== reqId) }
+  else c.requests = c.requests.filter((x) => x.id !== reqId)
 }

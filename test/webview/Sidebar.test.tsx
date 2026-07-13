@@ -81,4 +81,36 @@ describe('Sidebar', () => {
     fireEvent.keyDown(screen.getByText('Get Users'), { key: 'Enter' })
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
+
+  it('renders folders and their requests when expanded', () => {
+    const folderReq = { id: 'fr', name: 'In Folder', method: 'POST' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'Auth', requests: [folderReq] }] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))            // expand collection
+    fireEvent.click(screen.getByText('Auth'))          // expand folder
+    expect(screen.getByText('In Folder')).toBeInTheDocument()
+  })
+  it('new folder icon posts createFolder', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.click(screen.getByRole('button', { name: /new folder in C/i }))
+    expect(posted).toContainEqual({ type: 'createFolder', collectionId: 'c1', name: 'New Folder' })
+  })
+  it('delete collection icon posts deleteCollection', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /delete collection C/i }))
+    expect(posted).toContainEqual({ type: 'deleteCollection', id: 'c1' })
+  })
+  it('rename request via edit icon posts renameRequest', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.click(screen.getByRole('button', { name: /rename request Req/i }))
+    fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'Renamed' } })
+    fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
+    expect(posted).toContainEqual({ type: 'renameRequest', collectionId: 'c1', folderId: null, requestId: 'r1', name: 'Renamed' })
+  })
 })

@@ -137,3 +137,9 @@ body {
 .rm-row { flex-wrap: wrap; }
 .codicon { font-size: 15px; line-height: 1; }
 .rm-rename-input { padding: 1px 4px; }
+
+/* popup menu */
+.rm-popup-menu { position: absolute; right: 0; top: 100%; z-index: 10; min-width: 160px; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 2px 8px rgba(0,0,0,.3); padding: 2px; }
+.rm-popup-item { display: flex; align-items: center; gap: var(--rm-sp-1); width: 100%; text-align: left; background: transparent; border: none; color: var(--rm-fg); padding: 4px 8px; cursor: pointer; border-radius: var(--rm-radius); }
+.rm-popup-item:hover { background: var(--rm-hover); }
+.rm-drop-over { outline: 1px dashed var(--rm-accent); outline-offset: -1px; }

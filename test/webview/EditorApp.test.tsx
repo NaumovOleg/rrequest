@@ -90,4 +90,11 @@ describe('EditorApp', () => {
     act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, targetCollectionId: 'c1', targetFolderId: 'f1' }))
     expect(useStore.getState().pendingSaveFolderId).toBe('f1')
   })
+  it('opening a request into a fresh editor yields exactly one tab', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'https://z', params: [], headers: [], body: { mode: 'none' } } }))
+    expect(useStore.getState().tabs).toHaveLength(1)
+    const active = useStore.getState().tabs[0]
+    expect(active.url).toBe('https://z')
+  })
 })

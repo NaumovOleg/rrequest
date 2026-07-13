@@ -15,7 +15,7 @@ export function EditorApp() {
   const setEnvironments = useStore((s) => s.setEnvironments)
   const setActiveEnvId = useStore((s) => s.setActiveEnvId)
   const openNewTab = useStore((s) => s.openNewTab)
-  const updateActive = useStore((s) => s.updateActive)
+  const openOrReplaceBlank = useStore((s) => s.openOrReplaceBlank)
   const setPendingSaveCollectionId = useStore((s) => s.setPendingSaveCollectionId)
   const setPendingSaveFolderId = useStore((s) => s.setPendingSaveFolderId)
   const wsMode = useStore((s) => s.wsMode)
@@ -32,8 +32,7 @@ export function EditorApp() {
       else if (m.type === 'response') setResponse(m.requestId, m.payload)
       else if (m.type === 'openInEditor') {
         const r = m.request
-        openNewTab()
-        updateActive({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body, preRequestScript: r.preRequestScript ?? '', testScript: r.testScript ?? '' })
+        openOrReplaceBlank({ name: r.name, method: r.method, url: r.url, params: r.params, headers: r.headers, body: r.body, preRequestScript: r.preRequestScript ?? '', testScript: r.testScript ?? '' })
         setPendingSaveCollectionId(m.targetCollectionId ?? null)
         setPendingSaveFolderId(m.targetFolderId ?? null)
       } else if (m.type === 'showEnvironments') {
@@ -60,7 +59,7 @@ export function EditorApp() {
     postToHost({ type: 'loadEnvironments' })
     if (useStore.getState().tabs.length === 0) openNewTab()
     return off
-  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, updateActive, setPendingSaveCollectionId, setPendingSaveFolderId, wsSetStatus, wsAppendLog, setEnvMode])
+  }, [setTree, setResponse, setEnvironments, setActiveEnvId, openNewTab, openOrReplaceBlank, setPendingSaveCollectionId, setPendingSaveFolderId, wsSetStatus, wsAppendLog, setEnvMode])
 
   return (
     <div className="rm-surface">

@@ -97,6 +97,7 @@ export type WebviewMessage =
   | { type: 'createFolder'; collectionId: string; name: string }
   | { type: 'renameFolder'; collectionId: string; folderId: string; name: string }
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
+  | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'openEnvironments' }
 
 // host -> webview

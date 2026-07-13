@@ -18,4 +18,12 @@ describe('Tabs', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(useStore.getState().tabs).toHaveLength(0)
   })
+
+  it('renders a method badge and marks the active tab', () => {
+    useStore.getState().openNewTab()
+    useStore.getState().updateActive({ method: 'POST' })
+    render(<Tabs />)
+    expect(document.querySelector('.rm-method--POST')).toBeTruthy()
+    expect(document.querySelector('.rm-tab.is-active')).toBeTruthy()
+  })
 })

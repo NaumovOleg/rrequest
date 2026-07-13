@@ -85,6 +85,9 @@ export type WebviewMessage =
   | { type: 'renameWorkspace'; id: string; name: string }
   | { type: 'deleteWorkspace'; id: string }
   | { type: 'setActiveWorkspace'; id: string }
+  | { type: 'wsConnect'; connId: string; url: string; headers: KeyValue[] }
+  | { type: 'wsSend'; connId: string; data: string }
+  | { type: 'wsDisconnect'; connId: string }
 
 // host -> webview
 export type HostMessage =
@@ -95,6 +98,10 @@ export type HostMessage =
   | { type: 'pickedFile'; path: string; filename: string }
   | { type: 'openInEditor'; request: RestRequest; targetCollectionId?: string }
   | { type: 'workspaces'; workspaces: Workspace[]; activeId: string }
+  | { type: 'wsOpen'; connId: string }
+  | { type: 'wsMessage'; connId: string; data: string; at: number }
+  | { type: 'wsClosed'; connId: string; code: number; reason: string }
+  | { type: 'wsError'; connId: string; message: string }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

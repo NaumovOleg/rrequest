@@ -64,4 +64,12 @@ describe('Sidebar', () => {
     expect(msg.targetCollectionId).toBe('c1')
     expect(msg.request.name).toBe('New Request')
   })
+
+  it('renders a method badge for a request row', () => {
+    const request = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('My Coll'))
+    expect(document.querySelector('.rm-method--GET')).toBeTruthy()
+  })
 })

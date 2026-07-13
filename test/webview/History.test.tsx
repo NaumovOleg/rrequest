@@ -15,4 +15,11 @@ describe('History', () => {
     fireEvent.click(screen.getByText('GET https://api/h'))
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
+
+  it('shows a method badge for a history entry', () => {
+    const request = { id: 'r1', name: 'H', method: 'DELETE' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', request, status: 200, at: 1 }])
+    render(<History />)
+    expect(document.querySelector('.rm-method--DELETE')).toBeTruthy()
+  })
 })

@@ -27,27 +27,30 @@ export function Environments() {
   }
 
   return (
-    <div className="rm-panel" style={{ minWidth: 220 }}>
+    <div className="rm-section">
       <div className="rm-row">
-        <strong>Environments</strong>
-        <button className="rm-btn" onClick={() => postToHost({ type: 'createEnvironment', name: 'New Environment' })}>
+        <span className="rm-section-title">Environments</span>
+        <button className="rm-btn--ghost" onClick={() => postToHost({ type: 'createEnvironment', name: 'New Environment' })}>
           + New Environment
         </button>
       </div>
-      <ul>
+      <div className="rm-tree">
         {environments.map((env) => (
-          <li key={env.id} className="rm-row">
-            <button className="rm-btn" onClick={() => startEdit(env.id)}>{env.name}</button>
-            <button className="rm-btn" aria-label={`delete ${env.name}`}
+          <div key={env.id} className="rm-tree-row">
+            <button className="rm-btn--ghost" onClick={() => startEdit(env.id)}>{env.name}</button>
+            <button className="rm-btn--ghost" aria-label={`delete ${env.name}`}
               onClick={() => postToHost({ type: 'deleteEnvironment', id: env.id })}>×</button>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
 
       {editing && (
         <div>
           <div>Editing: {editing.name}</div>
-          <table>
+          <table className="rm-kvtable">
+            <thead>
+              <tr><th></th><th>Key</th><th>Value</th></tr>
+            </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i} className="rm-row">
@@ -56,14 +59,14 @@ export function Environments() {
                       onChange={(e) => i < vars.length && update(i, { enabled: e.target.checked })} />
                   </td>
                   <td>
-                    <input className="rm-input" placeholder="var key" aria-label={`var key ${i}`} value={r.key}
+                    <input className="rm-input rm-kv-input" placeholder="var key" aria-label={`var key ${i}`} value={r.key}
                       onChange={(e) => {
                         if (i < vars.length) update(i, { key: e.target.value })
                         else setVars([...vars, { key: e.target.value, value: '', enabled: true }])
                       }} />
                   </td>
                   <td>
-                    <input className="rm-input" placeholder="var value" aria-label={`var value ${i}`} value={r.value}
+                    <input className="rm-input rm-kv-input" placeholder="var value" aria-label={`var value ${i}`} value={r.value}
                       onChange={(e) => i < vars.length && update(i, { value: e.target.value })} />
                   </td>
                 </tr>

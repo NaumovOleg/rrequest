@@ -102,4 +102,13 @@ describe('RequestPanel', () => {
     act(() => { useStore.getState().setPendingSaveCollectionId(null) })
     expect((screen.getByLabelText(/save to collection/i) as HTMLSelectElement).value).toBe('')
   })
+
+  it('colors the method select and marks the active sub-tab', () => {
+    useStore.getState().updateActive({ method: 'DELETE' })
+    render(<RequestPanel />)
+    const sel = screen.getByLabelText('method')
+    expect(sel.className).toContain('rm-method--DELETE')
+    // params sub-tab active by default
+    expect(document.querySelector('.rm-subtab.is-active')).toBeTruthy()
+  })
 })

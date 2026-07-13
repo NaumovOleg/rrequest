@@ -5,6 +5,7 @@ import { postToHost } from '../../ipc'
 import type { HttpMethod, KeyValue } from '../../../shared/types'
 import { FormDataEditor } from './FormDataEditor'
 import { parseCurl, toCurl } from '../../curl'
+import { methodClass } from '../../method-color'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 type SubTab = 'params' | 'headers' | 'body' | 'pre-request' | 'tests'
@@ -16,18 +17,21 @@ function KeyValueTable({ rows, onChange }: {
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const withBlank = [...rows, { key: '', value: '', enabled: true }]
   return (
-    <table>
+    <table className="rm-kvtable">
+      <thead>
+        <tr><th></th><th>Key</th><th>Value</th></tr>
+      </thead>
       <tbody>
         {withBlank.map((r, i) => (
           <tr key={i} className="rm-row">
             <td><input type="checkbox" checked={r.enabled}
               onChange={(e) => i < rows.length && update(i, { enabled: e.target.checked })} /></td>
-            <td><input className="rm-input" placeholder="key" value={r.key}
+            <td><input className="rm-input rm-kv-input" placeholder="key" value={r.key}
               onChange={(e) => {
                 if (i < rows.length) update(i, { key: e.target.value })
                 else onChange([...rows, { key: e.target.value, value: '', enabled: true }])
               }} /></td>
-            <td><input className="rm-input" placeholder="value" value={r.value}
+            <td><input className="rm-input rm-kv-input" placeholder="value" value={r.value}
               onChange={(e) => i < rows.length && update(i, { value: e.target.value })} /></td>
           </tr>
         ))}
@@ -61,20 +65,20 @@ export function RequestPanel() {
 
   return (
     <div className="rm-panel">
-      <div className="rm-row">
+      <div className="rm-urlbar">
         <label>
           <span style={{ display: 'none' }}>method</span>
-          <select className="rm-select" aria-label="method" value={active.method}
+          <select className={`rm-select rm-method-select ${methodClass(active.method)}`} aria-label="method" value={active.method}
             onChange={(e) => update({ method: e.target.value as HttpMethod })}>
             {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
-        <input className="rm-input" placeholder="URL" style={{ flex: 1 }} value={active.url}
+        <input className="rm-input rm-url-input" placeholder="URL" style={{ flex: 1 }} value={active.url}
           onChange={(e) => update({ url: e.target.value })} />
-        <button className="rm-btn" disabled={!active.url} onClick={send}>Send</button>
+        <button className="rm-btn rm-btn--primary" disabled={!active.url} onClick={send}>Send</button>
       </div>
 
-      <div className="rm-row">
+      <div className="rm-row" style={{ padding: 'var(--rm-sp-2, 8px)' }}>
         <input className="rm-input" aria-label="request name" placeholder="Request name"
           value={active.name} onChange={(e) => update({ name: e.target.value })} />
         <select className="rm-select" aria-label="save to collection" value={saveCollectionId}
@@ -85,16 +89,16 @@ export function RequestPanel() {
         <button className="rm-btn" disabled={!saveCollectionId} onClick={save}>Save</button>
       </div>
 
-      <div className="rm-row">
+      <div className="rm-row" style={{ padding: 'var(--rm-sp-2, 8px)' }}>
         <button className="rm-btn" onClick={() => { void navigator.clipboard.writeText(toCurl(active)) }}>Copy as cURL</button>
         <input className="rm-input" aria-label="curl command" placeholder="Paste curl command" value={curlText}
           onChange={(e) => setCurlText(e.target.value)} />
         <button className="rm-btn" onClick={() => { const p = parseCurl(curlText); openNewTab(); update(p); setCurlText('') }}>Import from cURL</button>
       </div>
 
-      <div className="rm-row">
+      <div className="rm-subtabs">
         {(['params', 'headers', 'body', 'pre-request', 'tests'] as SubTab[]).map((t) => (
-          <button key={t} className="rm-btn" onClick={() => setSub(t)}>{t}</button>
+          <button key={t} className={`rm-subtab ${sub === t ? 'is-active' : ''}`} onClick={() => setSub(t)}>{t}</button>
         ))}
       </div>
 

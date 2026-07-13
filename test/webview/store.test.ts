@@ -129,3 +129,18 @@ describe('store pendingSaveFolderId + envMode', () => {
     expect(useStore.getState().pendingSaveFolderId).toBeNull(); expect(useStore.getState().envMode).toBe(false)
   })
 })
+
+describe('store openOrReplaceBlank', () => {
+  it('reuses a pristine blank tab instead of opening a second', () => {
+    useStore.getState().openNewTab()                 // one pristine blank
+    useStore.getState().openOrReplaceBlank({ name: 'Opened', method: 'POST', url: 'https://z' })
+    expect(useStore.getState().tabs).toHaveLength(1)
+    expect(useStore.getState().tabs[0].url).toBe('https://z')
+  })
+  it('opens a new tab when the active tab is not blank', () => {
+    useStore.getState().openNewTab()
+    useStore.getState().updateActive({ url: 'https://used' })  // active now non-blank
+    useStore.getState().openOrReplaceBlank({ url: 'https://z' })
+    expect(useStore.getState().tabs).toHaveLength(2)
+  })
+})

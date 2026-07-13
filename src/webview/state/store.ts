@@ -30,6 +30,7 @@ type State = {
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
+  openOrReplaceBlank(patch: Partial<RestRequest>): void
   setTabBody(tabId: string, body: RestRequest['body']): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
@@ -90,6 +91,18 @@ export const useStore = create<State>((set) => ({
   updateActive: (patch) => set((s) => ({
     tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch } : t)),
   })),
+
+  openOrReplaceBlank: (patch) => set((s) => {
+    const active = s.tabs.find((t) => t.id === s.activeTabId)
+    const isBlank = active && (active.name === 'New Request' || active.name === 'Untitled')
+      && !active.url && active.params.length === 0 && active.headers.length === 0
+      && active.body.mode === 'none' && !active.preRequestScript && !active.testScript
+    if (active && isBlank) {
+      return { tabs: s.tabs.map((t) => (t.id === active.id ? { ...t, ...patch } : t)) }
+    }
+    const r = blankRequest()
+    return { tabs: [...s.tabs, { ...r, ...patch }], activeTabId: r.id }
+  }),
 
   setTabBody: (tabId, body) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, body } : t)) })),
 

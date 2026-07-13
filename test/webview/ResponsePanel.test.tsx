@@ -53,4 +53,15 @@ describe('ResponsePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /console/i }))
     expect(screen.getByText('log line one')).toBeInTheDocument()
   })
+
+  it('shows a status pill colored by range and PASS/FAIL badges', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 404, statusText: 'Not Found', headers: [], body: '{}', bodyTruncated: false, timeMs: 1, sizeBytes: 2, cookies: [],
+      testResults: [{ name: 'x', passed: true }],
+    })
+    render(<ResponsePanel />)
+    expect(document.querySelector('.rm-status-pill.is-4xx')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /test results/i }))
+    expect(document.querySelector('.rm-badge.is-pass')).toBeTruthy()
+  })
 })

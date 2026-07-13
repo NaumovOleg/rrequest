@@ -12,6 +12,13 @@ function prettyBody(resp: HttpResponse): string {
   return resp.body
 }
 
+function pillClass(status: number): string {
+  if (status >= 200 && status < 300) return 'is-2xx'
+  if (status >= 300 && status < 400) return 'is-3xx'
+  if (status >= 400 && status < 500) return 'is-4xx'
+  return 'is-5xx'
+}
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
@@ -20,7 +27,7 @@ export function ResponsePanel() {
   if (resp.error) {
     return (
       <div className="rm-panel">
-        <div role="alert" style={{ color: 'var(--vscode-errorForeground)' }}>
+        <div role="alert" className="rm-error-banner">
           {resp.error.kind}: {resp.error.message}
         </div>
       </div>
@@ -29,20 +36,20 @@ export function ResponsePanel() {
 
   return (
     <div className="rm-panel">
-      <div className="rm-row">
-        <span>Status: {resp.status} {resp.statusText}</span>
-        <span>Time: {resp.timeMs} ms</span>
-        <span>Size: {resp.sizeBytes} B</span>
+      <div className="rm-statusline">
+        <span className={`rm-status-pill ${pillClass(resp.status)}`}>{resp.status} {resp.statusText}</span>
+        <span className="rm-meta">Time: {resp.timeMs} ms</span>
+        <span className="rm-meta">Size: {resp.sizeBytes} B</span>
       </div>
-      <div className="rm-row">
+      <div className="rm-subtabs">
         {(['body', 'headers', 'cookies', 'test-results', 'console'] as SubTab[]).map((t) => (
-          <button key={t} className="rm-btn" onClick={() => setSub(t)}>{t.replace('-', ' ')}</button>
+          <button key={t} className={`rm-subtab ${sub === t ? 'is-active' : ''}`} onClick={() => setSub(t)}>{t.replace('-', ' ')}</button>
         ))}
       </div>
       {sub === 'body' && (
         <>
           {resp.bodyTruncated && <div>Response too large — showing a truncated preview.</div>}
-          <pre className="rm-input" style={{ whiteSpace: 'pre-wrap' }}>{prettyBody(resp)}</pre>
+          <pre className="rm-code">{prettyBody(resp)}</pre>
         </>
       )}
       {sub === 'headers' && (
@@ -63,8 +70,8 @@ export function ResponsePanel() {
         <table><tbody>
           {(resp.testResults ?? []).map((t, i) => (
             <tr key={i}>
-              <td style={{ color: t.passed ? 'var(--vscode-testing-iconPassed, green)' : 'var(--vscode-errorForeground)' }}>
-                {t.passed ? 'PASS' : 'FAIL'}
+              <td>
+                <span className={`rm-badge ${t.passed ? 'is-pass' : 'is-fail'}`}>{t.passed ? 'PASS' : 'FAIL'}</span>
               </td>
               <td>{t.name}{t.error ? `: ${t.error}` : ''}</td>
             </tr>
@@ -72,7 +79,7 @@ export function ResponsePanel() {
         </tbody></table>
       )}
       {sub === 'console' && (
-        <pre className="rm-input" style={{ whiteSpace: 'pre-wrap' }}>{(resp.consoleLogs ?? []).join('\n')}</pre>
+        <pre className="rm-code">{(resp.consoleLogs ?? []).join('\n')}</pre>
       )}
     </div>
   )

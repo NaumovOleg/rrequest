@@ -33,7 +33,8 @@ describe('Sidebar', () => {
   it('Export posts exportCollection with the collection id and format', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /export postman for C/i }))
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    fireEvent.click(screen.getByText(/export postman/i))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })
   })
 
@@ -97,11 +98,46 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: /new folder in C/i }))
     expect(posted).toContainEqual({ type: 'createFolder', collectionId: 'c1', name: 'New Folder' })
   })
-  it('delete collection icon posts deleteCollection', () => {
+  it('delete collection via settings popup posts deleteCollection', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /delete collection C/i }))
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    fireEvent.click(screen.getByText(/^delete$/i))
     expect(posted).toContainEqual({ type: 'deleteCollection', id: 'c1' })
+  })
+  it('collection settings popup has Rename and posts export native', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    fireEvent.click(screen.getByText(/export native/i))
+    expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'native' })
+  })
+  it('collection settings Rename enters inline rename mode', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    fireEvent.click(screen.getByText(/^rename$/i))
+    fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'Renamed' } })
+    fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
+    expect(posted).toContainEqual({ type: 'renameCollection', id: 'c1', name: 'Renamed' })
+  })
+  it('request row has no delete icon (rename only)', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    expect(screen.getByRole('button', { name: /rename request Req/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /delete request Req/i })).toBeNull()
+  })
+  it('dropping a request on a folder posts moveRequest', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [{ id: 'f1', name: 'F', requests: [] }] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    const folderRow = screen.getByText('F').closest('.rm-tree-row')!
+    const data: any = { types: ['application/json'], getData: () => JSON.stringify({ fromCollectionId: 'c1', fromFolderId: null, requestId: 'r1' }), setData: () => {} }
+    fireEvent.drop(folderRow, { dataTransfer: data })
+    expect(posted).toContainEqual({ type: 'moveRequest', fromCollectionId: 'c1', fromFolderId: null, requestId: 'r1', toCollectionId: 'c1', toFolderId: 'f1' })
   })
   it('rename request via edit icon posts renameRequest', () => {
     const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
@@ -118,7 +154,8 @@ describe('Sidebar', () => {
     const request = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /rename collection My Coll/i }))
+    fireEvent.click(screen.getByRole('button', { name: /collection settings My Coll/i }))
+    fireEvent.click(screen.getByText(/^rename$/i))
     fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'New Folder Name' } })
     fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
 

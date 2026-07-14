@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
 import { newId, type Collection, type Folder, type RestRequest } from '../../../shared/types'
 import { MethodBadge } from '../common/MethodBadge'
 import { IconButton } from '../common/IconButton'
+import { PopupMenu } from '../common/PopupMenu'
 import { RenameInput } from '../common/RenameInput'
 
 function blankRequest(): RestRequest {
@@ -15,6 +16,20 @@ export function Sidebar() {
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+
+  const dropHandlers = (dropKey: string, toCollectionId: string, toFolderId: string | null) => ({
+    onDragOver: (e: DragEvent) => { e.preventDefault(); setDropTarget(dropKey) },
+    onDragLeave: () => setDropTarget((cur) => (cur === dropKey ? null : cur)),
+    onDrop: (e: DragEvent) => {
+      e.preventDefault()
+      setDropTarget(null)
+      const raw = e.dataTransfer.getData('application/json')
+      if (!raw) return
+      const p = JSON.parse(raw) as { fromCollectionId: string; fromFolderId: string | null; requestId: string }
+      postToHost({ type: 'moveRequest', ...p, toCollectionId, toFolderId })
+    },
+  })
 
   const toggleCollection = (id: string) =>
     setExpandedCollections((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
@@ -32,6 +47,8 @@ export function Sidebar() {
     const activate = () => openExisting(r, collectionId, folderId)
     return (
       <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
+        draggable={!isRenaming}
+        onDragStart={(e) => e.dataTransfer.setData('application/json', JSON.stringify({ fromCollectionId: collectionId, fromFolderId: folderId, requestId: r.id }))}
         onClick={activate}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } }}>
         <MethodBadge method={r.method} />{' '}
@@ -42,8 +59,6 @@ export function Sidebar() {
           : <span>{r.name}</span>}
         <div className="rm-actions">
           <IconButton icon="edit" label={`rename request ${r.name}`} onClick={() => setRenamingId(r.id)} />
-          <IconButton icon="trash" label={`delete request ${r.name}`}
-            onClick={() => postToHost({ type: 'deleteRequest', collectionId, folderId, requestId: r.id })} />
         </div>
       </div>
     )
@@ -55,10 +70,12 @@ export function Sidebar() {
     const isRenaming = renamingId === f.id
     return (
       <div key={f.id}>
-        <div className="rm-tree-row" role="button" tabIndex={0}
+        <div className={`rm-tree-row${dropTarget === key ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
           onClick={() => toggleFolder(key)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFolder(key) } }}>
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFolder(key) } }}
+          {...dropHandlers(key, c.id, f.id)}>
           <span className="rm-tree-caret" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>{' '}
+          <span className={`codicon codicon-folder${isExpanded ? '-opened' : ''}`} aria-hidden="true" />{' '}
           {isRenaming
             ? <RenameInput initial={f.name}
                 onCommit={(name) => { postToHost({ type: 'renameFolder', collectionId: c.id, folderId: f.id, name }); setRenamingId(null) }}
@@ -100,9 +117,10 @@ export function Sidebar() {
           const folders = c.folders ?? []
           return (
             <div key={c.id}>
-              <div className="rm-tree-row" role="button" tabIndex={0}
+              <div className={`rm-tree-row${dropTarget === c.id ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
                 onClick={() => toggleCollection(c.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollection(c.id) } }}>
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollection(c.id) } }}
+                {...dropHandlers(c.id, c.id, null)}>
                 <span className="rm-tree-caret" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>{' '}
                 {isRenaming
                   ? <RenameInput initial={c.name}
@@ -110,17 +128,16 @@ export function Sidebar() {
                       onCancel={() => setRenamingId(null)} />
                   : <span>{c.name}</span>}
                 <div className="rm-actions">
-                  <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
-                  <IconButton icon="trash" label={`delete collection ${c.name}`}
-                    onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
                   <IconButton icon="new-folder" label={`new folder in ${c.name}`}
                     onClick={() => postToHost({ type: 'createFolder', collectionId: c.id, name: 'New Folder' })} />
                   <IconButton icon="add" label={`add request to ${c.name}`}
                     onClick={() => postToHost({ type: 'openRequest', request: blankRequest(), targetCollectionId: c.id, targetFolderId: null })} />
-                  <IconButton icon="cloud-download" label={`export native for ${c.name}`}
-                    onClick={() => postToHost({ type: 'exportCollection', id: c.id, format: 'native' })} />
-                  <IconButton icon="json" label={`export postman for ${c.name}`}
-                    onClick={() => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' })} />
+                  <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={[
+                    { label: 'Rename', icon: 'edit', onClick: () => setRenamingId(c.id) },
+                    { label: 'Delete', icon: 'trash', onClick: () => postToHost({ type: 'deleteCollection', id: c.id }) },
+                    { label: 'Export native', icon: 'cloud-download', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'native' }) },
+                    { label: 'Export postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
+                  ]} />
                 </div>
               </div>
               {isExpanded && (

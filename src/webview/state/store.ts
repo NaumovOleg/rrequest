@@ -1,12 +1,19 @@
 import { create } from 'zustand'
-import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
+import { newId, defaultHeaders, type Collection, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
 export type Tab = RestRequest & { collectionId?: string; folderId?: string | null }
 
 function blankRequest(): RestRequest {
-  return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
+  return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
+}
+
+function isPristineBlank(t: RestRequest): boolean {
+  // Default headers don't count as user content, so they're ignored here.
+  return (t.name === 'New Request' || t.name === 'Untitled')
+    && !t.url && t.params.length === 0
+    && t.body.mode === 'none' && !t.preRequestScript && !t.testScript
 }
 
 function findInTree(tree: Collection[], collectionId: string, folderId: string | null | undefined, reqId: string): RestRequest | undefined {
@@ -38,11 +45,13 @@ type State = {
   wsLog: { dir: 'in' | 'out' | 'status'; data: string; at: number }[]
   envMode: boolean
   envEditId: string | null
+  grpcMode: boolean
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
   openOrReplaceBlank(patch: Partial<Tab>): void
+  openLinkedTab(request: RestRequest, collectionId?: string, folderId?: string | null): void
   setTabBody(tabId: string, body: RestRequest['body']): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
@@ -63,6 +72,7 @@ type State = {
   wsClear(): void
   setEnvMode(v: boolean): void
   setEnvEditId(id: string | null): void
+  setGrpcMode(v: boolean): void
   __reset(): void
 }
 
@@ -88,6 +98,7 @@ export const useStore = create<State>((set) => ({
   wsLog: [],
   envMode: false,
   envEditId: null,
+  grpcMode: false,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -108,9 +119,7 @@ export const useStore = create<State>((set) => ({
 
   openOrReplaceBlank: (patch) => set((s) => {
     const active = s.tabs.find((t) => t.id === s.activeTabId)
-    const isBlank = active && (active.name === 'New Request' || active.name === 'Untitled')
-      && !active.url && active.params.length === 0 && active.headers.length === 0
-      && active.body.mode === 'none' && !active.preRequestScript && !active.testScript
+    const isBlank = active && isPristineBlank(active)
     if (active && isBlank) {
       // patch may carry a new id (linking to a collection request); keep the
       // active pointer in sync with it.
@@ -119,6 +128,25 @@ export const useStore = create<State>((set) => ({
     }
     const r = blankRequest()
     const tab = { ...r, ...patch }
+    return { tabs: [...s.tabs, tab], activeTabId: tab.id }
+  }),
+
+  // Open a request in its own tab. If it is already open, just focus it (and
+  // refresh its link) instead of adding a duplicate.
+  openLinkedTab: (request, collectionId, folderId) => set((s) => {
+    if (s.tabs.some((t) => t.id === request.id)) {
+      return {
+        activeTabId: request.id,
+        tabs: s.tabs.map((t) => (t.id === request.id ? { ...t, collectionId, folderId: folderId ?? null } : t)),
+      }
+    }
+    const tab: Tab = { ...request, collectionId, folderId: folderId ?? null }
+    // Consume a single pristine blank tab (the one opened on mount) instead of
+    // leaving it behind; every non-blank request still gets its own tab.
+    const blank = s.tabs.find((t) => isPristineBlank(t))
+    if (blank) {
+      return { tabs: s.tabs.map((t) => (t.id === blank.id ? tab : t)), activeTabId: tab.id }
+    }
     return { tabs: [...s.tabs, tab], activeTabId: tab.id }
   }),
 
@@ -162,6 +190,7 @@ export const useStore = create<State>((set) => ({
   setPendingSaveFolderId: (pendingSaveFolderId) => set({ pendingSaveFolderId }),
   setEnvMode: (envMode) => set({ envMode }),
   setEnvEditId: (envEditId) => set({ envEditId }),
+  setGrpcMode: (grpcMode) => set({ grpcMode }),
 
   __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null }),
 }))

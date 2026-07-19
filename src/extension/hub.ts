@@ -1,45 +1,42 @@
 import type { HostMessage, WebviewMessage } from '../shared/types'
 
-type SurfaceId = 'editor' | 'sidebar'
 type Sink = (m: HostMessage) => void
 
+/**
+ * Fan-out hub shared by every surface. Each surface registers a sink under a
+ * unique id: the sidebar as 'sidebar', and every editor panel under its own key
+ * (e.g. `req:<id>`, 'env', 'ws'). Responses route back to the sender; "open"
+ * replies are handed to the host via onOpen so it can create/reveal the right
+ * panel; state snapshots broadcast to everyone.
+ */
 export class Hub {
-  private readonly sinks = new Map<SurfaceId, Sink>()
-  private onOpenInEditor?: () => void
-  // openInEditor messages routed while no 'editor' sink exists yet are queued
-  // here and flushed when the editor registers (fixes the first-click race).
-  private readonly pendingEditor: HostMessage[] = []
+  private readonly sinks = new Map<string, Sink>()
+  private onOpen?: (m: HostMessage) => void
   constructor(
     private readonly route: (m: WebviewMessage) => Promise<HostMessage | undefined>,
     private readonly snapshot: () => Promise<HostMessage[]>,
   ) {}
 
-  register(id: SurfaceId, post: Sink): () => void {
+  register(id: string, post: Sink): () => void {
     this.sinks.set(id, post)
-    if (id === 'editor' && this.pendingEditor.length > 0) {
-      for (const m of this.pendingEditor) post(m)
-      this.pendingEditor.length = 0
-    }
     return () => { if (this.sinks.get(id) === post) this.sinks.delete(id) }
   }
 
-  // The editor panel provider sets this so the Hub can reveal/create the editor
-  // panel before routing an openInEditor message to it.
-  setEditorReveal(fn: () => void) { this.onOpenInEditor = fn }
+  // The host wires this to create/reveal the panel a reply should open in.
+  setOpen(fn: (m: HostMessage) => void) { this.onOpen = fn }
 
-  emitToEditor(m: HostMessage): void { this.postTo('editor', m) }
+  // Direct post to one sink (used by the WsManager to reach the ws panel).
+  emitTo(id: string, m: HostMessage): void { this.postTo(id, m) }
 
-  private postTo(id: SurfaceId, m: HostMessage) { this.sinks.get(id)?.(m) }
+  private postTo(id: string, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }
 
-  async dispatch(fromId: SurfaceId, msg: WebviewMessage): Promise<void> {
+  async dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
     const reply = await this.route(msg)
     if (reply) {
       if (reply.type === 'response' || reply.type === 'pickedFile') this.postTo(fromId, reply)
-      else if (reply.type === 'openInEditor' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket') {
-        this.onOpenInEditor?.()
-        if (this.sinks.has('editor')) this.postTo('editor', reply)
-        else this.pendingEditor.push(reply)
+      else if (reply.type === 'openInEditor' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc') {
+        this.onOpen?.(reply)
       }
       // tree/environments/workspaces/history replies are covered by the snapshot below
     }

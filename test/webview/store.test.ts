@@ -153,6 +153,31 @@ describe('store openOrReplaceBlank', () => {
   })
 })
 
+describe('store openLinkedTab', () => {
+  const req = (id: string) => ({ id, name: id, method: 'GET' as const, url: `https://${id}`, params: [], headers: [], body: { mode: 'none' as const } })
+  it('opens distinct requests in separate tabs', () => {
+    useStore.getState().openLinkedTab(req('r1'), 'c1', null)
+    useStore.getState().openLinkedTab(req('r2'), 'c1', null)
+    const s = useStore.getState()
+    expect(s.tabs.map((t) => t.id)).toEqual(['r1', 'r2'])
+    expect(s.activeTabId).toBe('r2')
+  })
+  it('focuses the existing tab instead of duplicating', () => {
+    useStore.getState().openLinkedTab(req('r1'), 'c1', null)
+    useStore.getState().openLinkedTab(req('r2'), 'c1', null)
+    useStore.getState().openLinkedTab(req('r1'), 'c1', null)
+    const s = useStore.getState()
+    expect(s.tabs).toHaveLength(2)
+    expect(s.activeTabId).toBe('r1')
+  })
+  it('consumes the pristine blank mount tab', () => {
+    useStore.getState().openNewTab()              // pristine blank
+    useStore.getState().openLinkedTab(req('r1'), 'c1', null)
+    expect(useStore.getState().tabs).toHaveLength(1)
+    expect(useStore.getState().tabs[0].id).toBe('r1')
+  })
+})
+
 describe('store setTree tab reconciliation', () => {
   it('updates a non-active linked tab when the tree changes (e.g. sidebar rename)', () => {
     // open a linked tab, then switch away so it is not the active tab

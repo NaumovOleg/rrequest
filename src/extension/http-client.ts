@@ -107,6 +107,7 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
         url: sub(request.url),
         params: request.params.map((p) => ({ ...p, key: sub(p.key), value: sub(p.value) })),
         headers: request.headers.map((h) => ({ ...h, key: sub(h.key), value: sub(h.value) })),
+        cookies: request.cookies?.map((c) => ({ ...c, key: sub(c.key), value: sub(c.value) })),
         body:
           request.body.mode === 'raw'
             ? { ...request.body, text: sub(request.body.text) }
@@ -128,6 +129,8 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
     try {
       headers = new Headers()
       for (const h of req.headers) if (h.enabled && h.key) headers.set(h.key, h.value)
+      const cookiePairs = (req.cookies ?? []).filter((c) => c.enabled && c.key).map((c) => `${c.key}=${c.value}`)
+      if (cookiePairs.length) headers.set('cookie', cookiePairs.join('; '))
     } catch (e: any) {
       return {
         status: 0, statusText: '', headers: [], body: '',

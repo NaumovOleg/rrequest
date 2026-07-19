@@ -1,5 +1,5 @@
 export type HttpMethod =
-  | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
+  | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'QUERY' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
 export type KeyValue = { key: string; value: string; enabled: boolean; description?: string; secret?: boolean }
 
@@ -28,8 +28,14 @@ export type RestRequest = {
   headers: KeyValue[]
   body: RequestBody
   auth?: Auth
+  cookies?: KeyValue[]
   preRequestScript?: string
   testScript?: string
+}
+
+/** Standard headers a fresh request starts with. */
+export function defaultHeaders(): KeyValue[] {
+  return [{ key: 'Accept', value: '*/*', enabled: true }]
 }
 
 export type HttpError = {
@@ -81,6 +87,7 @@ export type WebviewMessage =
   | { type: 'loadTree' }
   | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: RestRequest }
   | { type: 'createRequest'; collectionId: string; folderId: string | null; request: RestRequest }
+  | { type: 'duplicateRequest'; collectionId: string; folderId: string | null; requestId: string }
   | { type: 'setCollectionEnvironment'; collectionId: string; environmentId: string | null }
   | { type: 'createCollection'; name: string }
   | { type: 'loadHistory' }
@@ -112,6 +119,8 @@ export type WebviewMessage =
   | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }
   | { type: 'openEnvironments'; id?: string }
   | { type: 'openWebSocket' }
+  | { type: 'openGrpc' }
+  | { type: 'setTitle'; title: string }
 
 // host -> webview
 export type HostMessage =
@@ -128,6 +137,7 @@ export type HostMessage =
   | { type: 'wsError'; connId: string; message: string }
   | { type: 'showEnvironments'; id?: string }
   | { type: 'showWebSocket' }
+  | { type: 'showGrpc' }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

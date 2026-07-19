@@ -12,7 +12,7 @@ import { WorkspaceStore } from './workspace-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
-import type { HostMessage, WebviewMessage } from '../shared/types'
+import { newId, defaultHeaders, type HostMessage, type RestRequest, type WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, codiconUri: string, cspSource: string, nonce: string): string {
   return `<!DOCTYPE html>
@@ -62,7 +62,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // is constructed below.
   const wsFactory: WsFactory = (url, opts) => new WebSocket(url, { headers: opts.headers }) as unknown as import('./ws-manager').WsSocket
   let hubRef: Hub | undefined
-  const wsManager = new WsManager((m) => hubRef?.emitToEditor(m), wsFactory)
+  const wsManager = new WsManager((m) => hubRef?.emitTo('ws', m), wsFactory)
 
   const route = createRouter({
     send: sendRequest,
@@ -120,8 +120,19 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
 
   const hub = new Hub(route, snapshot)
   hubRef = hub
-  // Let the Hub reveal/create the editor panel when routing openInEditor.
-  hub.setEditorReveal(() => { RestmanPanel.createOrShow(context) })
+  // Each "open" reply gets its own editor panel (native tab). Requests are keyed
+  // by request id so re-opening focuses the existing tab; env/ws are singletons.
+  hub.setOpen((m) => {
+    if (m.type === 'openInEditor') {
+      RestmanPanel.openOrReveal(context, `req:${m.request.id}`, `${m.request.method} ${m.request.name}`, m)
+    } else if (m.type === 'showEnvironments') {
+      RestmanPanel.openOrReveal(context, 'env', 'Environments', m)
+    } else if (m.type === 'showWebSocket') {
+      RestmanPanel.openOrReveal(context, 'ws', 'WebSocket', m)
+    } else if (m.type === 'showGrpc') {
+      RestmanPanel.openOrReveal(context, 'grpc', 'gRPC', m)
+    }
+  })
   return hub
   })()
   bootstrapPromise.catch(() => { bootstrapPromise = undefined })
@@ -130,25 +141,58 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
 
 export { ensureBootstrap }
 
-export class RestmanPanel {
-  private static current: RestmanPanel | undefined
+function blankRequest(): RestRequest {
+  return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
+}
 
+/**
+ * One WebviewPanel per open thing (request/env/ws), keyed so re-opening focuses
+ * the existing native tab instead of spawning a duplicate. Each panel registers
+ * its own hub sink under its key, so responses route back to the panel that
+ * sent the request. A per-panel pending queue holds the initial message until
+ * the webview's sink registers (fixing the first-open race).
+ */
+export class RestmanPanel {
+  private static panels = new Map<string, RestmanPanel>()
+
+  private readonly pending: HostMessage[] = []
+  private registered = false
+  private disposed = false
+  private unregister?: () => void
+
+  // Command entry point: open a fresh blank request in its own tab.
   static createOrShow(context: vscode.ExtensionContext) {
-    if (RestmanPanel.current) {
-      RestmanPanel.current.panel.reveal()
+    const req = blankRequest()
+    RestmanPanel.openOrReveal(context, `req:${req.id}`, `${req.method} ${req.name}`, { type: 'openInEditor', request: req })
+  }
+
+  static openOrReveal(context: vscode.ExtensionContext, key: string, title: string, initial?: HostMessage) {
+    const existing = RestmanPanel.panels.get(key)
+    if (existing) {
+      existing.panel.title = title
+      existing.panel.reveal()
+      if (initial) existing.deliver(initial)
       return
     }
     const panel = vscode.window.createWebviewPanel(
-      'restman', 'restman', vscode.ViewColumn.One,
+      'restman', title, vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] },
     )
-    RestmanPanel.current = new RestmanPanel(panel, context)
+    const rp = new RestmanPanel(panel, context, key)
+    if (initial) rp.pending.push(initial)
+    RestmanPanel.panels.set(key, rp)
+  }
+
+  private deliver(m: HostMessage) {
+    if (this.registered) void this.panel.webview.postMessage(m)
+    else this.pending.push(m)
   }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
+    key: string,
   ) {
     const scriptUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'editor.js'),
@@ -160,24 +204,32 @@ export class RestmanPanel {
       vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'),
     ).toString()
     panel.webview.html = buildHtml(scriptUri, styleUri, codiconUri, panel.webview.cspSource, nonce())
+    // Show a request glyph on the editor tab instead of the default file icon.
+    panel.iconPath = {
+      light: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon-request-light.svg'),
+      dark: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon-request-dark.svg'),
+    }
 
-    let unregister: (() => void) | undefined
-    let disposed = false
     void ensureBootstrap(context).then((hub) => {
       // If the panel was disposed before bootstrap resolved, do not register a
       // sink to an already-dead webview (it would never be cleaned up).
-      if (disposed) return
-      unregister = hub.register('editor', (m) => { void panel.webview.postMessage(m) })
+      if (this.disposed) return
+      this.unregister = hub.register(key, (m) => { void panel.webview.postMessage(m) })
+      this.registered = true
+      for (const m of this.pending) void panel.webview.postMessage(m)
+      this.pending.length = 0
     })
     panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
+      // Reflect the request's method + name on the VS Code editor tab.
+      if (msg.type === 'setTitle') { panel.title = msg.title || 'restman'; return }
       const hub = await ensureBootstrap(context)
-      await hub.dispatch('editor', msg)
+      await hub.dispatch(key, msg)
     })
 
     panel.onDidDispose(() => {
-      disposed = true
-      unregister?.()
-      RestmanPanel.current = undefined
+      this.disposed = true
+      this.unregister?.()
+      RestmanPanel.panels.delete(key)
     })
   }
 }

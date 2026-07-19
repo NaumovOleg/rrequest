@@ -15,7 +15,7 @@ function WsHeadersTable({ rows, onChange }: {
       </thead>
       <tbody>
         {withBlank.map((r, i) => (
-          <tr key={i} className="rm-row">
+          <tr key={i}>
             <td><input type="checkbox" aria-label={`ws header enabled ${i}`} checked={r.enabled}
               onChange={(e) => i < rows.length && update(i, { enabled: e.target.checked })} /></td>
             <td><input className="rm-input rm-kv-input" aria-label={`ws header key ${i}`} placeholder="key" value={r.key}

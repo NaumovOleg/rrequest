@@ -27,11 +27,25 @@ function fmtSize(bytes: number): string {
 
 type ResultFilter = 'all' | 'passed' | 'failed'
 
+function isJson(resp: HttpResponse): boolean {
+  const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
+  return ct.includes('json')
+}
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
   const [filter, setFilter] = useState<ResultFilter>('all')
+  const [bodyView, setBodyView] = useState<'pretty' | 'raw'>('pretty')
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
-  if (!resp) return <div className="rm-panel">No response yet</div>
+  if (!resp) return (
+    <div className="rm-panel rm-response-blank">
+      <div className="rm-blank">
+        <span className="codicon codicon-arrow-right rm-blank-icon" aria-hidden="true" />
+        <div className="rm-blank-title">No response yet</div>
+        <div className="rm-blank-hint">Enter the URL and click Send to get a response.</div>
+      </div>
+    </div>
+  )
 
   if (resp.error) {
     return (
@@ -57,8 +71,16 @@ export function ResponsePanel() {
       </div>
       {sub === 'body' && (
         <>
+          {isJson(resp) && (
+            <div className="rm-body-toolbar">
+              <button className={`rm-btn rm-btn--sm ${bodyView === 'pretty' ? 'is-active' : ''}`}
+                onClick={() => setBodyView('pretty')}>Beautify</button>
+              <button className={`rm-btn rm-btn--sm ${bodyView === 'raw' ? 'is-active' : ''}`}
+                onClick={() => setBodyView('raw')}>Raw</button>
+            </div>
+          )}
           {resp.bodyTruncated && <div>Response too large — showing a truncated preview.</div>}
-          <pre className="rm-code">{prettyBody(resp)}</pre>
+          <pre className="rm-code">{bodyView === 'raw' ? resp.body : prettyBody(resp)}</pre>
         </>
       )}
       {sub === 'headers' && (

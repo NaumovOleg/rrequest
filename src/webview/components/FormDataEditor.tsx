@@ -23,7 +23,7 @@ export function FormDataEditor() {
     <table>
       <tbody>
         {rows.map((r, i) => (
-          <tr key={i} className="rm-row">
+          <tr key={i}>
             <td>
               <input
                 type="checkbox"

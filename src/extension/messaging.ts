@@ -107,6 +107,18 @@ export function createRouter(deps: RouterDeps) {
         if (c?.environmentId) deps.setActiveEnvId(c.environmentId)
         return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.collectionId, targetFolderId: msg.folderId }
       }
+      case 'duplicateRequest': {
+        const all = await deps.collections.list()
+        const c = all.find((x) => x.id === msg.collectionId)
+        if (!c) return { type: 'tree', collections: all }
+        const bucket = reqBucket(c, msg.folderId)
+        const i = bucket?.findIndex((r) => r.id === msg.requestId) ?? -1
+        if (!bucket || i < 0) return { type: 'tree', collections: all }
+        const src = bucket[i]
+        bucket.splice(i + 1, 0, { ...src, id: newId(), name: `${src.name} Copy` })
+        await deps.collections.saveCollection(c)
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'setCollectionEnvironment': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
         if (c) await deps.collections.saveCollection({ ...c, environmentId: msg.environmentId ?? undefined })
@@ -229,6 +241,8 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'showEnvironments', id: msg.id }
       case 'openWebSocket':
         return { type: 'showWebSocket' }
+      case 'openGrpc':
+        return { type: 'showGrpc' }
       case 'moveRequest': {
         const all = await deps.collections.list()
         const from = all.find((c) => c.id === msg.fromCollectionId)

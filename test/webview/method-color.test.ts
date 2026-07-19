@@ -6,6 +6,7 @@ describe('methodClass', () => {
     expect(methodClass('GET')).toBe('rm-method--GET')
     expect(methodClass('POST')).toBe('rm-method--POST')
     expect(methodClass('DELETE')).toBe('rm-method--DELETE')
+    expect(methodClass('QUERY')).toBe('rm-method--QUERY')
   })
   it('maps HEAD/OPTIONS/unknown to rm-method--OTHER', () => {
     expect(methodClass('HEAD')).toBe('rm-method--OTHER')

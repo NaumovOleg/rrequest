@@ -168,6 +168,16 @@ describe('createRouter workspace + openRequest', () => {
     await router(d)({ type: 'openRequest', request: req, targetCollectionId: 'c1' })
     expect(d.activeEnvId).toBe('e9')
   })
+  it('duplicateRequest clones the request after the original with a Copy name', async () => {
+    const d = deps()
+    const req: RestRequest = { id: 'r1', name: 'Orig', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [req] }])
+    await router(d)({ type: 'duplicateRequest', collectionId: 'c1', folderId: null, requestId: 'r1' })
+    const saved = (d.collections.saveCollection as any).mock.calls.at(-1)[0]
+    expect(saved.requests).toHaveLength(2)
+    expect(saved.requests[1].name).toBe('Orig Copy')
+    expect(saved.requests[1].id).not.toBe('r1')
+  })
   it('createRequest persists the request and opens it linked', async () => {
     const d = deps()
     const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }

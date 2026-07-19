@@ -46,6 +46,34 @@ describe('sendRequest', () => {
     expect(res.error).toBeUndefined()
   })
 
+  it('sends a request body for the QUERY method (GET-with-a-body semantics)', async () => {
+    let seenInit: any
+    const fetchImpl = (async (_url: string, init: any) => {
+      seenInit = init
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as unknown as typeof fetch
+    await sendRequest(
+      baseReq({ method: 'QUERY', body: { mode: 'raw', type: 'json', text: '{"q":"x"}' } }),
+      { fetchImpl },
+    )
+    expect(seenInit.method).toBe('QUERY')
+    expect(seenInit.body).toBe('{"q":"x"}')
+  })
+  it('sends enabled cookies as a Cookie header', async () => {
+    let seenInit: any
+    const fetchImpl = (async (_url: string, init: any) => {
+      seenInit = init
+      return new Response('{}', { status: 200 })
+    }) as unknown as typeof fetch
+    await sendRequest(
+      baseReq({ cookies: [
+        { key: 'sid', value: 'abc', enabled: true },
+        { key: 'skip', value: 'x', enabled: false },
+      ] }),
+      { fetchImpl },
+    )
+    expect((seenInit.headers as Headers).get('cookie')).toBe('sid=abc')
+  })
   it('returns non-2xx as a normal response, not an error', async () => {
     const fetchImpl = (async () =>
       new Response('nope', { status: 404, statusText: 'Not Found' })

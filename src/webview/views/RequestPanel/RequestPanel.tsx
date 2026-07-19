@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store";
-import { buildUrlFromParams } from "../../state/url-sync";
+import { buildUrlFromParams, parseParamsFromUrl } from "../../state/url-sync";
 import { postToHost } from "../../ipc";
-import type { Auth, HttpMethod, KeyValue } from "../../../shared/types";
-import { FormDataEditor } from "../../components";
+import type {
+  Auth,
+  HttpMethod,
+  KeyValue,
+  RequestBody,
+} from "../../../shared/types";
+import { FormDataEditor, EnvDropdown } from "../../components";
+import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
 import { methodClass } from "../../method-color";
 
@@ -12,6 +18,7 @@ const METHODS: HttpMethod[] = [
   "POST",
   "PUT",
   "PATCH",
+  "QUERY",
   "DELETE",
   "HEAD",
   "OPTIONS",
@@ -21,16 +28,43 @@ type SubTab =
   | "authorization"
   | "headers"
   | "body"
+  | "cookies"
   | "pre-request"
   | "tests";
 
-function KeyValueTable({
+const SUBTABS: { id: SubTab; label: string }[] = [
+  { id: "params", label: "Params" },
+  { id: "authorization", label: "Authorization" },
+  { id: "headers", label: "Headers" },
+  { id: "body", label: "Body" },
+  { id: "cookies", label: "Cookies" },
+  { id: "pre-request", label: "Pre-request Script" },
+  { id: "tests", label: "Tests" },
+];
+
+// Upsert (or remove) the Content-Type header without touching other headers.
+function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
+  const rest = headers.filter((h) => h.key.toLowerCase() !== "content-type");
+  return ct ? [...rest, { key: "Content-Type", value: ct, enabled: true }] : rest;
+}
+function contentTypeFor(body: RequestBody): string | null {
+  if (body.mode === "raw")
+    return body.type === "json"
+      ? "application/json"
+      : body.type === "xml"
+        ? "application/xml"
+        : "text/plain";
+  if (body.mode === "urlencoded") return "application/x-www-form-urlencoded";
+  return null; // none, formdata (client sets the multipart boundary)
+}
+
+const KeyValueTable = ({
   rows,
   onChange,
 }: {
   rows: KeyValue[];
   onChange: (rows: KeyValue[]) => void;
-}) {
+}) => {
   const update = (i: number, patch: Partial<KeyValue>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const withBlank = [
@@ -49,7 +83,7 @@ function KeyValueTable({
       </thead>
       <tbody>
         {withBlank.map((r, i) => (
-          <tr key={i} className="rm-row">
+          <tr key={i}>
             <td>
               <input
                 type="checkbox"
@@ -99,15 +133,15 @@ function KeyValueTable({
       </tbody>
     </table>
   );
-}
+};
 
-function AuthEditor({
+const AuthEditor = ({
   auth,
   onChange,
 }: {
   auth: Auth;
   onChange: (a: Auth) => void;
-}) {
+}) => {
   const setType = (type: Auth["type"]) => {
     if (type === "none") onChange({ type: "none" });
     else if (type === "bearer")
@@ -219,13 +253,15 @@ function AuthEditor({
       )}
     </div>
   );
-}
+};
 
 export function RequestPanel() {
   const [sub, setSub] = useState<SubTab>("params");
   const [saveCollectionId, setSaveCollectionId] = useState("");
   const [saveFolderId, setSaveFolderId] = useState("");
   const [curlText, setCurlText] = useState("");
+  const [splitPct, setSplitPct] = useState(50);
+  const splitRef = useRef<HTMLDivElement>(null);
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const update = useStore((s) => s.updateActive);
   const openNewTab = useStore((s) => s.openNewTab);
@@ -244,35 +280,154 @@ export function RequestPanel() {
     if (!active || !active.collectionId) return;
     const t = setTimeout(() => {
       const { collectionId, folderId, ...request } = active;
-      postToHost({ type: "saveRequest", collectionId: collectionId!, folderId: folderId ?? null, request });
+      postToHost({
+        type: "saveRequest",
+        collectionId: collectionId!,
+        folderId: folderId ?? null,
+        request,
+      });
     }, 400);
     return () => clearTimeout(t);
   }, [active]);
   if (!active) return <div className="rm-panel">No request open</div>;
 
   const send = () => {
-    const url = buildUrlFromParams(active.url, active.params);
+    // url already carries the query (kept in sync with params); send the base
+    // so the client appends the params exactly once.
+    const base = active.url.split("?")[0];
     postToHost({
       type: "sendRequest",
       requestId: active.id,
-      payload: { ...active, url },
+      payload: { ...active, url: base },
     });
   };
 
+  // --- keep params list and the URL query string in sync (both directions) ---
+  const onUrlChange = (url: string) => {
+    const { params } = parseParamsFromUrl(url);
+    update({ url, params });
+  };
+  const onParamsChange = (params: KeyValue[]) => {
+    const base = active.url.split("?")[0];
+    update({ params, url: buildUrlFromParams(base, params) });
+  };
+  // Changing the body keeps the Content-Type header in step with it.
+  const setBody = (body: RequestBody) =>
+    update({ body, headers: upsertContentType(active.headers, contentTypeFor(body)) });
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const rect = splitRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startX = e.clientX;
+    const startPct = splitPct;
+    const move = (ev: MouseEvent) => {
+      const pct = startPct + ((ev.clientX - startX) / rect.width) * 100;
+      setSplitPct(Math.min(80, Math.max(20, pct)));
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  };
+
+  const beautify = () => {
+    if (active.body.mode !== "raw") return;
+    try {
+      update({
+        body: {
+          ...active.body,
+          text: JSON.stringify(JSON.parse(active.body.text), null, 2),
+        },
+      });
+    } catch {
+      /* leave invalid JSON untouched */
+    }
+  };
+
   const save = () => {
+    const { collectionId: linkC, folderId: linkF, ...request } = active;
+    const collectionId = linkC || saveCollectionId;
+    if (!collectionId) return;
     postToHost({
       type: "saveRequest",
-      collectionId: saveCollectionId,
-      folderId: saveFolderId || null,
-      request: active,
+      collectionId,
+      folderId: linkC ? (linkF ?? null) : saveFolderId || null,
+      request,
     });
   };
 
   const saveFolders =
     tree.find((c) => c.id === saveCollectionId)?.folders ?? [];
+  const linkedCollection = active.collectionId
+    ? tree.find((c) => c.id === active.collectionId)
+    : undefined;
+  const linkedFolder =
+    linkedCollection && active.folderId
+      ? (linkedCollection.folders ?? []).find((f) => f.id === active.folderId)
+      : undefined;
 
   return (
-    <div className="rm-panel">
+    <div className="rm-reqpane">
+      <header className="rm-req-meta">
+        <input
+          className="rm-input rm-req-name"
+          aria-label="request name"
+          placeholder="Request name"
+          value={active.name}
+          onChange={(e) => update({ name: e.target.value })}
+        />
+        <div className="rm-req-meta-actions">
+          {active.collectionId ? (
+            <span className="rm-req-target" title="saved location">
+              {linkedCollection?.name ?? "Collection"}
+              {linkedFolder ? ` / ${linkedFolder.name}` : ""}
+            </span>
+          ) : (
+            <>
+              <select
+                className="rm-select"
+                aria-label="save to collection"
+                value={saveCollectionId}
+                onChange={(e) => setSaveCollectionId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select collection
+                </option>
+                {tree.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="rm-select"
+                aria-label="save to folder"
+                value={saveFolderId}
+                onChange={(e) => setSaveFolderId(e.target.value)}
+              >
+                <option value="">(root)</option>
+                {saveFolders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          <button
+            className="rm-btn"
+            disabled={!active.collectionId && !saveCollectionId}
+            onClick={save}
+          >
+            Save
+          </button>
+          <EnvDropdown />
+        </div>
+      </header>
+
       <div className="rm-urlbar">
         <label>
           <span style={{ display: "none" }}>method</span>
@@ -294,7 +449,7 @@ export function RequestPanel() {
           placeholder="URL"
           style={{ flex: 1 }}
           value={active.url}
-          onChange={(e) => update({ url: e.target.value })}
+          onChange={(e) => onUrlChange(e.target.value)}
         />
         <button
           className="rm-btn rm-btn--primary"
@@ -305,187 +460,206 @@ export function RequestPanel() {
         </button>
       </div>
 
-      <div className="rm-row" style={{ padding: "var(--rm-sp-2, 8px)" }}>
-        <input
-          className="rm-input"
-          aria-label="request name"
-          placeholder="Request name"
-          value={active.name}
-          onChange={(e) => update({ name: e.target.value })}
-        />
-        <select
-          className="rm-select"
-          aria-label="save to collection"
-          value={saveCollectionId}
-          onChange={(e) => setSaveCollectionId(e.target.value)}
+      <div className="rm-req-split" ref={splitRef}>
+        <section
+          className="rm-req-config"
+          style={{ flex: `0 0 ${splitPct}%` }}
         >
-          <option value="" disabled>
-            Select collection
-          </option>
-          {tree.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="rm-select"
-          aria-label="save to folder"
-          value={saveFolderId}
-          onChange={(e) => setSaveFolderId(e.target.value)}
-        >
-          <option value="">(root)</option>
-          {saveFolders.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        <button className="rm-btn" disabled={!saveCollectionId} onClick={save}>
-          Save
-        </button>
-      </div>
-
-      <div className="rm-row" style={{ padding: "var(--rm-sp-2, 8px)" }}>
-        <button
-          className="rm-btn"
-          onClick={() => {
-            void navigator.clipboard.writeText(toCurl(active));
-          }}
-        >
-          Copy as cURL
-        </button>
-        <input
-          className="rm-input"
-          aria-label="curl command"
-          placeholder="Paste curl command"
-          value={curlText}
-          onChange={(e) => setCurlText(e.target.value)}
-        />
-        <button
-          className="rm-btn"
-          onClick={() => {
-            const p = parseCurl(curlText);
-            openNewTab();
-            update(p);
-            setCurlText("");
-          }}
-        >
-          Import from cURL
-        </button>
-      </div>
-
-      <div className="rm-subtabs">
-        {(
-          [
-            "params",
-            "authorization",
-            "headers",
-            "body",
-            "pre-request",
-            "tests",
-          ] as SubTab[]
-        ).map((t) => (
-          <button
-            key={t}
-            className={`rm-subtab ${sub === t ? "is-active" : ""}`}
-            onClick={() => setSub(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {sub === "params" && (
-        <KeyValueTable
-          rows={active.params}
-          onChange={(params) => update({ params })}
-        />
-      )}
-      {sub === "authorization" && (
-        <AuthEditor
-          auth={active.auth ?? { type: "none" }}
-          onChange={(auth) => update({ auth })}
-        />
-      )}
-      {sub === "headers" && (
-        <KeyValueTable
-          rows={active.headers}
-          onChange={(headers) => update({ headers })}
-        />
-      )}
-      {sub === "body" && (
-        <div>
-          <div className="rm-row">
+          <div className="rm-subtab-bar">
             <select
-              className="rm-select"
-              aria-label="body mode"
-              value={active.body.mode}
-              onChange={(e) => {
-                const mode = e.target.value;
-                if (mode === "none") update({ body: { mode: "none" } });
-                else if (mode === "raw")
-                  update({
-                    body: {
-                      mode: "raw",
-                      type: "json",
-                      text: active.body.mode === "raw" ? active.body.text : "",
-                    },
-                  });
-                else if (mode === "formdata")
-                  update({
-                    body: {
-                      mode: "formdata",
-                      items:
-                        active.body.mode === "formdata"
-                          ? active.body.items
-                          : [],
-                    },
-                  });
-              }}
+              className="rm-select rm-subtab-select"
+              aria-label="request section"
+              value={sub}
+              onChange={(e) => setSub(e.target.value as SubTab)}
             >
-              <option value="none">none</option>
-              <option value="raw">raw</option>
-              <option value="formdata">form-data</option>
+              {SUBTABS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
             </select>
           </div>
-          {active.body.mode === "raw" && (
-            <textarea
-              className="rm-input"
-              aria-label="body"
-              rows={8}
-              style={{ width: "100%" }}
-              value={active.body.text}
-              onChange={(e) =>
-                update({
-                  body: { mode: "raw", type: "json", text: e.target.value },
-                })
-              }
-            />
-          )}
-          {active.body.mode === "formdata" && <FormDataEditor />}
-        </div>
-      )}
-      {sub === "pre-request" && (
-        <textarea
-          className="rm-input"
-          aria-label="pre-request script"
-          rows={8}
-          style={{ width: "100%" }}
-          value={active.preRequestScript ?? ""}
-          onChange={(e) => update({ preRequestScript: e.target.value })}
+
+          <div className="rm-req-config-body">
+            {sub === "params" && (
+              <KeyValueTable rows={active.params} onChange={onParamsChange} />
+            )}
+            {sub === "authorization" && (
+              <AuthEditor
+                auth={active.auth ?? { type: "none" }}
+                onChange={(auth) => update({ auth })}
+              />
+            )}
+            {sub === "headers" && (
+              <KeyValueTable
+                rows={active.headers}
+                onChange={(headers) => update({ headers })}
+              />
+            )}
+            {sub === "cookies" && (
+              <KeyValueTable
+                rows={active.cookies ?? []}
+                onChange={(cookies) => update({ cookies })}
+              />
+            )}
+            {sub === "body" && (
+              <div>
+                <div className="rm-row">
+                  <select
+                    className="rm-select"
+                    aria-label="body mode"
+                    value={active.body.mode}
+                    onChange={(e) => {
+                      const mode = e.target.value;
+                      if (mode === "none") setBody({ mode: "none" });
+                      else if (mode === "raw")
+                        setBody({
+                          mode: "raw",
+                          type: "json",
+                          text:
+                            active.body.mode === "raw" ? active.body.text : "",
+                        });
+                      else if (mode === "urlencoded")
+                        setBody({
+                          mode: "urlencoded",
+                          items:
+                            active.body.mode === "urlencoded"
+                              ? active.body.items
+                              : [],
+                        });
+                      else if (mode === "formdata")
+                        setBody({
+                          mode: "formdata",
+                          items:
+                            active.body.mode === "formdata"
+                              ? active.body.items
+                              : [],
+                        });
+                    }}
+                  >
+                    <option value="none">none</option>
+                    <option value="raw">raw</option>
+                    <option value="urlencoded">x-www-form-urlencoded</option>
+                    <option value="formdata">form-data</option>
+                  </select>
+                  {active.body.mode === "raw" && (
+                    <>
+                      <select
+                        className="rm-select"
+                        aria-label="raw type"
+                        value={active.body.type}
+                        onChange={(e) =>
+                          active.body.mode === "raw" &&
+                          setBody({
+                            ...active.body,
+                            type: e.target.value as "json" | "text" | "xml",
+                          })
+                        }
+                      >
+                        <option value="json">JSON</option>
+                        <option value="text">Text</option>
+                        <option value="xml">XML</option>
+                      </select>
+                      <div className="rm-spacer" />
+                      {active.body.type === "json" && (
+                        <button className="rm-btn" onClick={beautify}>
+                          Beautify
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                {active.body.mode === "raw" && (
+                  <textarea
+                    className="rm-input rm-code-input"
+                    aria-label="body"
+                    rows={10}
+                    style={{ width: "100%" }}
+                    value={active.body.text}
+                    onChange={(e) =>
+                      active.body.mode === "raw" &&
+                      setBody({ ...active.body, text: e.target.value })
+                    }
+                  />
+                )}
+                {active.body.mode === "urlencoded" && (
+                  <KeyValueTable
+                    rows={active.body.items}
+                    onChange={(items) =>
+                      active.body.mode === "urlencoded" &&
+                      setBody({ mode: "urlencoded", items })
+                    }
+                  />
+                )}
+                {active.body.mode === "formdata" && <FormDataEditor />}
+              </div>
+            )}
+            {sub === "pre-request" && (
+              <textarea
+                className="rm-input"
+                aria-label="pre-request script"
+                rows={8}
+                style={{ width: "100%" }}
+                value={active.preRequestScript ?? ""}
+                onChange={(e) => update({ preRequestScript: e.target.value })}
+              />
+            )}
+            {sub === "tests" && (
+              <textarea
+                className="rm-input"
+                aria-label="test script"
+                rows={8}
+                style={{ width: "100%" }}
+                value={active.testScript ?? ""}
+                onChange={(e) => update({ testScript: e.target.value })}
+              />
+            )}
+
+            <div className="rm-curlrow">
+              <button
+                className="rm-btn"
+                onClick={() => {
+                  void navigator.clipboard.writeText(toCurl(active));
+                }}
+              >
+                Copy as cURL
+              </button>
+              <input
+                className="rm-input"
+                aria-label="curl command"
+                placeholder="Paste curl command"
+                value={curlText}
+                onChange={(e) => setCurlText(e.target.value)}
+              />
+              <button
+                className="rm-btn"
+                onClick={() => {
+                  const p = parseCurl(curlText);
+                  openNewTab();
+                  update(p);
+                  setCurlText("");
+                }}
+              >
+                Import from cURL
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div
+          className="rm-split-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="resize request and response"
+          onMouseDown={startResize}
         />
-      )}
-      {sub === "tests" && (
-        <textarea
-          className="rm-input"
-          aria-label="test script"
-          rows={8}
-          style={{ width: "100%" }}
-          value={active.testScript ?? ""}
-          onChange={(e) => update({ testScript: e.target.value })}
-        />
-      )}
+        <section
+          className="rm-req-response"
+          style={{ flex: `1 1 ${100 - splitPct}%` }}
+        >
+          <ResponsePanel />
+        </section>
+      </div>
     </div>
   );
 }

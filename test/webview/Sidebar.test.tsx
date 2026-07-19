@@ -174,6 +174,15 @@ describe('Sidebar', () => {
     fireEvent.drop(folderRow, { dataTransfer: data })
     expect(posted.filter((m) => m.type === 'moveFolder')).toHaveLength(0)
   })
+  it('right-click on a request opens a menu that duplicates it', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.contextMenu(screen.getByText('Req'))
+    fireEvent.click(screen.getByRole('menuitem', { name: /duplicate/i }))
+    expect(posted).toContainEqual({ type: 'duplicateRequest', collectionId: 'c1', folderId: null, requestId: 'r1' })
+  })
   it('rename request via edit icon posts renameRequest', () => {
     const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }])

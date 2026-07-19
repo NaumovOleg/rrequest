@@ -1,14 +1,14 @@
-import { useState, type DragEvent } from 'react'
+import { useState, useEffect, type DragEvent } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
-import { newId, type Collection, type Folder, type RestRequest } from '../../../shared/types'
+import { newId, defaultHeaders, type Collection, type Folder, type RestRequest } from '../../../shared/types'
 import { MethodBadge } from '../../elements/MethodBadge'
 import { IconButton } from '../../elements/IconButton'
 import { PopupMenu } from '../../elements/PopupMenu'
 import { RenameInput } from '../../elements/RenameInput'
 
 function blankRequest(): RestRequest {
-  return { id: newId(), name: 'New Request', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
+  return { id: newId(), name: 'New Request', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
 }
 
 type DragPayload =
@@ -22,6 +22,20 @@ export function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [ctx, setCtx] = useState<{ x: number; y: number; collectionId: string; folderId: string | null; request: RestRequest } | null>(null)
+
+  useEffect(() => {
+    if (!ctx) return
+    const close = () => setCtx(null)
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('contextmenu', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('contextmenu', close)
+    }
+  }, [ctx])
 
   const startDrag = (e: DragEvent, payload: DragPayload) =>
     e.dataTransfer.setData('application/json', JSON.stringify(payload))
@@ -65,6 +79,7 @@ export function Sidebar() {
       <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
         draggable={!isRenaming}
         onDragStart={(e) => startDrag(e, { kind: 'request', fromCollectionId: collectionId, fromFolderId: folderId, requestId: r.id })}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, collectionId, folderId, request: r }) }}
         onClick={activate}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } }}>
         <MethodBadge method={r.method} />{' '}
@@ -118,6 +133,23 @@ export function Sidebar() {
 
   return (
     <div className="rm-tree">
+      {ctx && (
+        <div className="rm-ctxmenu" role="menu" style={{ top: ctx.y, left: ctx.x }}
+          onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="rm-popup-item" role="menuitem"
+            onClick={() => { postToHost({ type: 'duplicateRequest', collectionId: ctx.collectionId, folderId: ctx.folderId, requestId: ctx.request.id }); setCtx(null) }}>
+            <span className="codicon codicon-copy" /> Duplicate
+          </button>
+          <button type="button" className="rm-popup-item" role="menuitem"
+            onClick={() => { setRenamingId(ctx.request.id); setCtx(null) }}>
+            <span className="codicon codicon-edit" /> Rename
+          </button>
+          <button type="button" className="rm-popup-item" role="menuitem"
+            onClick={() => { postToHost({ type: 'deleteRequest', collectionId: ctx.collectionId, folderId: ctx.folderId, requestId: ctx.request.id }); setCtx(null) }}>
+            <span className="codicon codicon-trash" /> Delete
+          </button>
+        </div>
+      )}
       <div className="rm-tree-head">
         <span className="rm-section-title">Collections</span>
         <IconButton icon="add" label="add collection"

@@ -43,20 +43,25 @@ describe('EditorApp', () => {
     expect(item).toMatchObject({ path: '/tmp/a.png', filename: 'a.png' })
     expect(useStore.getState().pendingFilePick).toBeNull()
   })
-  it('opens a blank tab on mount when there are no tabs', () => {
+  it('does not auto-open a blank tab on mount (each panel is fed one message)', () => {
     expect(useStore.getState().tabs).toHaveLength(0)
     render(<EditorApp />)
-    expect(useStore.getState().tabs).toHaveLength(1)
+    expect(useStore.getState().tabs).toHaveLength(0)
+  })
+  it('sets the VS Code tab title (method + name) after opening a request', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'Users', method: 'POST', url: 'u', params: [], headers: [], body: { mode: 'none' } } }))
+    expect(posted).toContainEqual({ type: 'setTitle', title: 'POST Users' })
   })
   it('openInEditor with targetCollectionId sets pendingSaveCollectionId', () => {
     render(<EditorApp />)
     act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'X', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, targetCollectionId: 'c9' }))
     expect(useStore.getState().pendingSaveCollectionId).toBe('c9')
   })
-  it('toggles the WebSocket panel and handles ws events', () => {
+  it('shows the WebSocket panel on showWebSocket and handles ws events', () => {
     render(<EditorApp />)
-    // toggle to WS mode
-    fireEvent.click(screen.getByRole('button', { name: /websocket/i }))
+    // host opens this panel in WS mode
+    act(() => handler?.({ type: 'showWebSocket' }))
     expect(useStore.getState().wsMode).toBe(true)
     expect(screen.getByLabelText(/websocket url/i)).toBeInTheDocument()
     // ws events

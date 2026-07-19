@@ -89,7 +89,7 @@ export function Environments() {
               </thead>
               <tbody>
                 {vars.map((r, i) => (
-                  <tr key={i} className="rm-row">
+                  <tr key={i}>
                     <td>
                       <input type="checkbox" aria-label={`enabled ${i}`} checked={r.enabled}
                         onChange={(e) => update(i, { enabled: e.target.checked })} />

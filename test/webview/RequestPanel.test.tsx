@@ -79,10 +79,10 @@ describe('RequestPanel', () => {
 
   it('edits the pre-request and test scripts', () => {
     render(<RequestPanel />)
-    fireEvent.click(screen.getByRole('button', { name: /pre-request/i }))
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'pre-request' } })
     fireEvent.change(screen.getByLabelText(/pre-request script/i), { target: { value: 'pm.environment.set("a","1")' } })
     expect(useStore.getState().tabs[0].preRequestScript).toBe('pm.environment.set("a","1")')
-    fireEvent.click(screen.getByRole('button', { name: /^tests$/i }))
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'tests' } })
     fireEvent.change(screen.getByLabelText(/test script/i), { target: { value: 'pm.test("t", () => {})' } })
     expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
   })
@@ -108,8 +108,8 @@ describe('RequestPanel', () => {
     render(<RequestPanel />)
     const sel = screen.getByLabelText('method')
     expect(sel.className).toContain('rm-method--DELETE')
-    // params sub-tab active by default
-    expect(document.querySelector('.rm-subtab.is-active')).toBeTruthy()
+    // params section selected by default
+    expect((screen.getByLabelText(/request section/i) as HTMLSelectElement).value).toBe('params')
   })
 
   it('Save posts the pending folder id', () => {
@@ -129,9 +129,52 @@ describe('RequestPanel', () => {
     expect(useStore.getState().tabs[0].params[0].description).toBe('my note')
   })
 
+  it('a fresh request starts with a default Accept header', () => {
+    render(<RequestPanel />)
+    expect(useStore.getState().tabs[0].headers).toContainEqual({ key: 'Accept', value: '*/*', enabled: true })
+  })
+
+  it('editing the URL query syncs the params list', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByPlaceholderText('URL'), { target: { value: 'https://api.test/x?a=1&b=2' } })
+    const params = useStore.getState().tabs[0].params
+    expect(params).toEqual([
+      { key: 'a', value: '1', enabled: true },
+      { key: 'b', value: '2', enabled: true },
+    ])
+  })
+
+  it('editing a param syncs the URL query', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByPlaceholderText('URL'), { target: { value: 'https://api.test/x' } })
+    // first blank key cell
+    fireEvent.change(screen.getAllByPlaceholderText('key')[0], { target: { value: 'q' } })
+    fireEvent.change(screen.getAllByPlaceholderText('value')[0], { target: { value: 'hi' } })
+    expect(useStore.getState().tabs[0].url).toBe('https://api.test/x?q=hi')
+  })
+
+  it('choosing a raw JSON body sets the Content-Type header', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'raw' } })
+    expect(useStore.getState().tabs[0].headers).toContainEqual({ key: 'Content-Type', value: 'application/json', enabled: true })
+    // switching to XML updates it, not duplicates it
+    fireEvent.change(screen.getByLabelText('raw type'), { target: { value: 'xml' } })
+    const cts = useStore.getState().tabs[0].headers.filter((h) => h.key.toLowerCase() === 'content-type')
+    expect(cts).toEqual([{ key: 'Content-Type', value: 'application/xml', enabled: true }])
+  })
+
+  it('the Cookies section edits request cookies', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'cookies' } })
+    fireEvent.change(screen.getAllByPlaceholderText('key')[0], { target: { value: 'sid' } })
+    fireEvent.change(screen.getAllByPlaceholderText('value')[0], { target: { value: 'abc' } })
+    expect(useStore.getState().tabs[0].cookies).toContainEqual({ key: 'sid', value: 'abc', enabled: true })
+  })
+
   it('Authorization tab: choosing Bearer stores a bearer token', () => {
     render(<RequestPanel />)
-    fireEvent.click(screen.getByRole('button', { name: /authorization/i }))
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'authorization' } })
     fireEvent.change(screen.getByLabelText(/auth type/i), { target: { value: 'bearer' } })
     fireEvent.change(screen.getByLabelText(/bearer token/i), { target: { value: 'tok' } })
     expect(useStore.getState().tabs[0].auth).toEqual({ type: 'bearer', token: 'tok' })

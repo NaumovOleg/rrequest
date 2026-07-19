@@ -2,9 +2,7 @@ import { useEffect } from "react";
 import "../theme.css";
 import { useStore } from "../state/store";
 import { onHostMessage, postToHost } from "../ipc";
-import { Tabs, EnvDropdown } from "../components";
 import { RequestPanel } from "../views/RequestPanel/RequestPanel";
-import { ResponsePanel } from "../views/ResponsePanel/ResponsePanel";
 import { WebSocketPanel } from "../views/WebSocket/WebSocketPanel";
 import { Environments } from "../views/Environments/Environments";
 
@@ -13,8 +11,7 @@ export function EditorApp() {
   const setResponse = useStore((s) => s.setResponse);
   const setEnvironments = useStore((s) => s.setEnvironments);
   const setActiveEnvId = useStore((s) => s.setActiveEnvId);
-  const openNewTab = useStore((s) => s.openNewTab);
-  const openOrReplaceBlank = useStore((s) => s.openOrReplaceBlank);
+  const openLinkedTab = useStore((s) => s.openLinkedTab);
   const setPendingSaveCollectionId = useStore(
     (s) => s.setPendingSaveCollectionId,
   );
@@ -26,6 +23,16 @@ export function EditorApp() {
   const envMode = useStore((s) => s.envMode);
   const setEnvMode = useStore((s) => s.setEnvMode);
   const setEnvEditId = useStore((s) => s.setEnvEditId);
+  const activeLabel = useStore((s) => {
+    const t = s.tabs.find((x) => x.id === s.activeTabId);
+    return t ? `${t.method} ${t.name}` : undefined;
+  });
+
+  // Keep the VS Code editor tab titled after the request (method + name).
+  useEffect(() => {
+    const title = envMode ? "Environments" : wsMode ? "WebSocket" : activeLabel;
+    if (title) postToHost({ type: "setTitle", title });
+  }, [activeLabel, envMode, wsMode]);
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -36,15 +43,16 @@ export function EditorApp() {
       } else if (m.type === "response") setResponse(m.requestId, m.payload);
       else if (m.type === "openInEditor") {
         const r = m.request;
-        // Carry the full request (id + auth included) and link it to its
-        // collection/folder so editor edits round-trip to the tree.
-        openOrReplaceBlank({
-          ...r,
-          preRequestScript: r.preRequestScript ?? "",
-          testScript: r.testScript ?? "",
-          collectionId: m.targetCollectionId,
-          folderId: m.targetFolderId ?? null,
-        });
+        // Each request opens in its own editor tab (focus it if already open).
+        openLinkedTab(
+          {
+            ...r,
+            preRequestScript: r.preRequestScript ?? "",
+            testScript: r.testScript ?? "",
+          },
+          m.targetCollectionId,
+          m.targetFolderId ?? null,
+        );
         setPendingSaveCollectionId(m.targetCollectionId ?? null);
         setPendingSaveFolderId(m.targetFolderId ?? null);
       } else if (m.type === "showEnvironments") {
@@ -95,15 +103,15 @@ export function EditorApp() {
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadEnvironments" });
-    if (useStore.getState().tabs.length === 0) openNewTab();
+    // No auto-blank tab: each panel is opened with exactly one request/env/ws
+    // message by the host, so it renders that and nothing else.
     return off;
   }, [
     setTree,
     setResponse,
     setEnvironments,
     setActiveEnvId,
-    openNewTab,
-    openOrReplaceBlank,
+    openLinkedTab,
     setPendingSaveCollectionId,
     setPendingSaveFolderId,
     wsSetStatus,
@@ -115,34 +123,12 @@ export function EditorApp() {
 
   return (
     <div className="rm-surface">
-      <div className="rm-topbar">
-        <button
-          className={`rm-btn${wsMode ? " is-active" : ""}`}
-          aria-pressed={wsMode}
-          onClick={() => setWsMode(!wsMode)}
-        >
-          WebSocket
-        </button>
-        <button
-          className={`rm-btn${envMode ? " is-active" : ""}`}
-          aria-pressed={envMode}
-          onClick={() => setEnvMode(!envMode)}
-        >
-          Environments
-        </button>
-        <div className="rm-spacer" />
-        <EnvDropdown />
-      </div>
       {envMode ? (
         <Environments />
       ) : wsMode ? (
         <WebSocketPanel />
       ) : (
-        <>
-          <Tabs />
-          <RequestPanel />
-          <ResponsePanel />
-        </>
+        <RequestPanel />
       )}
     </div>
   );

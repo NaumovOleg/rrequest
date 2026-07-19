@@ -121,4 +121,19 @@ describe('RequestPanel', () => {
     const msg = posted.find((m) => m.type === 'saveRequest')
     expect(msg.collectionId).toBe('c1'); expect(msg.folderId).toBe('f1')
   })
+
+  it('params table has a Description column that updates the row', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getAllByPlaceholderText('key')[0], { target: { value: 'k' } })
+    fireEvent.change(screen.getAllByPlaceholderText('description')[0], { target: { value: 'my note' } })
+    expect(useStore.getState().tabs[0].params[0].description).toBe('my note')
+  })
+
+  it('Authorization tab: choosing Bearer stores a bearer token', () => {
+    render(<RequestPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /authorization/i }))
+    fireEvent.change(screen.getByLabelText(/auth type/i), { target: { value: 'bearer' } })
+    fireEvent.change(screen.getByLabelText(/bearer token/i), { target: { value: 'tok' } })
+    expect(useStore.getState().tabs[0].auth).toEqual({ type: 'bearer', token: 'tok' })
+  })
 })

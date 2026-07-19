@@ -19,8 +19,17 @@ function pillClass(status: number): string {
   return 'is-5xx'
 }
 
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+type ResultFilter = 'all' | 'passed' | 'failed'
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
+  const [filter, setFilter] = useState<ResultFilter>('all')
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
   if (!resp) return <div className="rm-panel">No response yet</div>
 
@@ -39,7 +48,7 @@ export function ResponsePanel() {
       <div className="rm-statusline">
         <span className={`rm-status-pill ${pillClass(resp.status)}`}>{resp.status} {resp.statusText}</span>
         <span className="rm-meta">Time: {resp.timeMs} ms</span>
-        <span className="rm-meta">Size: {resp.sizeBytes} B</span>
+        <span className="rm-meta">Size: {fmtSize(resp.sizeBytes)}</span>
       </div>
       <div className="rm-subtabs">
         {(['body', 'headers', 'cookies', 'test-results', 'console'] as SubTab[]).map((t) => (
@@ -72,18 +81,38 @@ export function ResponsePanel() {
           </tbody>
         </table>
       )}
-      {sub === 'test-results' && (
-        <table><tbody>
-          {(resp.testResults ?? []).map((t, i) => (
-            <tr key={i}>
-              <td>
-                <span className={`rm-badge ${t.passed ? 'is-pass' : 'is-fail'}`}>{t.passed ? 'PASS' : 'FAIL'}</span>
-              </td>
-              <td>{t.name}{t.error ? `: ${t.error}` : ''}</td>
-            </tr>
-          ))}
-        </tbody></table>
-      )}
+      {sub === 'test-results' && (() => {
+        const results = resp.testResults ?? []
+        const passed = results.filter((t) => t.passed).length
+        const failed = results.length - passed
+        const shown = results.filter((t) =>
+          filter === 'all' ? true : filter === 'passed' ? t.passed : !t.passed)
+        const chips: { id: ResultFilter; label: string }[] = [
+          { id: 'all', label: `All (${results.length})` },
+          { id: 'passed', label: `Passed (${passed})` },
+          { id: 'failed', label: `Failed (${failed})` },
+        ]
+        return (
+          <div className="rm-section">
+            <div className="rm-chips">
+              {chips.map((c) => (
+                <button key={c.id} className={`rm-chip ${filter === c.id ? 'is-active' : ''}`}
+                  aria-pressed={filter === c.id} onClick={() => setFilter(c.id)}>{c.label}</button>
+              ))}
+            </div>
+            <table><tbody>
+              {shown.map((t, i) => (
+                <tr key={i}>
+                  <td>
+                    <span className={`rm-pill-badge ${t.passed ? 'is-pass' : 'is-fail'}`}>{t.passed ? 'PASS' : 'FAIL'}</span>
+                  </td>
+                  <td>{t.name}{t.error ? `: ${t.error}` : ''}</td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        )
+      })()}
       {sub === 'console' && (
         <pre className="rm-code">{(resp.consoleLogs ?? []).join('\n')}</pre>
       )}

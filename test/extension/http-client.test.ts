@@ -212,4 +212,35 @@ describe('sendRequest form-data', () => {
     expect(res.error).toBeTruthy()
     expect(res.status).toBe(0)
   })
+
+  it('applies bearer auth as an Authorization header', async () => {
+    let seenAuth: string | null = null
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      seenAuth = (init.headers as Headers).get('authorization'); return new Response('', { status: 200 })
+    }) as unknown as typeof fetch
+    await sendRequest(baseReq({ auth: { type: 'bearer', token: 'abc' } }), { fetchImpl })
+    expect(seenAuth).toBe('Bearer abc')
+  })
+
+  it('applies basic auth as base64 and interpolates vars', async () => {
+    let seenAuth: string | null = null
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      seenAuth = (init.headers as Headers).get('authorization'); return new Response('', { status: 200 })
+    }) as unknown as typeof fetch
+    await sendRequest(baseReq({ auth: { type: 'basic', username: 'u', password: '{{pw}}' } }),
+      { fetchImpl, vars: [{ key: 'pw', value: 'p', enabled: true }] })
+    expect(seenAuth).toBe(`Basic ${Buffer.from('u:p').toString('base64')}`)
+  })
+
+  it('applies api-key auth in a header or the query string', async () => {
+    let seenHeader: string | null = null
+    let seenUrl = ''
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      seenUrl = url; seenHeader = (init.headers as Headers).get('x-api-key'); return new Response('', { status: 200 })
+    }) as unknown as typeof fetch
+    await sendRequest(baseReq({ auth: { type: 'apikey', key: 'X-API-Key', value: 'k', in: 'header' } }), { fetchImpl })
+    expect(seenHeader).toBe('k')
+    await sendRequest(baseReq({ auth: { type: 'apikey', key: 'token', value: 'k', in: 'query' } }), { fetchImpl })
+    expect(seenUrl).toBe('https://api.test/x?token=k')
+  })
 })

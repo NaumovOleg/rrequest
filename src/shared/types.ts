@@ -1,7 +1,13 @@
 export type HttpMethod =
   | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
-export type KeyValue = { key: string; value: string; enabled: boolean }
+export type KeyValue = { key: string; value: string; enabled: boolean; description?: string }
+
+export type Auth =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string }
+  | { type: 'basic'; username: string; password: string }
+  | { type: 'apikey'; key: string; value: string; in: 'header' | 'query' }
 
 export type FormDataItem =
   | { kind: 'text'; key: string; value: string; enabled: boolean }
@@ -21,6 +27,7 @@ export type RestRequest = {
   params: KeyValue[]
   headers: KeyValue[]
   body: RequestBody
+  auth?: Auth
   preRequestScript?: string
   testScript?: string
 }

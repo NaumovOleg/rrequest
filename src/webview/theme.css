@@ -138,6 +138,30 @@ body {
 .codicon { font-size: 15px; line-height: 1; }
 .rm-rename-input { padding: 1px 4px; }
 
+/* url bar polish */
+.rm-urlbar .rm-btn--primary { padding: 4px 20px; font-weight: 600; }
+.rm-method-select { font-weight: 700; text-align: left; }
+.rm-method-select.rm-method--GET { color: var(--rm-m-get); }
+.rm-method-select.rm-method--POST { color: var(--rm-m-post); }
+.rm-method-select.rm-method--PUT { color: var(--rm-m-put); }
+.rm-method-select.rm-method--PATCH { color: var(--rm-m-patch); }
+.rm-method-select.rm-method--DELETE { color: var(--rm-m-delete); }
+.rm-method-select.rm-method--OTHER { color: var(--rm-m-other); }
+
+/* auth form */
+.rm-authform .rm-row { padding: 3px 0; }
+.rm-authform label { min-width: 90px; color: var(--rm-muted); }
+.rm-authform .rm-input, .rm-authform .rm-select { flex: 1; max-width: 420px; }
+
+/* filled test-result pills + filter chips */
+.rm-pill-badge { font-weight: 700; font-size: 0.75em; letter-spacing: .04em; padding: 2px 8px; border-radius: var(--rm-radius); color: var(--rm-accent-fg); }
+.rm-pill-badge.is-pass { background: var(--rm-success); }
+.rm-pill-badge.is-fail { background: var(--rm-error); }
+.rm-chips { display: inline-flex; gap: 2px; background: var(--rm-hover); border-radius: var(--rm-radius); padding: 2px; margin-bottom: var(--rm-sp-2); }
+.rm-chip { background: transparent; border: none; color: var(--rm-muted); padding: 3px 12px; border-radius: var(--rm-radius); cursor: pointer; font: inherit; }
+.rm-chip:hover { color: var(--rm-fg); }
+.rm-chip.is-active { background: var(--rm-panel-bg); color: var(--rm-fg); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+
 /* popup menu */
 .rm-popup-menu { position: absolute; right: 0; top: 100%; z-index: 10; min-width: 160px; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 2px 8px rgba(0,0,0,.3); padding: 2px; }
 .rm-popup-item { display: flex; align-items: center; gap: var(--rm-sp-1); width: 100%; text-align: left; background: transparent; border: none; color: var(--rm-fg); padding: 4px 8px; cursor: pointer; border-radius: var(--rm-radius); }

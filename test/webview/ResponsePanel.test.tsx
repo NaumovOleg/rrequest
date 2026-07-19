@@ -62,6 +62,26 @@ describe('ResponsePanel', () => {
     render(<ResponsePanel />)
     expect(document.querySelector('.rm-status-pill.is-4xx')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /test results/i }))
-    expect(document.querySelector('.rm-badge.is-pass')).toBeTruthy()
+    expect(document.querySelector('.rm-pill-badge.is-pass')).toBeTruthy()
+  })
+
+  it('filters test results with the Passed/Failed chips', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: '{}', bodyTruncated: false, timeMs: 1, sizeBytes: 2, cookies: [],
+      testResults: [{ name: 'ok test', passed: true }, { name: 'bad test', passed: false }],
+    })
+    render(<ResponsePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /test results/i }))
+    fireEvent.click(screen.getByRole('button', { name: /failed \(1\)/i }))
+    expect(screen.queryByText('ok test')).toBeNull()
+    expect(screen.getByText('bad test')).toBeInTheDocument()
+  })
+
+  it('formats size in KB', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: 'x', bodyTruncated: false, timeMs: 1, sizeBytes: 2048, cookies: [],
+    })
+    render(<ResponsePanel />)
+    expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument()
   })
 })

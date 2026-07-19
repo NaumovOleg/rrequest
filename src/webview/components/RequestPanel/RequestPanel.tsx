@@ -2,24 +2,24 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../../state/store'
 import { buildUrlFromParams } from '../../state/url-sync'
 import { postToHost } from '../../ipc'
-import type { HttpMethod, KeyValue } from '../../../shared/types'
+import type { Auth, HttpMethod, KeyValue } from '../../../shared/types'
 import { FormDataEditor } from './FormDataEditor'
 import { parseCurl, toCurl } from '../../curl'
 import { methodClass } from '../../method-color'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-type SubTab = 'params' | 'headers' | 'body' | 'pre-request' | 'tests'
+type SubTab = 'params' | 'authorization' | 'headers' | 'body' | 'pre-request' | 'tests'
 
 function KeyValueTable({ rows, onChange }: {
   rows: KeyValue[]; onChange: (rows: KeyValue[]) => void
 }) {
   const update = (i: number, patch: Partial<KeyValue>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-  const withBlank = [...rows, { key: '', value: '', enabled: true }]
+  const withBlank = [...rows, { key: '', value: '', enabled: true, description: '' }]
   return (
     <table className="rm-kvtable">
       <thead>
-        <tr><th></th><th>Key</th><th>Value</th></tr>
+        <tr><th></th><th>Key</th><th>Value</th><th>Description</th></tr>
       </thead>
       <tbody>
         {withBlank.map((r, i) => (
@@ -33,10 +33,78 @@ function KeyValueTable({ rows, onChange }: {
               }} /></td>
             <td><input className="rm-input rm-kv-input" placeholder="value" value={r.value}
               onChange={(e) => i < rows.length && update(i, { value: e.target.value })} /></td>
+            <td><input className="rm-input rm-kv-input" placeholder="description" value={r.description ?? ''}
+              onChange={(e) => i < rows.length && update(i, { description: e.target.value })} /></td>
           </tr>
         ))}
       </tbody>
     </table>
+  )
+}
+
+function AuthEditor({ auth, onChange }: { auth: Auth; onChange: (a: Auth) => void }) {
+  const setType = (type: Auth['type']) => {
+    if (type === 'none') onChange({ type: 'none' })
+    else if (type === 'bearer') onChange({ type: 'bearer', token: auth.type === 'bearer' ? auth.token : '' })
+    else if (type === 'basic') onChange({ type: 'basic', username: auth.type === 'basic' ? auth.username : '', password: auth.type === 'basic' ? auth.password : '' })
+    else onChange({ type: 'apikey', key: auth.type === 'apikey' ? auth.key : '', value: auth.type === 'apikey' ? auth.value : '', in: auth.type === 'apikey' ? auth.in : 'header' })
+  }
+  return (
+    <div className="rm-section rm-authform">
+      <div className="rm-row">
+        <label>Type</label>
+        <select className="rm-select" aria-label="auth type" value={auth.type}
+          onChange={(e) => setType(e.target.value as Auth['type'])}>
+          <option value="none">No Auth</option>
+          <option value="bearer">Bearer Token</option>
+          <option value="basic">Basic Auth</option>
+          <option value="apikey">API Key</option>
+        </select>
+      </div>
+      {auth.type === 'bearer' && (
+        <div className="rm-row">
+          <label>Token</label>
+          <input className="rm-input" aria-label="bearer token" value={auth.token}
+            onChange={(e) => onChange({ type: 'bearer', token: e.target.value })} />
+        </div>
+      )}
+      {auth.type === 'basic' && (
+        <>
+          <div className="rm-row">
+            <label>Username</label>
+            <input className="rm-input" aria-label="basic username" value={auth.username}
+              onChange={(e) => onChange({ ...auth, username: e.target.value })} />
+          </div>
+          <div className="rm-row">
+            <label>Password</label>
+            <input className="rm-input" aria-label="basic password" type="password" value={auth.password}
+              onChange={(e) => onChange({ ...auth, password: e.target.value })} />
+          </div>
+        </>
+      )}
+      {auth.type === 'apikey' && (
+        <>
+          <div className="rm-row">
+            <label>Key</label>
+            <input className="rm-input" aria-label="apikey key" value={auth.key}
+              onChange={(e) => onChange({ ...auth, key: e.target.value })} />
+          </div>
+          <div className="rm-row">
+            <label>Value</label>
+            <input className="rm-input" aria-label="apikey value" value={auth.value}
+              onChange={(e) => onChange({ ...auth, value: e.target.value })} />
+          </div>
+          <div className="rm-row">
+            <label>Add to</label>
+            <select className="rm-select" aria-label="apikey location" value={auth.in}
+              onChange={(e) => onChange({ ...auth, in: e.target.value as 'header' | 'query' })}>
+              <option value="header">Header</option>
+              <option value="query">Query Params</option>
+            </select>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -109,13 +177,16 @@ export function RequestPanel() {
       </div>
 
       <div className="rm-subtabs">
-        {(['params', 'headers', 'body', 'pre-request', 'tests'] as SubTab[]).map((t) => (
+        {(['params', 'authorization', 'headers', 'body', 'pre-request', 'tests'] as SubTab[]).map((t) => (
           <button key={t} className={`rm-subtab ${sub === t ? 'is-active' : ''}`} onClick={() => setSub(t)}>{t}</button>
         ))}
       </div>
 
       {sub === 'params' && (
         <KeyValueTable rows={active.params} onChange={(params) => update({ params })} />
+      )}
+      {sub === 'authorization' && (
+        <AuthEditor auth={active.auth ?? { type: 'none' }} onChange={(auth) => update({ auth })} />
       )}
       {sub === 'headers' && (
         <KeyValueTable rows={active.headers} onChange={(headers) => update({ headers })} />

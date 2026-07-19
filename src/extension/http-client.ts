@@ -16,6 +16,28 @@ function buildUrl(req: RestRequest): string {
   return req.url.includes('?') ? `${req.url}&${qs}` : `${req.url}?${qs}`
 }
 
+// Applies request auth: mutates `headers` for header-based auth, returns a query
+// fragment (no leading ? or &) for query-based api-key auth, else ''.
+function applyAuth(req: RestRequest, headers: Headers, sub: (s: string) => string): string {
+  const a = req.auth
+  if (!a || a.type === 'none') return ''
+  if (a.type === 'bearer') {
+    if (a.token && !headers.has('authorization')) headers.set('authorization', `Bearer ${sub(a.token)}`)
+    return ''
+  }
+  if (a.type === 'basic') {
+    if (!headers.has('authorization')) {
+      const token = Buffer.from(`${sub(a.username)}:${sub(a.password)}`).toString('base64')
+      headers.set('authorization', `Basic ${token}`)
+    }
+    return ''
+  }
+  // apikey
+  if (!a.key) return ''
+  if (a.in === 'header') { headers.set(sub(a.key), sub(a.value)); return '' }
+  return `${encodeURIComponent(sub(a.key))}=${encodeURIComponent(sub(a.value))}`
+}
+
 function buildBody(req: RestRequest): { body?: string; contentType?: string } {
   switch (req.body.mode) {
     case 'none':
@@ -113,6 +135,7 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
         cookies: [], error: { kind: 'unknown', message: `Invalid header: ${String(e?.message ?? e)}` },
       }
     }
+    const authQuery = applyAuth(req, headers, sub)
     let fetchBody: BodyInit | undefined
     if (req.body.mode === 'formdata') {
       fetchBody = await buildFormData(req, sub)   // fs.readFile may throw -> caught by the existing try/catch -> error result
@@ -123,7 +146,9 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
       fetchBody = req.method === 'GET' || req.method === 'HEAD' ? undefined : body
     }
 
-    const resp = await doFetch(buildUrl(req), {
+    const baseUrl = buildUrl(req)
+    const finalUrl = authQuery ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${authQuery}` : baseUrl
+    const resp = await doFetch(finalUrl, {
       method: req.method,
       headers,
       body: fetchBody,

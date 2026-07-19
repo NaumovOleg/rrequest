@@ -8,7 +8,7 @@ vi.mock('../../src/webview/ipc', () => ({
   onHostMessage: () => () => {},
 }))
 
-import { Environments } from '../../src/webview/components/Environments/Environments'
+import { Environments } from '../../src/webview/views/Environments/Environments'
 
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 

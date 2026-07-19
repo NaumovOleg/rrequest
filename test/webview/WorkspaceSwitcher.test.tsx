@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({ postToHost: (m: any) => posted.push(m), onHostMessage: () => () => {} }))
-import { WorkspaceSwitcher } from '../../src/webview/components/WorkspaceSwitcher/WorkspaceSwitcher'
+import { WorkspaceSwitcher } from '../../src/webview/views/WorkspaceSwitcher/WorkspaceSwitcher'
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 
 describe('WorkspaceSwitcher', () => {

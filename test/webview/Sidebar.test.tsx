@@ -9,7 +9,7 @@ vi.mock('../../src/webview/ipc', () => ({
   onHostMessage: () => () => {},
 }))
 
-import { Sidebar } from '../../src/webview/components/Sidebar/Sidebar'
+import { Sidebar } from '../../src/webview/views/Sidebar/Sidebar'
 
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 

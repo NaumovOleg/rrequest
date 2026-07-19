@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
-import { ResponsePanel } from '../../src/webview/components/ResponsePanel/ResponsePanel'
+import { ResponsePanel } from '../../src/webview/views/ResponsePanel/ResponsePanel'
 
 beforeEach(() => { useStore.getState().__reset(); useStore.getState().openNewTab() })
 function activeId() { return useStore.getState().tabs[0].id }

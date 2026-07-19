@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { PopupMenu } from '../../src/webview/components/common/PopupMenu'
+import { PopupMenu } from '../../src/webview/elements/PopupMenu'
 describe('PopupMenu', () => {
   it('opens on click and fires an item', () => {
     const onClick = vi.fn()

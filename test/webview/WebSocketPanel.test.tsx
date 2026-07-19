@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({ postToHost: (m: any) => posted.push(m), onHostMessage: () => () => {} }))
-import { WebSocketPanel } from '../../src/webview/components/WebSocket/WebSocketPanel'
+import { WebSocketPanel } from '../../src/webview/views/WebSocket/WebSocketPanel'
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 
 describe('WebSocketPanel', () => {

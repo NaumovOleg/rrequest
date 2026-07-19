@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { RenameInput } from '../../src/webview/components/common/RenameInput'
+import { RenameInput } from '../../src/webview/elements/RenameInput'
 describe('RenameInput', () => {
   it('commits on Enter and cancels on Escape', () => {
     const onCommit = vi.fn(); const onCancel = vi.fn()

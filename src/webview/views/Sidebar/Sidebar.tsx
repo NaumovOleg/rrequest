@@ -2,10 +2,10 @@ import { useState, type DragEvent } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
 import { newId, type Collection, type Folder, type RestRequest } from '../../../shared/types'
-import { MethodBadge } from '../common/MethodBadge'
-import { IconButton } from '../common/IconButton'
-import { PopupMenu } from '../common/PopupMenu'
-import { RenameInput } from '../common/RenameInput'
+import { MethodBadge } from '../../elements/MethodBadge'
+import { IconButton } from '../../elements/IconButton'
+import { PopupMenu } from '../../elements/PopupMenu'
+import { RenameInput } from '../../elements/RenameInput'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'New Request', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }

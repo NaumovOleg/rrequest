@@ -8,7 +8,7 @@ vi.mock('../../src/webview/ipc', () => ({
   onHostMessage: () => () => {},
 }))
 
-import { RequestPanel } from '../../src/webview/components/RequestPanel/RequestPanel'
+import { RequestPanel } from '../../src/webview/views/RequestPanel/RequestPanel'
 
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0; useStore.getState().openNewTab() })
 

@@ -144,4 +144,27 @@ describe('store openOrReplaceBlank', () => {
     useStore.getState().openOrReplaceBlank({ url: 'https://z' })
     expect(useStore.getState().tabs).toHaveLength(2)
   })
+  it('links a reused blank tab to the source id + keeps activeTabId in sync', () => {
+    useStore.getState().openNewTab()
+    useStore.getState().openOrReplaceBlank({ id: 'src', name: 'Opened', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    const s = useStore.getState()
+    expect(s.activeTabId).toBe('src')
+    expect(s.tabs.find((t) => t.id === s.activeTabId)?.collectionId).toBe('c1')
+  })
+})
+
+describe('store setTree tab reconciliation', () => {
+  it('updates a non-active linked tab when the tree changes (e.g. sidebar rename)', () => {
+    // open a linked tab, then switch away so it is not the active tab
+    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Old', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    useStore.getState().openNewTab()  // active is now the fresh blank, r1 is inactive
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Renamed', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
+    expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Renamed')
+  })
+  it('does not clobber the active linked tab from a tree broadcast', () => {
+    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Typing', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    // r1 is the active tab; a stale tree broadcast must not overwrite it
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Stale', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
+    expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Typing')
+  })
 })

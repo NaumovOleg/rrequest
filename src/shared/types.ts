@@ -1,7 +1,7 @@
 export type HttpMethod =
   | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
-export type KeyValue = { key: string; value: string; enabled: boolean; description?: string }
+export type KeyValue = { key: string; value: string; enabled: boolean; description?: string; secret?: boolean }
 
 export type Auth =
   | { type: 'none' }
@@ -55,7 +55,7 @@ export type HttpResponse = {
 
 export type Folder = { id: string; name: string; requests: RestRequest[] }
 
-export type Collection = { id: string; name: string; workspaceId: string; requests: RestRequest[]; folders?: Folder[] }
+export type Collection = { id: string; name: string; workspaceId: string; requests: RestRequest[]; folders?: Folder[]; environmentId?: string }
 
 export type Workspace = { id: string; name: string }
 
@@ -80,6 +80,8 @@ export type WebviewMessage =
   | { type: 'sendRequest'; requestId: string; payload: RestRequest }
   | { type: 'loadTree' }
   | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: RestRequest }
+  | { type: 'createRequest'; collectionId: string; folderId: string | null; request: RestRequest }
+  | { type: 'setCollectionEnvironment'; collectionId: string; environmentId: string | null }
   | { type: 'createCollection'; name: string }
   | { type: 'loadHistory' }
   | { type: 'loadEnvironments' }
@@ -107,7 +109,8 @@ export type WebviewMessage =
   | { type: 'renameFolder'; collectionId: string; folderId: string; name: string }
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
-  | { type: 'openEnvironments' }
+  | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }
+  | { type: 'openEnvironments'; id?: string }
   | { type: 'openWebSocket' }
 
 // host -> webview
@@ -123,7 +126,7 @@ export type HostMessage =
   | { type: 'wsMessage'; connId: string; data: string; at: number }
   | { type: 'wsClosed'; connId: string; code: number; reason: string }
   | { type: 'wsError'; connId: string; message: string }
-  | { type: 'showEnvironments' }
+  | { type: 'showEnvironments'; id?: string }
   | { type: 'showWebSocket' }
 
 export function newId(): string {

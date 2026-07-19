@@ -1,20 +1,18 @@
 import { SplitButton } from "../../elements";
 import { WorkspaceSwitcher } from "../WorkspaceSwitcher/WorkspaceSwitcher";
 
-export type SidebarTab = "collections" | "history";
+export type SidebarTab = "collections" | "environments" | "history";
 
 export function SidebarHeader({
   tab,
   onTab,
   onNewHttp,
   onNewWs,
-  onEnvironments,
 }: {
   tab: SidebarTab;
   onTab: (t: SidebarTab) => void;
   onNewHttp: () => void;
   onNewWs: () => void;
-  onEnvironments: () => void;
 }) {
   return (
     <header className="rm-sbhead">
@@ -41,10 +39,12 @@ export function SidebarHeader({
         </button>
         <button
           type="button"
-          className="rm-sbtab"
+          className={`rm-sbtab${tab === "environments" ? " is-active" : ""}`}
+          role="tab"
+          aria-selected={tab === "environments"}
           aria-label="Environments"
           title="Environments"
-          onClick={onEnvironments}
+          onClick={() => onTab("environments")}
         >
           <span className="codicon codicon-globe" />
         </button>

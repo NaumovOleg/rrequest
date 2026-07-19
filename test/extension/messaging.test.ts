@@ -161,12 +161,51 @@ describe('createRouter workspace + openRequest', () => {
     const out = await router(d)({ type: 'openRequest', request: req, targetCollectionId: 'c1' })
     expect(out).toEqual({ type: 'openInEditor', request: req, targetCollectionId: 'c1' })
   })
+  it('openRequest from a collection with a bound environment activates it', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], environmentId: 'e9' }])
+    const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    await router(d)({ type: 'openRequest', request: req, targetCollectionId: 'c1' })
+    expect(d.activeEnvId).toBe('e9')
+  })
+  it('createRequest persists the request and opens it linked', async () => {
+    const d = deps()
+    const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    const out = await router(d)({ type: 'createRequest', collectionId: 'c1', folderId: 'f1', request: req })
+    expect(d.collections.saveRequest).toHaveBeenCalledWith('c1', req, 'f1')
+    expect(out).toEqual({ type: 'openInEditor', request: req, targetCollectionId: 'c1', targetFolderId: 'f1' })
+  })
+  it('setCollectionEnvironment stores the environment id on the collection', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }])
+    await router(d)({ type: 'setCollectionEnvironment', collectionId: 'c1', environmentId: 'e9' })
+    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], environmentId: 'e9' })
+  })
   it('deleteWorkspace reassigns collections of a non-active deleted workspace to the active workspace', async () => {
     const d = deps()
     d.activeWorkspaceId = 'w1'
     d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w2', requests: [] }])
     await router(d)({ type: 'deleteWorkspace', id: 'w2' })
     expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
+  })
+  it('moveFolder re-parents a folder from one collection to another', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [
+      { id: 'c1', name: 'C1', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }] },
+      { id: 'c2', name: 'C2', workspaceId: 'w1', requests: [], folders: [] },
+    ])
+    await router(d)({ type: 'moveFolder', fromCollectionId: 'c1', toCollectionId: 'c2', folderId: 'f1' })
+    const saved = (d.collections.saveCollection as any).mock.calls.map((c: any[]) => c[0])
+    const from = saved.find((c: any) => c.id === 'c1')
+    const to = saved.find((c: any) => c.id === 'c2')
+    expect(from.folders).toHaveLength(0)
+    expect(to.folders.map((f: any) => f.id)).toEqual(['f1'])
+  })
+  it('moveFolder into the same collection is a no-op', async () => {
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C1', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }] }])
+    await router(d)({ type: 'moveFolder', fromCollectionId: 'c1', toCollectionId: 'c1', folderId: 'f1' })
+    expect(d.collections.saveCollection).not.toHaveBeenCalled()
   })
   it('setActiveWorkspace clears the active environment (envs belong to a workspace)', async () => {
     const d = deps()

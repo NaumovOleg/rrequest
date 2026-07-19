@@ -25,6 +25,7 @@ export function EditorApp() {
   const wsAppendLog = useStore((s) => s.wsAppendLog);
   const envMode = useStore((s) => s.envMode);
   const setEnvMode = useStore((s) => s.setEnvMode);
+  const setEnvEditId = useStore((s) => s.setEnvEditId);
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -35,20 +36,20 @@ export function EditorApp() {
       } else if (m.type === "response") setResponse(m.requestId, m.payload);
       else if (m.type === "openInEditor") {
         const r = m.request;
+        // Carry the full request (id + auth included) and link it to its
+        // collection/folder so editor edits round-trip to the tree.
         openOrReplaceBlank({
-          name: r.name,
-          method: r.method,
-          url: r.url,
-          params: r.params,
-          headers: r.headers,
-          body: r.body,
+          ...r,
           preRequestScript: r.preRequestScript ?? "",
           testScript: r.testScript ?? "",
+          collectionId: m.targetCollectionId,
+          folderId: m.targetFolderId ?? null,
         });
         setPendingSaveCollectionId(m.targetCollectionId ?? null);
         setPendingSaveFolderId(m.targetFolderId ?? null);
       } else if (m.type === "showEnvironments") {
         setEnvMode(true);
+        setEnvEditId(m.id ?? null);
       } else if (m.type === "showWebSocket") {
         setWsMode(true);
       } else if (m.type === "pickedFile") {
@@ -108,6 +109,7 @@ export function EditorApp() {
     wsSetStatus,
     wsAppendLog,
     setEnvMode,
+    setEnvEditId,
     setWsMode,
   ]);
 

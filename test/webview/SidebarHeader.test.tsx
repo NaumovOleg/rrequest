@@ -11,27 +11,27 @@ const noop = () => {}
 describe('SidebarHeader', () => {
   it('primary New HTTP Request button fires onNewHttp', () => {
     const onNewHttp = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={onNewHttp} onNewWs={noop} onEnvironments={noop} />)
+    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={onNewHttp} onNewWs={noop} />)
     fireEvent.click(screen.getByRole('button', { name: 'New HTTP Request' }))
     expect(onNewHttp).toHaveBeenCalled()
   })
   it('split menu exposes New WebSocket', () => {
     const onNewWs = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={onNewWs} onEnvironments={noop} />)
+    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={onNewWs} />)
     fireEvent.click(screen.getByRole('button', { name: /new http request options/i }))
     fireEvent.click(screen.getByRole('menuitem', { name: /new websocket/i }))
     expect(onNewWs).toHaveBeenCalled()
   })
   it('Collections and History tabs switch via onTab', () => {
     const onTab = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} onEnvironments={noop} />)
+    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} />)
     fireEvent.click(screen.getByRole('tab', { name: /history/i }))
     expect(onTab).toHaveBeenCalledWith('history')
   })
-  it('Environments tab fires onEnvironments', () => {
-    const onEnvironments = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={noop} onEnvironments={onEnvironments} />)
-    fireEvent.click(screen.getByRole('button', { name: /environments/i }))
-    expect(onEnvironments).toHaveBeenCalled()
+  it('Environments tab switches via onTab', () => {
+    const onTab = vi.fn()
+    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} />)
+    fireEvent.click(screen.getByRole('tab', { name: /environments/i }))
+    expect(onTab).toHaveBeenCalledWith('environments')
   })
 })

@@ -1,12 +1,23 @@
 import { create } from 'zustand'
 import { newId, type Collection, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
 
+// A tab is a request plus an optional link back to the collection/folder it was
+// opened from, so edits can round-trip to the tree (and tree renames back).
+export type Tab = RestRequest & { collectionId?: string; folderId?: string | null }
+
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
 }
 
+function findInTree(tree: Collection[], collectionId: string, folderId: string | null | undefined, reqId: string): RestRequest | undefined {
+  const c = tree.find((x) => x.id === collectionId)
+  if (!c) return undefined
+  if (folderId) return (c.folders ?? []).find((f) => f.id === folderId)?.requests.find((r) => r.id === reqId)
+  return c.requests.find((r) => r.id === reqId)
+}
+
 type State = {
-  tabs: RestRequest[]
+  tabs: Tab[]
   activeTabId: string | undefined
   tree: Collection[]
   responses: Record<string, HttpResponse | undefined>
@@ -26,11 +37,12 @@ type State = {
   wsConnId: string | null
   wsLog: { dir: 'in' | 'out' | 'status'; data: string; at: number }[]
   envMode: boolean
+  envEditId: string | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
-  openOrReplaceBlank(patch: Partial<RestRequest>): void
+  openOrReplaceBlank(patch: Partial<Tab>): void
   setTabBody(tabId: string, body: RestRequest['body']): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
@@ -50,6 +62,7 @@ type State = {
   wsAppendLog(entry: { dir: 'in' | 'out' | 'status'; data: string; at: number }): void
   wsClear(): void
   setEnvMode(v: boolean): void
+  setEnvEditId(id: string | null): void
   __reset(): void
 }
 
@@ -74,6 +87,7 @@ export const useStore = create<State>((set) => ({
   wsConnId: null,
   wsLog: [],
   envMode: false,
+  envEditId: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -98,15 +112,29 @@ export const useStore = create<State>((set) => ({
       && !active.url && active.params.length === 0 && active.headers.length === 0
       && active.body.mode === 'none' && !active.preRequestScript && !active.testScript
     if (active && isBlank) {
-      return { tabs: s.tabs.map((t) => (t.id === active.id ? { ...t, ...patch } : t)) }
+      // patch may carry a new id (linking to a collection request); keep the
+      // active pointer in sync with it.
+      const newId = patch.id ?? active.id
+      return { tabs: s.tabs.map((t) => (t.id === active.id ? { ...t, ...patch } : t)), activeTabId: newId }
     }
     const r = blankRequest()
-    return { tabs: [...s.tabs, { ...r, ...patch }], activeTabId: r.id }
+    const tab = { ...r, ...patch }
+    return { tabs: [...s.tabs, tab], activeTabId: tab.id }
   }),
 
   setTabBody: (tabId, body) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, body } : t)) })),
 
-  setTree: (tree) => set({ tree }),
+  setTree: (tree) => set((s) => ({
+    tree,
+    // Reflect tree-side changes (e.g. a rename in the sidebar) back into open
+    // linked tabs. Skip the active tab so a broadcast never clobbers what the
+    // user is currently typing — its own edits already flow out via autosave.
+    tabs: s.tabs.map((t) => {
+      if (!t.collectionId || t.id === s.activeTabId) return t
+      const found = findInTree(tree, t.collectionId, t.folderId, t.id)
+      return found ? { ...t, ...found } : t
+    }),
+  })),
 
   setResponse: (id, resp) => set((s) => ({ responses: { ...s.responses, [id]: resp } })),
 
@@ -133,6 +161,7 @@ export const useStore = create<State>((set) => ({
 
   setPendingSaveFolderId: (pendingSaveFolderId) => set({ pendingSaveFolderId }),
   setEnvMode: (envMode) => set({ envMode }),
+  setEnvEditId: (envEditId) => set({ envEditId }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null }),
 }))

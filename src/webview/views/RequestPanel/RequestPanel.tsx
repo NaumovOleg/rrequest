@@ -238,6 +238,16 @@ export function RequestPanel() {
   useEffect(() => {
     setSaveFolderId(pendingSaveFolderId ?? "");
   }, [pendingSaveFolderId]);
+  // Linked tabs (opened from a collection) autosave their edits back to the
+  // tree, debounced, so any field change — name included — stays in sync.
+  useEffect(() => {
+    if (!active || !active.collectionId) return;
+    const t = setTimeout(() => {
+      const { collectionId, folderId, ...request } = active;
+      postToHost({ type: "saveRequest", collectionId: collectionId!, folderId: folderId ?? null, request });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [active]);
   if (!active) return <div className="rm-panel">No request open</div>;
 
   const send = () => {

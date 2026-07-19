@@ -99,6 +99,19 @@ export function createRouter(deps: RouterDeps) {
       case 'saveRequest':
         await deps.collections.saveRequest(msg.collectionId, msg.request, msg.folderId ?? null)
         return { type: 'tree', collections: await deps.collections.list() }
+      case 'createRequest': {
+        // Persist immediately, then open the freshly created request in the
+        // editor (linked). The tree broadcast reveals it in its folder.
+        await deps.collections.saveRequest(msg.collectionId, msg.request, msg.folderId)
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        if (c?.environmentId) deps.setActiveEnvId(c.environmentId)
+        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.collectionId, targetFolderId: msg.folderId }
+      }
+      case 'setCollectionEnvironment': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        if (c) await deps.collections.saveCollection({ ...c, environmentId: msg.environmentId ?? undefined })
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'loadHistory':
         return await histSnapshot()
       case 'ready':
@@ -132,8 +145,15 @@ export function createRouter(deps: RouterDeps) {
         const f = deps.pickFile ? await deps.pickFile() : null
         return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
       }
-      case 'openRequest':
+      case 'openRequest': {
+        // Opening a request from a collection with a bound environment activates
+        // that environment (snapshot broadcast reflects it).
+        if (msg.targetCollectionId) {
+          const c = (await deps.collections.list()).find((x) => x.id === msg.targetCollectionId)
+          if (c?.environmentId) deps.setActiveEnvId(c.environmentId)
+        }
         return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId, targetFolderId: msg.targetFolderId }
+      }
       case 'loadWorkspaces':
         return await wsSnapshot()
       case 'createWorkspace': {
@@ -206,7 +226,7 @@ export function createRouter(deps: RouterDeps) {
         await withCollection(msg.collectionId, (c) => { deleteReqIn(c, msg.folderId, msg.requestId) })
         return { type: 'tree', collections: await deps.collections.list() }
       case 'openEnvironments':
-        return { type: 'showEnvironments' }
+        return { type: 'showEnvironments', id: msg.id }
       case 'openWebSocket':
         return { type: 'showWebSocket' }
       case 'moveRequest': {
@@ -225,6 +245,22 @@ export function createRouter(deps: RouterDeps) {
         toBucket.push(req)
         await deps.collections.saveCollection(from)
         if (to.id !== from.id) await deps.collections.saveCollection(to)
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'moveFolder': {
+        // Folders live only at collection top-level, so a move just re-parents
+        // the whole folder from one collection to another.
+        if (msg.fromCollectionId === msg.toCollectionId) return { type: 'tree', collections: await deps.collections.list() }
+        const all = await deps.collections.list()
+        const from = all.find((c) => c.id === msg.fromCollectionId)
+        const to = all.find((c) => c.id === msg.toCollectionId)
+        if (!from || !to) return { type: 'tree', collections: all }
+        const folder = (from.folders ?? []).find((f) => f.id === msg.folderId)
+        if (!folder) return { type: 'tree', collections: all }
+        from.folders = (from.folders ?? []).filter((f) => f.id !== msg.folderId)
+        ;(to.folders ??= []).push(folder)
+        await deps.collections.saveCollection(from)
+        await deps.collections.saveCollection(to)
         return { type: 'tree', collections: await deps.collections.list() }
       }
       default:

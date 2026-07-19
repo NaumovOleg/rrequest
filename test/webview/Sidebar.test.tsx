@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 import { newId } from '../../src/shared/types'
 
@@ -21,13 +21,13 @@ describe('Sidebar', () => {
     expect(screen.getByText('My Coll')).toBeInTheDocument()
     fireEvent.click(screen.getByText('My Coll'))
     fireEvent.click(screen.getByText('Get Users'))
-    expect(posted).toContainEqual({ type: 'openRequest', request })
+    expect(posted).toContainEqual({ type: 'openRequest', request, targetCollectionId: 'c1', targetFolderId: null })
   })
 
-  it('Import button posts importCollection', () => {
+  it('add collection button posts createCollection', () => {
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /^import$/i }))
-    expect(posted).toContainEqual({ type: 'importCollection' })
+    fireEvent.click(screen.getByRole('button', { name: /add collection/i }))
+    expect(posted).toContainEqual({ type: 'createCollection', name: 'New Collection' })
   })
 
   it('Export posts exportCollection with the collection id and format', () => {
@@ -36,15 +36,6 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
     fireEvent.click(screen.getByText(/export postman/i))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })
-  })
-
-  it('New Request posts openRequest with a blank request and no target', () => {
-    render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /new request/i }))
-    const msg = posted.find((m) => m.type === 'openRequest')
-    expect(msg).toBeTruthy()
-    expect(msg.request.name).toBe('New Request')
-    expect(msg.targetCollectionId).toBeUndefined()
   })
 
   it('collections collapse/expand: requests hidden until the collection is clicked', () => {
@@ -56,13 +47,14 @@ describe('Sidebar', () => {
     expect(screen.getByText('Get Users')).toBeInTheDocument()   // expanded
   })
 
-  it('+ Request on a collection posts openRequest with that collection as target', () => {
+  it('+ Request on a collection posts createRequest with that collection as target', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [] }])
     render(<Sidebar />)
     fireEvent.click(screen.getByText('My Coll'))                 // expand to reveal + Request
     fireEvent.click(screen.getByRole('button', { name: /add request to My Coll/i }))
-    const msg = posted.filter((m) => m.type === 'openRequest').pop()
-    expect(msg.targetCollectionId).toBe('c1')
+    const msg = posted.filter((m) => m.type === 'createRequest').pop()
+    expect(msg.collectionId).toBe('c1')
+    expect(msg.folderId).toBeNull()
     expect(msg.request.name).toBe('New Request')
   })
 
@@ -80,7 +72,7 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByText('My Coll'))
     fireEvent.keyDown(screen.getByText('Get Users'), { key: 'Enter' })
-    expect(posted).toContainEqual({ type: 'openRequest', request })
+    expect(posted).toContainEqual({ type: 'openRequest', request, targetCollectionId: 'c1', targetFolderId: null })
   })
 
   it('renders folders and their requests when expanded', () => {
@@ -91,6 +83,29 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('Auth'))          // expand folder
     expect(screen.getByText('In Folder')).toBeInTheDocument()
   })
+  it('+ Request in a folder posts createRequest and expands the folder', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'Auth', requests: [] }] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))                     // expand collection to reveal folder
+    fireEvent.click(screen.getByRole('button', { name: /add request to Auth/i }))
+    const msg = posted.filter((m) => m.type === 'createRequest').pop()
+    expect(msg).toMatchObject({ collectionId: 'c1', folderId: 'f1' })
+    expect(msg.request.name).toBe('New Request')
+    // folder now expanded: after the tree re-render adds a request it would show;
+    // simulate the tree update and confirm the folder stays open
+    act(() => {
+      useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'Auth', requests: [{ id: 'nr', name: 'New Request', method: 'GET', url: '', params: [], headers: [], body: { mode: 'none' } }] }] }])
+    })
+    expect(screen.getByText('New Request')).toBeInTheDocument()
+  })
+  it('binding an environment posts setCollectionEnvironment', () => {
+    useStore.getState().setEnvironments([{ id: 'e1', name: 'Dev', workspaceId: 'w1', variables: [] }])
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    fireEvent.click(screen.getByText(/^\s*Dev$/))
+    expect(posted).toContainEqual({ type: 'setCollectionEnvironment', collectionId: 'c1', environmentId: 'e1' })
+  })
   it('new folder icon posts createFolder', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     render(<Sidebar />)
@@ -98,11 +113,10 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: /new folder in C/i }))
     expect(posted).toContainEqual({ type: 'createFolder', collectionId: 'c1', name: 'New Folder' })
   })
-  it('delete collection via settings popup posts deleteCollection', () => {
+  it('delete collection icon posts deleteCollection', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
-    fireEvent.click(screen.getByText(/^delete$/i))
+    fireEvent.click(screen.getByRole('button', { name: /delete collection C/i }))
     expect(posted).toContainEqual({ type: 'deleteCollection', id: 'c1' })
   })
   it('collection settings popup has Rename and posts export native', () => {
@@ -112,11 +126,10 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText(/export native/i))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'native' })
   })
-  it('collection settings Rename enters inline rename mode', () => {
+  it('rename collection icon enters inline rename mode', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
-    fireEvent.click(screen.getByText(/^rename$/i))
+    fireEvent.click(screen.getByRole('button', { name: /rename collection C/i }))
     fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'Renamed' } })
     fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
     expect(posted).toContainEqual({ type: 'renameCollection', id: 'c1', name: 'Renamed' })
@@ -139,6 +152,28 @@ describe('Sidebar', () => {
     fireEvent.drop(folderRow, { dataTransfer: data })
     expect(posted).toContainEqual({ type: 'moveRequest', fromCollectionId: 'c1', fromFolderId: null, requestId: 'r1', toCollectionId: 'c1', toFolderId: 'f1' })
   })
+  it('dropping a folder on another collection posts moveFolder', () => {
+    useStore.getState().setTree([
+      { id: 'c1', name: 'C1', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }] },
+      { id: 'c2', name: 'C2', workspaceId: 'w1', requests: [], folders: [] },
+    ])
+    render(<Sidebar />)
+    const c2Row = screen.getByText('C2').closest('.rm-tree-row')!
+    const data: any = { types: ['application/json'], getData: () => JSON.stringify({ kind: 'folder', fromCollectionId: 'c1', folderId: 'f1' }), setData: () => {} }
+    fireEvent.drop(c2Row, { dataTransfer: data })
+    expect(posted).toContainEqual({ type: 'moveFolder', fromCollectionId: 'c1', toCollectionId: 'c2', folderId: 'f1' })
+  })
+  it('a folder cannot be dropped into a folder (no moveFolder)', () => {
+    useStore.getState().setTree([
+      { id: 'c1', name: 'C1', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [] }, { id: 'f2', name: 'G', requests: [] }] },
+    ])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C1'))
+    const folderRow = screen.getByText('G').closest('.rm-tree-row')!
+    const data: any = { types: ['application/json'], getData: () => JSON.stringify({ kind: 'folder', fromCollectionId: 'c1', folderId: 'f1' }), setData: () => {} }
+    fireEvent.drop(folderRow, { dataTransfer: data })
+    expect(posted.filter((m) => m.type === 'moveFolder')).toHaveLength(0)
+  })
   it('rename request via edit icon posts renameRequest', () => {
     const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }])
@@ -154,8 +189,7 @@ describe('Sidebar', () => {
     const request = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])
     render(<Sidebar />)
-    fireEvent.click(screen.getByRole('button', { name: /collection settings My Coll/i }))
-    fireEvent.click(screen.getByText(/^rename$/i))
+    fireEvent.click(screen.getByRole('button', { name: /rename collection My Coll/i }))
     fireEvent.change(screen.getByLabelText('rename input'), { target: { value: 'New Folder Name' } })
     fireEvent.keyDown(screen.getByLabelText('rename input'), { key: 'Enter' })
 

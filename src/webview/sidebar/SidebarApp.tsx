@@ -8,6 +8,7 @@ import {
   type SidebarTab,
 } from "../views/SidebarHeader/SidebarHeader";
 import { Sidebar } from "../views/Sidebar/Sidebar";
+import { SidebarEnvironments } from "../views/SidebarEnvironments/SidebarEnvironments";
 import { History } from "../components";
 
 function blankRequest(): RestRequest {
@@ -50,7 +51,7 @@ export function SidebarApp() {
   }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory]);
 
   return (
-    <div className="rm-surface">
+    <div className="rm-surface rm-surface--sidebar">
       <SidebarHeader
         tab={tab}
         onTab={setTab}
@@ -58,10 +59,15 @@ export function SidebarApp() {
           postToHost({ type: "openRequest", request: blankRequest() })
         }
         onNewWs={() => postToHost({ type: "openWebSocket" })}
-        onEnvironments={() => postToHost({ type: "openEnvironments" })}
       />
       <div className="rm-scroll rm-sbbody">
-        {tab === "collections" ? <Sidebar /> : <History />}
+        {tab === "collections" ? (
+          <Sidebar />
+        ) : tab === "environments" ? (
+          <SidebarEnvironments />
+        ) : (
+          <History />
+        )}
       </div>
     </div>
   );

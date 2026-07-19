@@ -5,7 +5,7 @@ import { useStore } from '../../src/webview/state/store'
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({ postToHost: (m: any) => posted.push(m), onHostMessage: () => () => {} }))
 
-import { FormDataEditor } from '../../src/webview/components/FormDataEditor/FormDataEditor'
+import { FormDataEditor } from '../../src/webview/components/FormDataEditor'
 
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0; useStore.getState().openNewTab() })
 

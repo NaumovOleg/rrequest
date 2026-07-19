@@ -36,7 +36,7 @@ export class Hub {
     const reply = await this.route(msg)
     if (reply) {
       if (reply.type === 'response' || reply.type === 'pickedFile') this.postTo(fromId, reply)
-      else if (reply.type === 'openInEditor' || reply.type === 'showEnvironments') {
+      else if (reply.type === 'openInEditor' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket') {
         this.onOpenInEditor?.()
         if (this.sinks.has('editor')) this.postTo('editor', reply)
         else this.pendingEditor.push(reply)

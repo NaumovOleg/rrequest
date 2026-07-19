@@ -1,10 +1,28 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "../theme.css";
 import { useStore } from "../state/store";
 import { onHostMessage, postToHost } from "../ipc";
-import { WorkspaceSwitcher } from "../views/WorkspaceSwitcher/WorkspaceSwitcher";
+import { newId, type RestRequest } from "../../shared/types";
+import {
+  SidebarHeader,
+  type SidebarTab,
+} from "../views/SidebarHeader/SidebarHeader";
 import { Sidebar } from "../views/Sidebar/Sidebar";
 import { History } from "../components";
+
+function blankRequest(): RestRequest {
+  return {
+    id: newId(),
+    name: "Untitled",
+    method: "GET",
+    url: "",
+    params: [],
+    headers: [],
+    body: { mode: "none" },
+    preRequestScript: "",
+    testScript: "",
+  };
+}
 
 export function SidebarApp() {
   const setTree = useStore((s) => s.setTree);
@@ -12,6 +30,7 @@ export function SidebarApp() {
   const setActiveEnvId = useStore((s) => s.setActiveEnvId);
   const setWorkspaces = useStore((s) => s.setWorkspaces);
   const setHistory = useStore((s) => s.setHistory);
+  const [tab, setTab] = useState<SidebarTab>("collections");
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -31,10 +50,19 @@ export function SidebarApp() {
   }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory]);
 
   return (
-    <div className="rm-surface rm-scroll">
-      <WorkspaceSwitcher />
-      <Sidebar />
-      <History />
+    <div className="rm-surface">
+      <SidebarHeader
+        tab={tab}
+        onTab={setTab}
+        onNewHttp={() =>
+          postToHost({ type: "openRequest", request: blankRequest() })
+        }
+        onNewWs={() => postToHost({ type: "openWebSocket" })}
+        onEnvironments={() => postToHost({ type: "openEnvironments" })}
+      />
+      <div className="rm-scroll rm-sbbody">
+        {tab === "collections" ? <Sidebar /> : <History />}
+      </div>
     </div>
   );
 }

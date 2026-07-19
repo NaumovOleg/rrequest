@@ -14,7 +14,7 @@ function deps() {
   return {
     send: vi.fn(async () => fakeResp),
     collections: { list: vi.fn(async () => []), createCollection: vi.fn(async (n: string, ws: string) => ({ id: 'c1', name: n, workspaceId: ws, requests: [] })), saveRequest: vi.fn(async () => ({ id: 'c1', name: 'c', requests: [] })), saveCollection: vi.fn(async (c: any) => c), delete: vi.fn(async () => {}) } as any,
-    history: { append: vi.fn(async () => {}), list: vi.fn(async () => []) } as any,
+    history: { append: vi.fn(async () => {}), list: vi.fn(async () => []), dropByWorkspace: vi.fn(async () => {}) } as any,
     environments: {
       list: vi.fn(async () => [] as any[]),
       createEnvironment: vi.fn(async (n: string) => ({ id: 'e1', name: n, variables: [] })),
@@ -167,6 +167,36 @@ describe('createRouter workspace + openRequest', () => {
     d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w2', requests: [] }])
     await router(d)({ type: 'deleteWorkspace', id: 'w2' })
     expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
+  })
+  it('setActiveWorkspace clears the active environment (envs belong to a workspace)', async () => {
+    const d = deps()
+    d.activeWorkspaceId = 'w1'
+    d.activeEnvId = 'e1'
+    await router(d)({ type: 'setActiveWorkspace', id: 'w2' })
+    expect(d.activeWorkspaceId).toBe('w2')
+    expect(d.activeEnvId).toBeNull()
+  })
+  it('createEnvironment scopes the new env to the active workspace', async () => {
+    const d = deps()
+    d.activeWorkspaceId = 'w2'
+    await router(d)({ type: 'createEnvironment', name: 'Dev' })
+    expect(d.environments.createEnvironment).toHaveBeenCalledWith('Dev', 'w2')
+  })
+  it('environments/history snapshots only include the active workspace', async () => {
+    const d = deps()
+    d.activeWorkspaceId = 'w1'
+    d.environments.list = vi.fn(async () => [
+      { id: 'e1', name: 'A', workspaceId: 'w1', variables: [] },
+      { id: 'e2', name: 'B', workspaceId: 'w2', variables: [] },
+    ])
+    d.history.list = vi.fn(async () => [
+      { id: 'h1', workspaceId: 'w1', request: {}, status: 200, at: 1 },
+      { id: 'h2', workspaceId: 'w2', request: {}, status: 200, at: 2 },
+    ])
+    const envs = await router(d)({ type: 'loadEnvironments' }) as any
+    const hist = await router(d)({ type: 'loadHistory' }) as any
+    expect(envs.environments.map((e: any) => e.id)).toEqual(['e1'])
+    expect(hist.entries.map((e: any) => e.id)).toEqual(['h1'])
   })
 })
 

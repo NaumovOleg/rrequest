@@ -49,6 +49,8 @@ export function EditorApp() {
         setPendingSaveFolderId(m.targetFolderId ?? null);
       } else if (m.type === "showEnvironments") {
         setEnvMode(true);
+      } else if (m.type === "showWebSocket") {
+        setWsMode(true);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -106,6 +108,7 @@ export function EditorApp() {
     wsSetStatus,
     wsAppendLog,
     setEnvMode,
+    setWsMode,
   ]);
 
   return (

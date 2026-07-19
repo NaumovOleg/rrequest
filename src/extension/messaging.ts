@@ -30,12 +30,20 @@ export function createRouter(deps: RouterDeps) {
     if (c) { fn(c); await deps.collections.saveCollection(c) }
   }
   async function envSnapshot(): Promise<{ type: 'environments'; environments: import('../shared/types').Environment[]; activeId: string | null }> {
-    return { type: 'environments', environments: await deps.environments.list(), activeId: deps.getActiveEnvId() }
+    const ws = deps.getActiveWorkspaceId()
+    const environments = (await deps.environments.list()).filter((e) => (e.workspaceId || ws) === ws)
+    return { type: 'environments', environments, activeId: deps.getActiveEnvId() }
+  }
+  async function histSnapshot(): Promise<{ type: 'history'; entries: import('../shared/types').HistoryEntry[] }> {
+    const ws = deps.getActiveWorkspaceId()
+    const entries = (await deps.history.list()).filter((e) => (e.workspaceId || ws) === ws)
+    return { type: 'history', entries }
   }
   async function activeVars() {
     const id = deps.getActiveEnvId()
     if (!id) return []
-    const env = (await deps.environments.list()).find((e) => e.id === id)
+    const ws = deps.getActiveWorkspaceId()
+    const env = (await deps.environments.list()).find((e) => e.id === id && (e.workspaceId || ws) === ws)
     return env ? env.variables : []
   }
   async function wsSnapshot(): Promise<HostMessage> {
@@ -80,7 +88,7 @@ export function createRouter(deps: RouterDeps) {
           if (post.envSets.length) await persistEnvSets(post.envSets)
         }
         const withMeta = { ...payload, testResults, consoleLogs: logs }
-        await deps.history.append(raw, payload.status)
+        await deps.history.append(raw, payload.status, deps.getActiveWorkspaceId())
         return { type: 'response', requestId: msg.requestId, payload: withMeta }
       }
       case 'loadTree':
@@ -92,13 +100,13 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.saveRequest(msg.collectionId, msg.request, msg.folderId ?? null)
         return { type: 'tree', collections: await deps.collections.list() }
       case 'loadHistory':
-        return { type: 'history', entries: await deps.history.list() }
+        return await histSnapshot()
       case 'ready':
         return { type: 'tree', collections: await deps.collections.list() }
       case 'loadEnvironments':
         return await envSnapshot()
       case 'createEnvironment':
-        await deps.environments.createEnvironment(msg.name)
+        await deps.environments.createEnvironment(msg.name, deps.getActiveWorkspaceId())
         return await envSnapshot()
       case 'saveEnvironment':
         await deps.environments.saveEnvironment(msg.environment)
@@ -128,14 +136,23 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId, targetFolderId: msg.targetFolderId }
       case 'loadWorkspaces':
         return await wsSnapshot()
-      case 'createWorkspace':
-        await deps.workspaces.create(msg.name)
+      case 'createWorkspace': {
+        // Make the freshly created workspace active so it shows up selected
+        // immediately (and the snapshot broadcasts its empty collection set).
+        const created = await deps.workspaces.create(msg.name)
+        deps.setActiveWorkspaceId(created.id)
+        // fresh workspace has no environments — clear stale active env selection
+        deps.setActiveEnvId(null)
         return await wsSnapshot()
+      }
       case 'renameWorkspace':
         await deps.workspaces.rename(msg.id, msg.name)
         return await wsSnapshot()
       case 'setActiveWorkspace':
         deps.setActiveWorkspaceId(msg.id)
+        // active env belongs to the previous workspace — reset so the new
+        // workspace starts with its own selection (snapshot re-filters below)
+        deps.setActiveEnvId(null)
         return await wsSnapshot()
       case 'deleteWorkspace': {
         await deps.workspaces.delete(msg.id)
@@ -144,12 +161,18 @@ export function createRouter(deps: RouterDeps) {
           const remaining = await deps.workspaces.list()
           const fallback = remaining[0] ?? (await deps.workspaces.create('Default'))
           deps.setActiveWorkspaceId(fallback.id)
+          deps.setActiveEnvId(null)
         }
-        // reassign orphaned collections to the (now-)active workspace, regardless of which ws was deleted
+        // reassign orphaned collections + environments to the (now-)active
+        // workspace, regardless of which ws was deleted; drop its history log.
         const target = deps.getActiveWorkspaceId()
         for (const c of await deps.collections.list()) {
           if (c.workspaceId === msg.id) await deps.collections.saveCollection({ ...c, workspaceId: target })
         }
+        for (const e of await deps.environments.list()) {
+          if (e.workspaceId === msg.id) await deps.environments.saveEnvironment({ ...e, workspaceId: target })
+        }
+        await deps.history.dropByWorkspace(msg.id)
         return await wsSnapshot()
       }
       case 'wsConnect':
@@ -184,6 +207,8 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'tree', collections: await deps.collections.list() }
       case 'openEnvironments':
         return { type: 'showEnvironments' }
+      case 'openWebSocket':
+        return { type: 'showWebSocket' }
       case 'moveRequest': {
         const all = await deps.collections.list()
         const from = all.find((c) => c.id === msg.fromCollectionId)

@@ -16,8 +16,8 @@ function req(): RestRequest {
 describe('HistoryStore', () => {
   it('appends newest-first', async () => {
     const h = new HistoryStore(dir)
-    await h.append({ ...req(), name: 'old' }, 200)
-    await h.append({ ...req(), name: 'new' }, 404)
+    await h.append({ ...req(), name: 'old' }, 200, 'w1')
+    await h.append({ ...req(), name: 'new' }, 404, 'w1')
     const list = await h.list()
     expect(list.map((e) => e.request.name)).toEqual(['new', 'old'])
     expect(list[0].status).toBe(404)
@@ -25,9 +25,9 @@ describe('HistoryStore', () => {
 
   it('caps at max entries', async () => {
     const h = new HistoryStore(dir, 2)
-    await h.append(req(), 200)
-    await h.append(req(), 200)
-    await h.append(req(), 200)
+    await h.append(req(), 200, 'w1')
+    await h.append(req(), 200, 'w1')
+    await h.append(req(), 200, 'w1')
     expect(await h.list()).toHaveLength(2)
   })
 

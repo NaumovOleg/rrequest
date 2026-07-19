@@ -44,6 +44,7 @@ describe('webview store', () => {
   it('setHistory stores entries and __reset clears them', () => {
     const entry = {
       id: 'h1',
+      workspaceId: 'w1',
       request: { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/hist', params: [], headers: [], body: { mode: 'none' as const } },
       status: 200,
       at: 1,
@@ -58,7 +59,7 @@ describe('webview store', () => {
 describe('store environments slice', () => {
   it('setEnvironments and setActiveEnvId update state; __reset clears them', () => {
     const st = useStore.getState()
-    st.setEnvironments([{ id: 'e1', name: 'Dev', variables: [] }])
+    st.setEnvironments([{ id: 'e1', name: 'Dev', workspaceId: 'w1', variables: [] }])
     st.setActiveEnvId('e1')
     expect(useStore.getState().environments).toHaveLength(1)
     expect(useStore.getState().activeEnvId).toBe('e1')

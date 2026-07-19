@@ -20,7 +20,7 @@ describe('Environments', () => {
   })
 
   it('editing a variable and clicking Save posts saveEnvironment with the edited vars', () => {
-    useStore.getState().setEnvironments([{ id: 'e1', name: 'Dev', variables: [] }])
+    useStore.getState().setEnvironments([{ id: 'e1', name: 'Dev', workspaceId: 'w1', variables: [] }])
     render(<Environments />)
     // select the env to edit
     fireEvent.click(screen.getByRole('button', { name: 'Dev' }))
@@ -36,7 +36,7 @@ describe('Environments', () => {
   })
 
   it('Delete posts deleteEnvironment', () => {
-    useStore.getState().setEnvironments([{ id: 'e1', name: 'Dev', variables: [] }])
+    useStore.getState().setEnvironments([{ id: 'e1', name: 'Dev', workspaceId: 'w1', variables: [] }])
     render(<Environments />)
     fireEvent.click(screen.getByRole('button', { name: /delete Dev/i }))
     expect(posted).toContainEqual({ type: 'deleteEnvironment', id: 'e1' })

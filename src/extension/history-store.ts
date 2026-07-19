@@ -14,9 +14,14 @@ export class HistoryStore {
     return (await readJsonSafe<HistoryEntry[]>(this.file)) ?? []
   }
 
-  async append(request: RestRequest, status: number): Promise<void> {
-    const entry: HistoryEntry = { id: newId(), request, status, at: Date.now() }
+  async append(request: RestRequest, status: number, workspaceId: string): Promise<void> {
+    const entry: HistoryEntry = { id: newId(), workspaceId, request, status, at: Date.now() }
     const next = [entry, ...(await this.list())].slice(0, this.max)
     await writeJsonAtomic(this.file, next)
+  }
+
+  async dropByWorkspace(workspaceId: string): Promise<void> {
+    const kept = (await this.list()).filter((e) => e.workspaceId !== workspaceId)
+    await writeJsonAtomic(this.file, kept)
   }
 }

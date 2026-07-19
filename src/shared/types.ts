@@ -62,11 +62,13 @@ export type Workspace = { id: string; name: string }
 export type Environment = {
   id: string
   name: string
+  workspaceId: string
   variables: KeyValue[]
 }
 
 export type HistoryEntry = {
   id: string
+  workspaceId: string
   request: RestRequest
   status: number
   at: number
@@ -106,6 +108,7 @@ export type WebviewMessage =
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'openEnvironments' }
+  | { type: 'openWebSocket' }
 
 // host -> webview
 export type HostMessage =
@@ -121,6 +124,7 @@ export type HostMessage =
   | { type: 'wsClosed'; connId: string; code: number; reason: string }
   | { type: 'wsError'; connId: string; message: string }
   | { type: 'showEnvironments' }
+  | { type: 'showWebSocket' }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

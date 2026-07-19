@@ -108,11 +108,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   const snapshot = async (): Promise<HostMessage[]> => {
     const ws = context.globalState.get<string>('restman.activeWorkspaceId', '')
     const cols = (await collections.list()).filter((c) => (c.workspaceId || ws) === ws)
+    const envs = (await environments.list()).filter((e) => (e.workspaceId || ws) === ws)
+    const hist = (await history.list()).filter((e) => (e.workspaceId || ws) === ws)
     return [
       { type: 'tree', collections: cols },
-      { type: 'environments', environments: await environments.list(), activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
+      { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
       { type: 'workspaces', workspaces: await workspaces.list(), activeId: ws },
-      { type: 'history', entries: await history.list() },
+      { type: 'history', entries: hist },
     ]
   }
 

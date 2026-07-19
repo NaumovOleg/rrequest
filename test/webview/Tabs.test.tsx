@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
-import { Tabs } from '../../src/webview/components/Tabs/Tabs'
+import { Tabs } from '../../src/webview/components/Tabs'
 
 beforeEach(() => useStore.getState().__reset())
 

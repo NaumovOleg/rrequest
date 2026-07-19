@@ -29,8 +29,8 @@ export class EnvironmentStore {
     return out
   }
 
-  async createEnvironment(name: string): Promise<Environment> {
-    const e: Environment = { id: newId(), name, variables: [] }
+  async createEnvironment(name: string, workspaceId: string): Promise<Environment> {
+    const e: Environment = { id: newId(), name, workspaceId, variables: [] }
     await writeJsonAtomic(this.file(e.id), e)
     return e
   }

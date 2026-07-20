@@ -22,6 +22,10 @@ Backend for Google Drive workspace sync: OAuth login + app-session JWT + users.
 - `GET /auth/start?cb=<loopback-url>` → 302 to Google consent.
 - `GET /auth/callback?code=&state=` → 302 to `<cb>?token=<jwt>`.
 - `GET /me` (Bearer JWT) → `{ id, email }`.
+- `GET /workspaces` (Bearer JWT) → the caller's synced workspaces.
+- `POST /workspaces` (Bearer JWT) `{ workspaceId, name, snapshot }` → creates the Drive file under `<hash>-restman/`, stores a row, returns `{ driveFileId, revision }`.
+- `PUT /workspaces/:id` (Bearer JWT, owner) `{ snapshot }` → pushes, returns `{ revision }`.
+- `GET /workspaces/:id` (Bearer JWT, owner) → pulls, returns `{ snapshot, revision }`.
 
 ## Manual smoke test
 

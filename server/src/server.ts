@@ -3,8 +3,12 @@ import { buildApp } from "./app.js";
 import { UserStore } from "./user-store.js";
 import { GoogleOAuth } from "./google-oauth.js";
 import { PendingStates } from "./pending-states.js";
+import { WorkspaceStore } from "./workspace-store.js";
+import { makeDriveFactory } from "./drive-factory.js";
 
 const config = loadConfig();
+const workspaces = new WorkspaceStore(config.dbPath);
+const driveFor = makeDriveFactory(config);
 const app = buildApp({
   config,
   users: new UserStore(config.dbPath, config.tokenEncKey),
@@ -14,6 +18,8 @@ const app = buildApp({
     redirectUri: config.googleRedirectUri,
   }),
   states: new PendingStates(),
+  workspaces,
+  driveFor,
 });
 
 app.listen({ port: config.port, host: "0.0.0.0" })

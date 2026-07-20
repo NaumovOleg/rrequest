@@ -237,6 +237,16 @@ body {
 .rm-envvar { color: var(--rm-m-query, #e0823d); background: color-mix(in srgb, var(--rm-m-query, #e0823d) 20%, transparent); border-radius: 2px; }
 .rm-body-toolbar { display: flex; gap: var(--rm-sp-1); padding: var(--rm-sp-1) var(--rm-sp-2); }
 .rm-btn--sm { padding: 2px 8px; font-size: 0.85em; }
+.rm-btn--danger { background: var(--rm-m-delete, #f14c4c); color: #fff; border-color: transparent; }
+.rm-btn--danger:disabled { opacity: 0.5; cursor: default; }
+
+/* modal */
+.rm-modal-scrim { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
+.rm-modal { background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 6px 24px rgba(0,0,0,.4); padding: var(--rm-sp-3); width: min(420px, 90vw); display: flex; flex-direction: column; gap: var(--rm-sp-2); }
+.rm-modal-title { font-weight: 600; font-size: 1.05em; }
+.rm-modal-body { color: var(--rm-muted); font-size: 0.92em; line-height: 1.4; }
+.rm-modal-body code { color: var(--rm-fg); background: var(--rm-input-bg); padding: 0 4px; border-radius: 3px; }
+.rm-modal-actions { display: flex; justify-content: flex-end; gap: var(--rm-sp-2); }
 /* right-click context menu */
 .rm-ctxmenu { position: fixed; z-index: 50; min-width: 160px; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 2px 8px rgba(0,0,0,.3); padding: 2px; }
 .rm-response-blank { height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -264,6 +274,10 @@ body {
 .rm-linklike { background: transparent; border: none; color: var(--rm-fg); cursor: pointer; font: inherit; text-align: left; padding: 0; }
 .rm-tree-row.is-active { background: var(--rm-active); }
 .rm-empty { color: var(--rm-muted); padding: var(--rm-sp-2); font-size: 0.95em; }
+
+/* trash */
+.rm-trash-kind { flex: none; font-size: 0.7em; text-transform: uppercase; letter-spacing: .03em; color: var(--rm-muted); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); padding: 0 4px; }
+.rm-trash-path { color: var(--rm-muted); }
 
 /* sidebar tab strip */
 .rm-sbtabs { display: flex; align-items: center; gap: var(--rm-sp-1); }

@@ -43,6 +43,11 @@ describe('WorkspaceSwitcher', () => {
     // second item is 'Team' (w2); its delete icon is the second /delete/i button
     const deleteBtns = screen.getAllByRole('button', { name: /delete/i })
     fireEvent.click(deleteBtns[1])
+    // a confirm modal appears; deletion only fires after typing the exact name
+    fireEvent.click(screen.getByRole('button', { name: /delete workspace/i }))
+    expect(posted).not.toContainEqual({ type: 'deleteWorkspace', id: 'w2' }) // still disabled
+    fireEvent.change(screen.getByLabelText(/confirm workspace name/i), { target: { value: 'Team' } })
+    fireEvent.click(screen.getByRole('button', { name: /delete workspace/i }))
     expect(posted).toContainEqual({ type: 'deleteWorkspace', id: 'w2' })
   })
   it('import icon posts importCollection', () => {

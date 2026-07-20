@@ -35,6 +35,12 @@ describe('SidebarHeader', () => {
     fireEvent.click(screen.getByRole('tab', { name: /history/i }))
     expect(onTab).toHaveBeenCalledWith('history')
   })
+  it('Trash tab switches via onTab', () => {
+    const onTab = vi.fn()
+    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} onNewGrpc={noop} />)
+    fireEvent.click(screen.getByRole('tab', { name: /trash/i }))
+    expect(onTab).toHaveBeenCalledWith('trash')
+  })
   it('Environments tab switches via onTab', () => {
     const onTab = vi.fn()
     render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} onNewGrpc={noop} />)

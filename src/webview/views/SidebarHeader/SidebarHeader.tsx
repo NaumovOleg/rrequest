@@ -1,7 +1,7 @@
 import { SplitButton } from "../../elements";
 import { WorkspaceSwitcher } from "../WorkspaceSwitcher/WorkspaceSwitcher";
 
-export type SidebarTab = "collections" | "environments" | "history";
+export type SidebarTab = "collections" | "environments" | "history" | "trash";
 
 export function SidebarHeader({
   tab,
@@ -61,6 +61,17 @@ export function SidebarHeader({
           onClick={() => onTab("history")}
         >
           <span className="codicon codicon-history" />
+        </button>
+        <button
+          type="button"
+          className={`rm-sbtab${tab === "trash" ? " is-active" : ""}`}
+          role="tab"
+          aria-selected={tab === "trash"}
+          aria-label="Trash"
+          title="Trash"
+          onClick={() => onTab("trash")}
+        >
+          <span className="codicon codicon-trash" />
         </button>
       </div>
     </header>

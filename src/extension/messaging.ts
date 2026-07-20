@@ -31,12 +31,37 @@ export type RouterDeps = {
   runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
   ws?: WsManager
   grpcInvoke?: (p: import('./grpc-client').GrpcParams) => Promise<import('./grpc-client').GrpcResult>
+  trash?: import('./trash-store').TrashStore
 }
 
 export function createRouter(deps: RouterDeps) {
   async function withCollection(id: string, fn: (c: import('../shared/types').Collection) => void) {
     const c = (await deps.collections.list()).find((x) => x.id === id)
     if (c) { fn(c); await deps.collections.saveCollection(c) }
+  }
+  // Trash restore helpers: reinsert into live collections, recreating any missing
+  // ancestor collection/folder shells and merging into existing ones.
+  async function ensureLiveCollection(id: string, name: string): Promise<import('../shared/types').Collection> {
+    const c = (await deps.collections.list()).find((x) => x.id === id)
+    return c ?? { id, name, workspaceId: deps.getActiveWorkspaceId(), requests: [], folders: [] }
+  }
+  async function restoreRequestInto(colId: string, colName: string, folder: { id: string; name: string } | null, req: import('../shared/types').CollectionItem) {
+    const c = await ensureLiveCollection(colId, colName)
+    c.folders = c.folders ?? []
+    if (folder) {
+      let f = c.folders.find((x) => x.id === folder.id)
+      if (!f) { f = { id: folder.id, name: folder.name, requests: [] }; c.folders.push(f) }
+      if (!f.requests.some((r) => r.id === req.id)) f.requests.push(req)
+    } else if (!c.requests.some((r) => r.id === req.id)) {
+      c.requests.push(req)
+    }
+    await deps.collections.saveCollection(c)
+  }
+  async function restoreFolderInto(colId: string, colName: string, folder: import('../shared/types').Folder) {
+    const c = await ensureLiveCollection(colId, colName)
+    c.folders = c.folders ?? []
+    if (!c.folders.some((f) => f.id === folder.id)) c.folders.push(folder)
+    await deps.collections.saveCollection(c)
   }
   async function envSnapshot(): Promise<{ type: 'environments'; environments: import('../shared/types').Environment[]; activeId: string | null }> {
     const ws = deps.getActiveWorkspaceId()
@@ -47,6 +72,11 @@ export function createRouter(deps: RouterDeps) {
     const ws = deps.getActiveWorkspaceId()
     const entries = (await deps.history.list()).filter((e) => (e.workspaceId || ws) === ws)
     return { type: 'history', entries }
+  }
+  async function trashSnapshot(): Promise<{ type: 'trash'; entries: import('../shared/types').TrashEntry[] }> {
+    const ws = deps.getActiveWorkspaceId()
+    const all = deps.trash ? await deps.trash.list() : []
+    return { type: 'trash', entries: all.filter((e) => (e.workspaceId || ws) === ws) }
   }
   async function activeVars() {
     const id = deps.getActiveEnvId()
@@ -145,10 +175,13 @@ export function createRouter(deps: RouterDeps) {
       case 'saveEnvironment':
         await deps.environments.saveEnvironment(msg.environment)
         return await envSnapshot()
-      case 'deleteEnvironment':
+      case 'deleteEnvironment': {
+        const env = (await deps.environments.list()).find((e) => e.id === msg.id)
+        if (env) await deps.trash?.add({ workspaceId: deps.getActiveWorkspaceId(), kind: 'environment', data: env })
         await deps.environments.deleteEnvironment(msg.id)
         if (deps.getActiveEnvId() === msg.id) deps.setActiveEnvId(null)
         return await envSnapshot()
+      }
       case 'setActiveEnv':
         deps.setActiveEnvId(msg.id)
         return await envSnapshot()
@@ -204,16 +237,16 @@ export function createRouter(deps: RouterDeps) {
           deps.setActiveWorkspaceId(fallback.id)
           deps.setActiveEnvId(null)
         }
-        // reassign orphaned collections + environments to the (now-)active
-        // workspace, regardless of which ws was deleted; drop its history log.
-        const target = deps.getActiveWorkspaceId()
+        // Workspace deletion is permanent (no trash): remove its collections,
+        // environments, history and any trash entries outright.
         for (const c of await deps.collections.list()) {
-          if (c.workspaceId === msg.id) await deps.collections.saveCollection({ ...c, workspaceId: target })
+          if (c.workspaceId === msg.id) await deps.collections.delete(c.id)
         }
         for (const e of await deps.environments.list()) {
-          if (e.workspaceId === msg.id) await deps.environments.saveEnvironment({ ...e, workspaceId: target })
+          if (e.workspaceId === msg.id) await deps.environments.deleteEnvironment(e.id)
         }
         await deps.history.dropByWorkspace(msg.id)
+        await deps.trash?.dropByWorkspace(msg.id)
         return await wsSnapshot()
       }
       case 'wsConnect':
@@ -225,9 +258,14 @@ export function createRouter(deps: RouterDeps) {
       case 'wsDisconnect':
         deps.ws?.disconnect(msg.connId)
         return undefined
-      case 'deleteCollection':
-        await deps.collections.delete(msg.id)
+      case 'deleteCollection': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.id)
+        if (c) {
+          await deps.trash?.add({ workspaceId: deps.getActiveWorkspaceId(), kind: 'collection', data: c })
+          await deps.collections.delete(msg.id)
+        }
         return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'renameCollection':
         await withCollection(msg.id, (c) => { c.name = msg.name })
         return { type: 'tree', collections: await deps.collections.list() }
@@ -237,15 +275,95 @@ export function createRouter(deps: RouterDeps) {
       case 'renameFolder':
         await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) f.name = msg.name })
         return { type: 'tree', collections: await deps.collections.list() }
-      case 'deleteFolder':
-        await withCollection(msg.collectionId, (c) => { c.folders = (c.folders ?? []).filter((x) => x.id !== msg.folderId) })
+      case 'deleteFolder': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        const f = (c?.folders ?? []).find((x) => x.id === msg.folderId)
+        if (c && f) {
+          await deps.trash?.add({ workspaceId: deps.getActiveWorkspaceId(), kind: 'folder', data: f, path: { collectionId: c.id, collectionName: c.name } })
+          await deps.collections.saveCollection({ ...c, folders: (c.folders ?? []).filter((x) => x.id !== msg.folderId) })
+        }
         return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'renameRequest':
         await withCollection(msg.collectionId, (c) => { renameReqIn(c, msg.folderId, msg.requestId, msg.name) })
         return { type: 'tree', collections: await deps.collections.list() }
-      case 'deleteRequest':
-        await withCollection(msg.collectionId, (c) => { deleteReqIn(c, msg.folderId, msg.requestId) })
+      case 'deleteRequest': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        if (c) {
+          const folder = msg.folderId ? (c.folders ?? []).find((x) => x.id === msg.folderId) : undefined
+          const bucket = reqBucket(c, msg.folderId)
+          const item = bucket?.find((r) => r.id === msg.requestId)
+          if (item) {
+            await deps.trash?.add({
+              workspaceId: deps.getActiveWorkspaceId(), kind: 'request', data: item,
+              path: { collectionId: c.id, collectionName: c.name, folderId: folder?.id, folderName: folder?.name },
+            })
+            deleteReqIn(c, msg.folderId, msg.requestId)
+            await deps.collections.saveCollection(c)
+          }
+        }
         return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'loadTrash':
+        return await trashSnapshot()
+      case 'purgeTrash':
+        await deps.trash?.remove(msg.entryId)
+        return await trashSnapshot()
+      case 'restoreTrash': {
+        const e = await deps.trash?.get(msg.entryId)
+        if (!e) return await trashSnapshot()
+
+        if (e.kind === 'environment') {
+          await deps.environments.saveEnvironment(e.data as import('../shared/types').Environment)
+          await deps.trash?.remove(e.id)
+        } else if (e.kind === 'request') {
+          const p = e.path!
+          await restoreRequestInto(p.collectionId, p.collectionName, p.folderId ? { id: p.folderId, name: p.folderName ?? 'Folder' } : null, e.data as import('../shared/types').CollectionItem)
+          await deps.trash?.remove(e.id)
+        } else if (e.kind === 'folder') {
+          const folder = e.data as import('../shared/types').Folder
+          const p = e.path!
+          if (msg.requestId) {
+            const req = folder.requests.find((r) => r.id === msg.requestId)
+            if (req) {
+              await restoreRequestInto(p.collectionId, p.collectionName, { id: folder.id, name: folder.name }, req)
+              folder.requests = folder.requests.filter((r) => r.id !== msg.requestId)
+            }
+            if (folder.requests.length === 0) await deps.trash?.remove(e.id)
+            else await deps.trash?.update({ ...e, data: folder })
+          } else {
+            await restoreFolderInto(p.collectionId, p.collectionName, folder)
+            await deps.trash?.remove(e.id)
+          }
+        } else {
+          // collection: restore the whole thing, or a folder/request within it
+          const col = e.data as import('../shared/types').Collection
+          if (msg.requestId) {
+            const folder = msg.folderId ? (col.folders ?? []).find((f) => f.id === msg.folderId) : undefined
+            const bucket = folder ? folder.requests : col.requests
+            const req = bucket.find((r) => r.id === msg.requestId)
+            if (req) {
+              await restoreRequestInto(col.id, col.name, folder ? { id: folder.id, name: folder.name } : null, req)
+              if (folder) folder.requests = folder.requests.filter((r) => r.id !== msg.requestId)
+              else col.requests = col.requests.filter((r) => r.id !== msg.requestId)
+            }
+          } else if (msg.folderId) {
+            const folder = (col.folders ?? []).find((f) => f.id === msg.folderId)
+            if (folder) {
+              await restoreFolderInto(col.id, col.name, folder)
+              col.folders = (col.folders ?? []).filter((f) => f.id !== msg.folderId)
+            }
+          } else {
+            await deps.collections.saveCollection(col)
+            await deps.trash?.remove(e.id)
+            return await trashSnapshot()
+          }
+          const empty = (col.folders ?? []).length === 0 && col.requests.length === 0
+          if (empty) await deps.trash?.remove(e.id)
+          else await deps.trash?.update({ ...e, data: col })
+        }
+        return await trashSnapshot()
+      }
       case 'openEnvironments':
         return { type: 'showEnvironments', id: msg.id }
       case 'openWebSocket':

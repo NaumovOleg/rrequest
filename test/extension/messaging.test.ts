@@ -216,12 +216,13 @@ describe('createRouter workspace + openRequest', () => {
     await router(d)({ type: 'setCollectionEnvironment', collectionId: 'c1', environmentId: 'e9' })
     expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], environmentId: 'e9' })
   })
-  it('deleteWorkspace reassigns collections of a non-active deleted workspace to the active workspace', async () => {
+  it('deleteWorkspace permanently deletes the workspace collections (no reassign)', async () => {
     const d = deps()
     d.activeWorkspaceId = 'w1'
     d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w2', requests: [] }])
     await router(d)({ type: 'deleteWorkspace', id: 'w2' })
-    expect(d.collections.saveCollection).toHaveBeenCalledWith({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
+    expect(d.collections.delete).toHaveBeenCalledWith('c1')
+    expect(d.collections.saveCollection).not.toHaveBeenCalled()
   })
   it('moveFolder re-parents a folder from one collection to another', async () => {
     const d = deps()
@@ -306,6 +307,7 @@ describe('createRouter item + folder routes', () => {
   }
   it('deleteCollection deletes and returns tree', async () => {
     const d = deps()
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     const out = await r(d)({ type: 'deleteCollection', id: 'c1' }) as any
     expect(d.collections.delete).toHaveBeenCalledWith('c1')
     expect(out.type).toBe('tree')
@@ -368,5 +370,131 @@ describe('createRouter moveRequest', () => {
     expect(src.requests).toHaveLength(0)
     expect(dst.folders[0].requests).toHaveLength(1)
     expect(out.type).toBe('tree')
+  })
+})
+
+describe('createRouter trash', () => {
+  function fakeTrash() {
+    const items: any[] = []
+    return {
+      items,
+      list: async () => items,
+      add: async (e: any) => { const f = { ...e, id: `t${items.length}`, at: 1 }; items.unshift(f); return f },
+      get: async (id: string) => items.find((x) => x.id === id),
+      remove: async (id: string) => { const i = items.findIndex((x) => x.id === id); if (i >= 0) items.splice(i, 1) },
+      update: async (e: any) => { const i = items.findIndex((x) => x.id === e.id); if (i >= 0) items[i] = e },
+      dropByWorkspace: async () => {},
+    }
+  }
+  function router(collections: any, trash: any) {
+    return createRouter({
+      send: vi.fn(), collections,
+      history: { append: vi.fn(), list: async () => [] } as any,
+      environments: { list: async () => [], saveEnvironment: vi.fn(), deleteEnvironment: vi.fn() } as any,
+      getActiveEnvId: () => null, setActiveEnvId: vi.fn(),
+      workspaces: { list: async () => [] } as any,
+      getActiveWorkspaceId: () => 'w1', setActiveWorkspaceId: vi.fn(), trash,
+    })
+  }
+  const httpReq = (id: string) => ({ id, name: id.toUpperCase(), method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } })
+
+  it('deleteRequest moves the request to trash with its collection/folder path', async () => {
+    const store: any = { data: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [httpReq('r1')] }] }] }
+    const collections = { list: async () => store.data, saveCollection: async (c: any) => { store.data = store.data.map((x: any) => (x.id === c.id ? c : x)); return c }, delete: vi.fn() }
+    const trash = fakeTrash()
+    await router(collections, trash)({ type: 'deleteRequest', collectionId: 'c1', folderId: 'f1', requestId: 'r1' })
+    expect(trash.items).toHaveLength(1)
+    expect(trash.items[0]).toMatchObject({ kind: 'request', path: { collectionId: 'c1', folderId: 'f1', folderName: 'F' } })
+    expect(store.data[0].folders[0].requests).toHaveLength(0)
+  })
+
+  it('restoreTrash recreates a missing collection + folder for a trashed request', async () => {
+    const store: any = { data: [] }
+    const collections = { list: async () => store.data, saveCollection: async (c: any) => { const i = store.data.findIndex((x: any) => x.id === c.id); if (i >= 0) store.data[i] = c; else store.data.push(c); return c }, delete: vi.fn() }
+    const trash = fakeTrash()
+    trash.items.push({ id: 'e1', at: 1, workspaceId: 'w1', kind: 'request', data: httpReq('r1'), path: { collectionId: 'c1', collectionName: 'C', folderId: 'f1', folderName: 'F' } })
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1' })
+    const c = store.data.find((x: any) => x.id === 'c1')
+    expect(c).toBeTruthy()
+    const f = c.folders.find((x: any) => x.id === 'f1')
+    expect(f.requests.map((r: any) => r.id)).toEqual(['r1'])
+    expect(trash.items).toHaveLength(0)
+  })
+
+  it('restoreTrash drops a request into an existing folder without duplicating ancestors', async () => {
+    const store: any = { data: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [httpReq('r0')] }] }] }
+    const collections = { list: async () => store.data, saveCollection: async (c: any) => { const i = store.data.findIndex((x: any) => x.id === c.id); store.data[i] = c; return c }, delete: vi.fn() }
+    const trash = fakeTrash()
+    trash.items.push({ id: 'e1', at: 1, workspaceId: 'w1', kind: 'request', data: httpReq('r1'), path: { collectionId: 'c1', collectionName: 'C', folderId: 'f1', folderName: 'F' } })
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1' })
+    expect(store.data).toHaveLength(1)
+    expect(store.data[0].folders).toHaveLength(1)
+    expect(store.data[0].folders[0].requests.map((r: any) => r.id)).toEqual(['r0', 'r1'])
+  })
+})
+
+describe('createRouter trash targeted restore', () => {
+  function fakeTrash(seed: any[] = []) {
+    const items: any[] = [...seed]
+    return {
+      items,
+      list: async () => items,
+      add: async (e: any) => { const f = { ...e, id: `t${items.length}`, at: 1 }; items.unshift(f); return f },
+      get: async (id: string) => items.find((x) => x.id === id),
+      remove: async (id: string) => { const i = items.findIndex((x) => x.id === id); if (i >= 0) items.splice(i, 1) },
+      update: async (e: any) => { const i = items.findIndex((x) => x.id === e.id); if (i >= 0) items[i] = e },
+      dropByWorkspace: async () => {},
+    }
+  }
+  function router(collections: any, trash: any) {
+    return createRouter({
+      send: vi.fn(), collections,
+      history: { append: vi.fn(), list: async () => [] } as any,
+      environments: { list: async () => [], saveEnvironment: vi.fn() } as any,
+      getActiveEnvId: () => null, setActiveEnvId: vi.fn(),
+      workspaces: { list: async () => [] } as any,
+      getActiveWorkspaceId: () => 'w1', setActiveWorkspaceId: vi.fn(), trash,
+    })
+  }
+  const httpReq = (id: string) => ({ id, name: id, method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } })
+  const liveStore = () => {
+    const data: any[] = []
+    return { data, list: async () => data, saveCollection: async (c: any) => { const i = data.findIndex((x: any) => x.id === c.id); if (i >= 0) data[i] = c; else data.push(c); return c }, delete: vi.fn() }
+  }
+
+  it('restores one folder from a trashed collection and keeps the collection (minus that folder) in trash', async () => {
+    const entry = { id: 'e1', at: 1, workspaceId: 'w1', kind: 'collection', data: { id: 'c1', name: 'API', workspaceId: 'w1', requests: [], folders: [
+      { id: 'f1', name: 'Auth', requests: [httpReq('r1')] },
+      { id: 'f2', name: 'Users', requests: [httpReq('r2')] },
+    ] } }
+    const trash = fakeTrash([entry])
+    const collections = liveStore()
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1', folderId: 'f1' })
+    // Auth restored into live collection
+    expect(collections.data[0].folders.map((f: any) => f.id)).toEqual(['f1'])
+    // entry still present, now only holding Users
+    expect(trash.items).toHaveLength(1)
+    expect(trash.items[0].data.folders.map((f: any) => f.id)).toEqual(['f2'])
+  })
+
+  it('restores a single request from a trashed collection folder', async () => {
+    const entry = { id: 'e1', at: 1, workspaceId: 'w1', kind: 'collection', data: { id: 'c1', name: 'API', workspaceId: 'w1', requests: [], folders: [
+      { id: 'f1', name: 'Auth', requests: [httpReq('r1'), httpReq('r2')] },
+    ] } }
+    const trash = fakeTrash([entry])
+    const collections = liveStore()
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1', folderId: 'f1', requestId: 'r1' })
+    expect(collections.data[0].folders[0].requests.map((r: any) => r.id)).toEqual(['r1'])
+    // only r2 remains in trash
+    expect(trash.items[0].data.folders[0].requests.map((r: any) => r.id)).toEqual(['r2'])
+  })
+
+  it('removes the trash entry once its last node is restored', async () => {
+    const entry = { id: 'e1', at: 1, workspaceId: 'w1', kind: 'collection', data: { id: 'c1', name: 'API', workspaceId: 'w1', requests: [httpReq('r1')], folders: [] } }
+    const trash = fakeTrash([entry])
+    const collections = liveStore()
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1', requestId: 'r1' })
+    expect(collections.data[0].requests.map((r: any) => r.id)).toEqual(['r1'])
+    expect(trash.items).toHaveLength(0)
   })
 })

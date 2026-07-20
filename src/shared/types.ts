@@ -99,6 +99,18 @@ export type Collection = { id: string; name: string; workspaceId: string; reques
 
 export type Workspace = { id: string; name: string }
 
+// A deleted thing kept for restore. `data` is the full snapshot (collections and
+// folders keep their children); `path` records ancestors so a folder/request can
+// be restored back into (or recreate) its collection/folder.
+export type TrashEntry = {
+  id: string
+  at: number
+  workspaceId: string
+  kind: 'collection' | 'folder' | 'request' | 'environment'
+  data: Collection | Folder | CollectionItem | Environment
+  path?: { collectionId: string; collectionName: string; folderId?: string; folderName?: string }
+}
+
 export type Environment = {
   id: string
   name: string
@@ -151,6 +163,9 @@ export type WebviewMessage =
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }
+  | { type: 'loadTrash' }
+  | { type: 'restoreTrash'; entryId: string; folderId?: string; requestId?: string }
+  | { type: 'purgeTrash'; entryId: string }
   | { type: 'openEnvironments'; id?: string }
   | { type: 'openWebSocket' }
   | { type: 'openGrpc' }
@@ -168,6 +183,7 @@ export type HostMessage =
   | { type: 'openGrpcRequest'; request: GrpcRequest; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'openWsRequest'; request: WsRequest; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'workspaces'; workspaces: Workspace[]; activeId: string }
+  | { type: 'trash'; entries: TrashEntry[] }
   | { type: 'wsOpen'; connId: string }
   | { type: 'wsMessage'; connId: string; data: string; at: number }
   | { type: 'wsClosed'; connId: string; code: number; reason: string }

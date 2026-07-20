@@ -10,6 +10,7 @@ import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
 import { EnvironmentStore } from './environment-store'
 import { WorkspaceStore } from './workspace-store'
+import { TrashStore } from './trash-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
@@ -50,6 +51,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   const environments = new EnvironmentStore(base)
   const history = new HistoryStore(base)
   const workspaces = new WorkspaceStore(base)
+  const trash = new TrashStore(base)
 
   // ensure a Default workspace + active id
   let list = await workspaces.list()
@@ -105,6 +107,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     },
     ws: wsManager,
     grpcInvoke,
+    trash,
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -112,11 +115,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     const cols = (await collections.list()).filter((c) => (c.workspaceId || ws) === ws)
     const envs = (await environments.list()).filter((e) => (e.workspaceId || ws) === ws)
     const hist = (await history.list()).filter((e) => (e.workspaceId || ws) === ws)
+    const trashed = (await trash.list()).filter((e) => (e.workspaceId || ws) === ws)
     return [
       { type: 'tree', collections: cols },
       { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
       { type: 'workspaces', workspaces: await workspaces.list(), activeId: ws },
       { type: 'history', entries: hist },
+      { type: 'trash', entries: trashed },
     ]
   }
 

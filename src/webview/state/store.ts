@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type TrashEntry, type Workspace } from '../../shared/types'
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -36,6 +36,7 @@ type State = {
   tree: Collection[]
   responses: Record<string, HttpResponse | undefined>
   history: HistoryEntry[]
+  trash: TrashEntry[]
   environments: Environment[]
   activeEnvId: string | null
   pendingFilePick: { tabId: string; index: number } | null
@@ -63,6 +64,7 @@ type State = {
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
   setHistory(entries: HistoryEntry[]): void
+  setTrash(entries: TrashEntry[]): void
   setEnvironments(list: Environment[]): void
   setActiveEnvId(id: string | null): void
   setPendingFilePick(p: { tabId: string; index: number } | null): void
@@ -89,6 +91,7 @@ export const useStore = create<State>((set) => ({
   tree: [],
   responses: {},
   history: [],
+  trash: [],
   environments: [],
   activeEnvId: null,
   pendingFilePick: null,
@@ -180,6 +183,8 @@ export const useStore = create<State>((set) => ({
 
   setHistory: (entries) => set({ history: entries }),
 
+  setTrash: (entries) => set({ trash: entries }),
+
   setEnvironments: (environments) => set({ environments }),
 
   setActiveEnvId: (activeEnvId) => set({ activeEnvId }),
@@ -204,5 +209,5 @@ export const useStore = create<State>((set) => ({
   setEnvEditId: (envEditId) => set({ envEditId }),
   setGrpcMode: (grpcMode) => set({ grpcMode }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false }),
 }))

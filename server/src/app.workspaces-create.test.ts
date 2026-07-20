@@ -19,7 +19,7 @@ function make() {
   const workspaces = new WorkspaceStore(":memory:");
   const drive = new FakeDriveClient();
   const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive });
-  return { app, user, workspaces, token: signSession(user.id, "j") };
+  return { app, user, users, workspaces, drive, token: signSession(user.id, "j") };
 }
 
 describe("POST /workspaces", () => {
@@ -42,5 +42,67 @@ describe("POST /workspaces", () => {
     const { app } = make();
     const res = await app.inject({ method: "POST", url: "/workspaces", payload: { workspaceId: "ws1", name: "T", snapshot: "{}" } });
     expect(res.statusCode).toBe(401);
+  });
+
+  it("403 when a different user posts an existing workspaceId", async () => {
+    const { app, users, token } = make();
+    const create = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot: '{"version":1}' },
+    });
+    expect(create.statusCode).toBe(201);
+
+    const userB = users.upsertByGoogle({ googleSub: "g2", email: "b@x.com", refreshToken: "rt2" });
+    const tokenB = signSession(userB.id, "j");
+    const res = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${tokenB}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot: '{"version":1}' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("re-enabling (same owner, same workspaceId) reuses the same driveFileId", async () => {
+    const { app, token } = make();
+    const res1 = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot: '{"version":1}' },
+    });
+    expect(res1.statusCode).toBe(201);
+    const body1 = res1.json();
+
+    const res2 = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot: '{"version":2}' },
+    });
+    expect(res2.statusCode).toBe(201);
+    const body2 = res2.json();
+
+    expect(body2.driveFileId).toBe(body1.driveFileId);
+  });
+
+  it("strips secret variable values server-side before storing the snapshot", async () => {
+    const { app, token } = make();
+    const snapshot = JSON.stringify({
+      environments: [{ variables: [{ key: "TOKEN", secret: true, value: "sekret" }, { key: "PLAIN", secret: false, value: "visible" }] }],
+    });
+    const create = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot },
+    });
+    expect(create.statusCode).toBe(201);
+
+    const get = await app.inject({
+      method: "GET", url: "/workspaces/ws1",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(get.statusCode).toBe(200);
+    const stored = JSON.parse(get.json().snapshot);
+    expect(stored.environments[0].variables[0].value).toBe("");
+    expect(stored.environments[0].variables[1].value).toBe("visible");
   });
 });

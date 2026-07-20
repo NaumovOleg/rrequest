@@ -1,0 +1,34 @@
+import * as http from 'node:http'
+
+export function extractToken(reqUrl: string): string | undefined {
+  const u = new URL(reqUrl, 'http://localhost')
+  return u.searchParams.get('token') ?? undefined
+}
+
+export function signIn(opts: {
+  baseUrl: string
+  openExternal: (url: string) => void
+  timeoutMs?: number
+}): Promise<string> {
+  const timeoutMs = opts.timeoutMs ?? 120000
+  return new Promise<string>((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const token = extractToken(req.url ?? '/')
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end('<html><body>You can close this tab and return to VS Code.</body></html>')
+      if (token) {
+        clearTimeout(timer)
+        server.close()
+        resolve(token)
+      }
+    })
+    const timer = setTimeout(() => { server.close(); reject(new Error('sign-in timed out')) }, timeoutMs)
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address()
+      const port = typeof addr === 'object' && addr ? addr.port : 0
+      const cb = `http://localhost:${port}`
+      const base = opts.baseUrl.replace(/\/$/, '')
+      opts.openExternal(`${base}/auth/start?cb=${encodeURIComponent(cb)}`)
+    })
+  })
+}

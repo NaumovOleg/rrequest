@@ -40,6 +40,12 @@ describe("auth routes", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("/auth/start rejects a non-loopback cb", async () => {
+    const { app } = make();
+    const res = await app.inject({ method: "GET", url: "/auth/start?cb=https%3A%2F%2Fevil.com%2Fcatch" });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("/auth/callback exchanges the code, upserts a user, and redirects with a JWT", async () => {
     const { app, states, users } = make();
     states.put("state-1", "http://localhost:5000");
@@ -55,6 +61,20 @@ describe("auth routes", () => {
   it("/auth/callback returns 400 for an unknown state", async () => {
     const { app } = make();
     const res = await app.inject({ method: "GET", url: "/auth/callback?code=abc&state=nope" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("/auth/callback returns 400 when the code exchange fails", async () => {
+    const states = new PendingStates();
+    const users = new UserStore(":memory:", "k");
+    const google = new GoogleOAuth({
+      generateAuthUrl: (o: any) => `https://g/?state=${o.state}`,
+      getToken: async () => { throw new Error("bad code"); },
+      verifyIdToken: async () => ({ getPayload: () => ({}) }),
+    } as any, "cid");
+    const app = buildApp({ config: cfg, users, google, states });
+    states.put("state-x", "http://localhost:5000");
+    const res = await app.inject({ method: "GET", url: "/auth/callback?code=bad&state=state-x" });
     expect(res.statusCode).toBe(400);
   });
 });

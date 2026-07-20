@@ -29,6 +29,12 @@ describe('CollectionStore', () => {
     expect((await store.list()).map((x) => x.name)).toEqual(['My Coll'])
   })
 
+  it('does not resurrect a missing collection as a phantom "Collection"', async () => {
+    const res = await store.saveRequest('ghost-id', req('R'))
+    expect(res).toBeUndefined()
+    expect(await store.list()).toEqual([])
+  })
+
   it('saves a request into a collection and upserts by id', async () => {
     const c = await store.createCollection('C', 'ws1')
     const r = req('First')

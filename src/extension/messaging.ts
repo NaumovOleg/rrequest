@@ -59,8 +59,9 @@ export function createRouter(deps: RouterDeps) {
   }
   async function restoreFolderInto(colId: string, colName: string, folder: import('../shared/types').Folder) {
     const c = await ensureLiveCollection(colId, colName)
-    c.folders = c.folders ?? []
-    if (!c.folders.some((f) => f.id === folder.id)) c.folders.push(folder)
+    // If the folder already exists, merge its requests in (add only the missing
+    // ones) instead of skipping or overwriting the existing folder.
+    mergeFolderInto(c, folder)
     await deps.collections.saveCollection(c)
   }
   async function envSnapshot(): Promise<{ type: 'environments'; environments: import('../shared/types').Environment[]; activeId: string | null }> {
@@ -354,7 +355,12 @@ export function createRouter(deps: RouterDeps) {
               col.folders = (col.folders ?? []).filter((f) => f.id !== msg.folderId)
             }
           } else {
-            await deps.collections.saveCollection(col)
+            // Whole-collection restore: merge into the live collection if it
+            // still exists (preserving anything added since deletion), else
+            // recreate it from the snapshot.
+            const live = (await deps.collections.list()).find((x) => x.id === col.id)
+            if (live) { mergeCollectionInto(live, col); await deps.collections.saveCollection(live) }
+            else await deps.collections.saveCollection(col)
             await deps.trash?.remove(e.id)
             return await trashSnapshot()
           }
@@ -421,6 +427,21 @@ export function createRouter(deps: RouterDeps) {
 function reqBucket(c: import('../shared/types').Collection, folderId: string | null) {
   if (folderId) return ((c.folders ?? []).find((f) => f.id === folderId)?.requests) ?? null
   return c.requests
+}
+// Trash restore is a merge, never an overwrite: add only items whose id is not
+// already present, so restoring never clobbers content added after deletion.
+function mergeRequestsInto(target: import('../shared/types').CollectionItem[], incoming: import('../shared/types').CollectionItem[]) {
+  for (const r of incoming) if (!target.some((x) => x.id === r.id)) target.push(r)
+}
+function mergeFolderInto(c: import('../shared/types').Collection, folder: import('../shared/types').Folder) {
+  c.folders = c.folders ?? []
+  const existing = c.folders.find((f) => f.id === folder.id)
+  if (existing) mergeRequestsInto(existing.requests, folder.requests)
+  else c.folders.push(folder)
+}
+function mergeCollectionInto(target: import('../shared/types').Collection, incoming: import('../shared/types').Collection) {
+  mergeRequestsInto(target.requests, incoming.requests)
+  for (const f of incoming.folders ?? []) mergeFolderInto(target, f)
 }
 function renameReqIn(c: import('../shared/types').Collection, folderId: string | null, reqId: string, name: string) {
   const b = reqBucket(c, folderId); if (!b) return

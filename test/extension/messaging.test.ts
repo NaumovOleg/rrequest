@@ -497,4 +497,30 @@ describe('createRouter trash targeted restore', () => {
     expect(collections.data[0].requests.map((r: any) => r.id)).toEqual(['r1'])
     expect(trash.items).toHaveLength(0)
   })
+
+  it('restoring a whole folder MERGES into an existing live folder (no overwrite, no dupes)', async () => {
+    // live: collection c1 already has folder f1 with [r0]
+    const collections = liveStore()
+    collections.data.push({ id: 'c1', name: 'API', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'Auth', requests: [httpReq('r0')] }] })
+    // trash: folder-entry f1 holding [r0 (dup), r1]
+    const entry = { id: 'e1', at: 1, workspaceId: 'w1', kind: 'folder', data: { id: 'f1', name: 'Auth', requests: [httpReq('r0'), httpReq('r1')] }, path: { collectionId: 'c1', collectionName: 'API' } }
+    const trash = fakeTrash([entry])
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1' })
+    // existing r0 preserved (once), r1 added — folder not overwritten, no duplicate r0
+    expect(collections.data[0].folders[0].requests.map((r: any) => r.id)).toEqual(['r0', 'r1'])
+  })
+
+  it('restoring a whole collection MERGES into an existing live collection (preserves post-deletion content)', async () => {
+    // live: c1 rebuilt after deletion with a NEW folder f2 + a new root request rNew
+    const collections = liveStore()
+    collections.data.push({ id: 'c1', name: 'API', workspaceId: 'w1', requests: [httpReq('rNew')], folders: [{ id: 'f2', name: 'New', requests: [httpReq('r2')] }] })
+    // trash: whole collection c1 with folder f1 + root request rOld
+    const entry = { id: 'e1', at: 1, workspaceId: 'w1', kind: 'collection', data: { id: 'c1', name: 'API', workspaceId: 'w1', requests: [httpReq('rOld')], folders: [{ id: 'f1', name: 'Auth', requests: [httpReq('r1')] }] } }
+    const trash = fakeTrash([entry])
+    await router(collections, trash)({ type: 'restoreTrash', entryId: 'e1' })
+    const live = collections.data.find((c: any) => c.id === 'c1')
+    expect(live.folders.map((f: any) => f.id).sort()).toEqual(['f1', 'f2'])       // both kept
+    expect(live.requests.map((r: any) => r.id).sort()).toEqual(['rNew', 'rOld'])  // both kept
+    expect(trash.items).toHaveLength(0)
+  })
 })

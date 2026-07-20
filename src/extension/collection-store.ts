@@ -35,9 +35,11 @@ export class CollectionStore {
     return c
   }
 
-  async saveRequest(collectionId: string, request: CollectionItem, folderId?: string | null): Promise<Collection> {
-    const c = (await readJsonSafe<Collection>(this.file(collectionId)))
-      ?? { id: collectionId, name: 'Collection', workspaceId: '', requests: [], folders: [] }
+  async saveRequest(collectionId: string, request: CollectionItem, folderId?: string | null): Promise<Collection | undefined> {
+    // Never resurrect a missing collection as a phantom "Collection" — e.g. an
+    // editor tab autosaving after its collection was deleted/trashed.
+    const c = await readJsonSafe<Collection>(this.file(collectionId))
+    if (!c) return undefined
     if (!c.folders) c.folders = []
     if (folderId) {
       const folder = c.folders.find((f) => f.id === folderId)

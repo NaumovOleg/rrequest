@@ -90,8 +90,8 @@ export function TrashView() {
     const key = `f:${c.id}:${f.id}`;
     return (
       <div key={f.id}>
-        <div className="rm-tree-row">
-          <span className="rm-tree-caret" role="button" aria-label={`toggle ${f.name}`} onClick={() => toggle(key)}>
+        <div className="rm-tree-row" onClick={() => toggle(key)}>
+          <span className="rm-tree-caret" role="button" aria-label={`toggle ${f.name}`}>
             {open(key) ? "▾" : "▸"}
           </span>{" "}
           <span className={`codicon codicon-folder${open(key) ? "-opened" : ""}`} />{" "}
@@ -110,8 +110,8 @@ export function TrashView() {
     const key = `c:${c.id}`;
     return (
       <div key={c.id}>
-        <div className="rm-tree-row">
-          <span className="rm-tree-caret" role="button" aria-label={`toggle ${c.name}`} onClick={() => toggle(key)}>
+        <div className="rm-tree-row" onClick={() => toggle(key)}>
+          <span className="rm-tree-caret" role="button" aria-label={`toggle ${c.name}`}>
             {open(key) ? "▾" : "▸"}
           </span>{" "}
           <span className="rm-tree-label">{c.name}</span>

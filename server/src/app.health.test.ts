@@ -3,6 +3,8 @@ import { buildApp } from "./app";
 import { UserStore } from "./user-store";
 import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
+import { WorkspaceStore } from "./workspace-store";
+import { FakeDriveClient } from "./drive-client";
 
 const cfg = {
   port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k",
@@ -15,7 +17,7 @@ const fakeGoogle = new GoogleOAuth({
 } as any, "cid");
 
 function app() {
-  return buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google: fakeGoogle, states: new PendingStates() });
+  return buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google: fakeGoogle, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient() });
 }
 
 describe("GET /health", () => {

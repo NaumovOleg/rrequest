@@ -4,6 +4,8 @@ import { UserStore } from "./user-store";
 import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { verifySession } from "./jwt";
+import { WorkspaceStore } from "./workspace-store";
+import { FakeDriveClient } from "./drive-client";
 
 const cfg = {
   port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k",
@@ -19,7 +21,7 @@ function makeGoogle() {
 function make() {
   const states = new PendingStates();
   const users = new UserStore(":memory:", "k");
-  const app = buildApp({ config: cfg, users, google: makeGoogle(), states });
+  const app = buildApp({ config: cfg, users, google: makeGoogle(), states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient() });
   return { app, states, users };
 }
 
@@ -72,7 +74,7 @@ describe("auth routes", () => {
       getToken: async () => { throw new Error("bad code"); },
       verifyIdToken: async () => ({ getPayload: () => ({}) }),
     } as any, "cid");
-    const app = buildApp({ config: cfg, users, google, states });
+    const app = buildApp({ config: cfg, users, google, states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient() });
     states.put("state-x", "http://localhost:5000");
     const res = await app.inject({ method: "GET", url: "/auth/callback?code=bad&state=state-x" });
     expect(res.statusCode).toBe(400);

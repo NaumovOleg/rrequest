@@ -3,14 +3,19 @@ import type { Config } from "./config.js";
 import type { UserStore } from "./user-store.js";
 import type { GoogleOAuth } from "./google-oauth.js";
 import type { PendingStates } from "./pending-states.js";
+import type { WorkspaceStore } from "./workspace-store.js";
+import type { DriveFactory } from "./drive-factory.js";
 import { randomUUID } from "node:crypto";
 import { signSession, verifySession } from "./jwt.js";
+import { requireUser } from "./auth.js";
 
 export type AppDeps = {
   config: Config;
   users: UserStore;
   google: GoogleOAuth;
   states: PendingStates;
+  workspaces: WorkspaceStore;
+  driveFor: DriveFactory;
 };
 
 function isLoopbackCb(cb: string): boolean {
@@ -52,10 +57,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get("/me", async (req, reply) => {
-    const header = req.headers.authorization ?? "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-    const session = verifySession(token, deps.config.jwtSecret);
-    const user = session ? deps.users.getById(session.userId) : undefined;
+    const user = requireUser(req, deps);
     if (!user) return reply.code(401).send({ error: "unauthorized" });
     return { id: user.id, email: user.email };
   });

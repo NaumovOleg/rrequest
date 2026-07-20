@@ -4,7 +4,7 @@ import type { UserStore } from "./user-store.js";
 import type { GoogleOAuth } from "./google-oauth.js";
 import type { PendingStates } from "./pending-states.js";
 import { randomUUID } from "node:crypto";
-import { signSession } from "./jwt.js";
+import { signSession, verifySession } from "./jwt.js";
 
 export type AppDeps = {
   config: Config;
@@ -36,6 +36,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const url = new URL(cb);
     url.searchParams.set("token", token);
     return reply.redirect(url.toString());
+  });
+
+  app.get("/me", async (req, reply) => {
+    const header = req.headers.authorization ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+    const session = verifySession(token, deps.config.jwtSecret);
+    const user = session ? deps.users.getById(session.userId) : undefined;
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    return { id: user.id, email: user.email };
   });
 
   return app;

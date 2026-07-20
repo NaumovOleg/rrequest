@@ -275,6 +275,18 @@ body {
 .rm-tree-row.is-active { background: var(--rm-active); }
 .rm-empty { color: var(--rm-muted); padding: var(--rm-sp-2); font-size: 0.95em; }
 
+/* history */
+.rm-hist-day { position: sticky; top: 0; z-index: 1; background: var(--rm-bg); font-size: 0.72em; text-transform: uppercase; letter-spacing: .05em; color: var(--rm-muted); padding: var(--rm-sp-2) var(--rm-sp-2) var(--rm-sp-1); }
+.rm-hist-row { display: flex; align-items: center; gap: var(--rm-sp-2); width: 100%; text-align: left; background: transparent; border: none; color: var(--rm-fg); padding: 4px var(--rm-sp-2); cursor: pointer; }
+.rm-hist-row:hover { background: var(--rm-hover); }
+.rm-hist-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-hist-status { flex: none; font-size: 0.8em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rm-hist-status.is-2xx { color: var(--rm-m-get); }
+.rm-hist-status.is-3xx { color: var(--rm-m-put); }
+.rm-hist-status.is-4xx { color: var(--rm-m-post); }
+.rm-hist-status.is-5xx, .rm-hist-status.is-err { color: var(--rm-m-delete); }
+.rm-hist-time { flex: none; color: var(--rm-muted); font-size: 0.82em; font-variant-numeric: tabular-nums; }
+
 /* trash */
 .rm-trash-kind { flex: none; font-size: 0.7em; text-transform: uppercase; letter-spacing: .03em; color: var(--rm-muted); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); padding: 0 4px; }
 .rm-trash-path { color: var(--rm-muted); }

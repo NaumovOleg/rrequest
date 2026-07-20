@@ -12,7 +12,7 @@ describe('History', () => {
     const request = { id: newId(), name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
     render(<History />)
-    fireEvent.click(screen.getByText('GET https://api/h'))
+    fireEvent.click(screen.getByText('H'))
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
 
@@ -23,11 +23,23 @@ describe('History', () => {
     expect(document.querySelector('.rm-method--DELETE')).toBeTruthy()
   })
 
+  it('groups by day and shows the response status', () => {
+    const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 404, at: Date.now() }])
+    render(<History />)
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('404')).toBeInTheDocument()
+  })
+  it('shows an empty state when there is no history', () => {
+    render(<History />)
+    expect(screen.getByText(/no requests sent yet/i)).toBeInTheDocument()
+  })
+
   it('pressing Enter on a focused history entry posts openRequest (keyboard operable)', () => {
     const request = { id: newId(), name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
     render(<History />)
-    fireEvent.keyDown(screen.getByText('GET https://api/h'), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByText('H'), { key: 'Enter' })
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
 })

@@ -26,7 +26,7 @@ describe("GoogleOAuth", () => {
   });
   it("throws when Google returns no refresh token", async () => {
     const c = fakeClient();
-    c.getToken = vi.fn(async () => ({ tokens: { id_token: "idtok", refresh_token: null } }));
+    (c.getToken as any) = vi.fn(async () => ({ tokens: { id_token: "idtok", refresh_token: null } }));
     await expect(new GoogleOAuth(c as any, "cid").exchange("code-1")).rejects.toThrow(/refresh token/i);
   });
 });

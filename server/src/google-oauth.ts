@@ -3,8 +3,8 @@ import { OAuth2Client } from "google-auth-library";
 export type GoogleProfile = { googleSub: string; email: string; refreshToken: string };
 
 export interface OAuthClientLike {
-  generateAuthUrl(opts: object): string;
-  getToken(code: string): Promise<{ tokens: { id_token?: string | null; refresh_token?: string | null } }>;
+  generateAuthUrl(opts?: object): string;
+  getToken(code: string): Promise<{ tokens: { id_token: string | null; refresh_token: string | null } }>;
   verifyIdToken(opts: { idToken: string; audience: string }): Promise<{ getPayload(): { sub?: string; email?: string } | undefined }>;
 }
 
@@ -20,7 +20,7 @@ export class GoogleOAuth {
 
   static create(cfg: { clientId: string; clientSecret: string; redirectUri: string }): GoogleOAuth {
     const client = new OAuth2Client(cfg.clientId, cfg.clientSecret, cfg.redirectUri);
-    return new GoogleOAuth(client, cfg.clientId);
+    return new GoogleOAuth(client as OAuthClientLike, cfg.clientId);
   }
 
   authUrl(state: string): string {

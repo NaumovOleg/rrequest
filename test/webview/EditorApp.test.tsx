@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, act, fireEvent, screen } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
-let handler: ((m: any) => void) | undefined
+const handlers = new Set<(m: any) => void>()
+// Fan a host message out to every subscribed component (EditorApp + panels).
+const handler = (m: any) => handlers.forEach((h) => h(m))
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({
   postToHost: (m: any) => posted.push(m),
-  onHostMessage: (cb: (m: any) => void) => { handler = cb; return () => { handler = undefined } },
+  onHostMessage: (cb: (m: any) => void) => { handlers.add(cb); return () => { handlers.delete(cb) } },
 }))
 import { EditorApp } from '../../src/webview/editor/EditorApp'
-beforeEach(() => { useStore.getState().__reset(); posted.length = 0; handler = undefined })
+beforeEach(() => { useStore.getState().__reset(); posted.length = 0; handlers.clear() })
 
 describe('EditorApp', () => {
   it('posts ready + loadEnvironments on mount', () => {
@@ -51,7 +53,7 @@ describe('EditorApp', () => {
   it('sets the VS Code tab title (method + name) after opening a request', () => {
     render(<EditorApp />)
     act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'Users', method: 'POST', url: 'u', params: [], headers: [], body: { mode: 'none' } } }))
-    expect(posted).toContainEqual({ type: 'setTitle', title: 'POST Users' })
+    expect(posted).toContainEqual({ type: 'setTitle', title: 'POST Users', icon: 'method-POST' })
   })
   it('openInEditor with targetCollectionId sets pendingSaveCollectionId', () => {
     render(<EditorApp />)

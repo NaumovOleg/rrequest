@@ -5,6 +5,7 @@ import { onHostMessage, postToHost } from "../ipc";
 import { RequestPanel } from "../views/RequestPanel/RequestPanel";
 import { WebSocketPanel } from "../views/WebSocket/WebSocketPanel";
 import { Environments } from "../views/Environments/Environments";
+import { GrpcPanel } from "../views/Grpc/GrpcPanel";
 
 export function EditorApp() {
   const setTree = useStore((s) => s.setTree);
@@ -23,16 +24,22 @@ export function EditorApp() {
   const envMode = useStore((s) => s.envMode);
   const setEnvMode = useStore((s) => s.setEnvMode);
   const setEnvEditId = useStore((s) => s.setEnvEditId);
-  const activeLabel = useStore((s) => {
-    const t = s.tabs.find((x) => x.id === s.activeTabId);
-    return t ? `${t.method} ${t.name}` : undefined;
-  });
+  const grpcMode = useStore((s) => s.grpcMode);
+  const setGrpcMode = useStore((s) => s.setGrpcMode);
+  const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
+  const activeLabel = active ? `${active.method} ${active.name}` : undefined;
+  const activeMethod = active?.method;
 
-  // Keep the VS Code editor tab titled after the request (method + name).
+  // Keep the VS Code editor tab titled + iconed after the request. gRPC/WebSocket
+  // panels post their own title/icon, so skip them here.
   useEffect(() => {
-    const title = envMode ? "Environments" : wsMode ? "WebSocket" : activeLabel;
-    if (title) postToHost({ type: "setTitle", title });
-  }, [activeLabel, envMode, wsMode]);
+    if (wsMode || grpcMode) return;
+    if (envMode) {
+      postToHost({ type: "setTitle", title: "Environments" });
+    } else if (activeLabel && activeMethod) {
+      postToHost({ type: "setTitle", title: activeLabel, icon: `method-${activeMethod}` });
+    }
+  }, [activeLabel, activeMethod, envMode, wsMode, grpcMode]);
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -58,8 +65,10 @@ export function EditorApp() {
       } else if (m.type === "showEnvironments") {
         setEnvMode(true);
         setEnvEditId(m.id ?? null);
-      } else if (m.type === "showWebSocket") {
+      } else if (m.type === "showWebSocket" || m.type === "openWsRequest") {
         setWsMode(true);
+      } else if (m.type === "showGrpc" || m.type === "openGrpcRequest") {
+        setGrpcMode(true);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -119,6 +128,7 @@ export function EditorApp() {
     setEnvMode,
     setEnvEditId,
     setWsMode,
+    setGrpcMode,
   ]);
 
   return (
@@ -127,6 +137,8 @@ export function EditorApp() {
         <Environments />
       ) : wsMode ? (
         <WebSocketPanel />
+      ) : grpcMode ? (
+        <GrpcPanel />
       ) : (
         <RequestPanel />
       )}

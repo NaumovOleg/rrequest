@@ -129,6 +129,16 @@ describe('RequestPanel', () => {
     expect(useStore.getState().tabs[0].params[0].description).toBe('my note')
   })
 
+  it('Headers section lists greyed auto-generated headers on demand', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByPlaceholderText('URL'), { target: { value: 'https://api.test/x' } })
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'headers' } })
+    fireEvent.click(screen.getByRole('button', { name: /auto-generated headers/i }))
+    expect(screen.getByText('Host')).toBeInTheDocument()
+    expect(screen.getByText('api.test')).toBeInTheDocument()
+    expect(screen.getByText('Accept-Encoding')).toBeInTheDocument()
+  })
+
   it('a fresh request starts with a default Accept header', () => {
     render(<RequestPanel />)
     expect(useStore.getState().tabs[0].headers).toContainEqual({ key: 'Accept', value: '*/*', enabled: true })
@@ -162,6 +172,18 @@ describe('RequestPanel', () => {
     fireEvent.change(screen.getByLabelText('raw type'), { target: { value: 'xml' } })
     const cts = useStore.getState().tabs[0].headers.filter((h) => h.key.toLowerCase() === 'content-type')
     expect(cts).toEqual([{ key: 'Content-Type', value: 'application/xml', enabled: true }])
+  })
+
+  it('GraphQL body: selecting it defaults method to POST, sets JSON content-type, shows editors', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'graphql' } })
+    const tab = useStore.getState().tabs[0]
+    expect(tab.method).toBe('POST')
+    expect(tab.body).toEqual({ mode: 'graphql', query: '', variables: '' })
+    expect(tab.headers).toContainEqual({ key: 'Content-Type', value: 'application/json', enabled: true })
+    fireEvent.change(screen.getByLabelText('graphql query'), { target: { value: '{ me }' } })
+    expect((useStore.getState().tabs[0].body as any).query).toBe('{ me }')
   })
 
   it('the Cookies section edits request cookies', () => {

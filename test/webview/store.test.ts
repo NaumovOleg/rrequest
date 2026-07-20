@@ -186,6 +186,13 @@ describe('store setTree tab reconciliation', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Renamed', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
     expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Renamed')
   })
+  it('relocates an open tab when its request moves into a folder', () => {
+    useStore.getState().openLinkedTab({ id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, 'c1', null)
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [{ id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }] }])
+    const t = useStore.getState().tabs.find((x) => x.id === 'r1')
+    expect(t?.collectionId).toBe('c1')
+    expect(t?.folderId).toBe('f1')
+  })
   it('does not clobber the active linked tab from a tree broadcast', () => {
     useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Typing', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
     // r1 is the active tab; a stale tree broadcast must not overwrite it

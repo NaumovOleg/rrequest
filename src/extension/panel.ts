@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises'
 import WebSocket from 'ws'
 import { createRouter } from './messaging'
 import { sendRequest } from './http-client'
+import { grpcInvoke } from './grpc-client'
 import { runPreScript, runTestScript } from './sandbox'
 import { CollectionStore } from './collection-store'
 import { HistoryStore } from './history-store'
@@ -103,6 +104,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       return { path: p, filename: p.split(/[\\/]/).pop() ?? p }
     },
     ws: wsManager,
+    grpcInvoke,
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -125,6 +127,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   hub.setOpen((m) => {
     if (m.type === 'openInEditor') {
       RestmanPanel.openOrReveal(context, `req:${m.request.id}`, `${m.request.method} ${m.request.name}`, m)
+    } else if (m.type === 'openGrpcRequest') {
+      RestmanPanel.openOrReveal(context, `grpc:${m.request.id}`, `gRPC ${m.request.name}`, m)
+    } else if (m.type === 'openWsRequest') {
+      RestmanPanel.openOrReveal(context, `ws:${m.request.id}`, `WS ${m.request.name}`, m)
     } else if (m.type === 'showEnvironments') {
       RestmanPanel.openOrReveal(context, 'env', 'Environments', m)
     } else if (m.type === 'showWebSocket') {
@@ -204,10 +210,11 @@ export class RestmanPanel {
       vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'),
     ).toString()
     panel.webview.html = buildHtml(scriptUri, styleUri, codiconUri, panel.webview.cspSource, nonce())
-    // Show a request glyph on the editor tab instead of the default file icon.
+    // Tab icon per panel kind (request / gRPC / WebSocket / environments).
+    const iconBase = key.startsWith('grpc') ? 'icon-grpc' : key.startsWith('ws') ? 'icon-ws' : key === 'env' ? 'icon-env' : 'icon-request'
     panel.iconPath = {
-      light: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon-request-light.svg'),
-      dark: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon-request-dark.svg'),
+      light: vscode.Uri.joinPath(context.extensionUri, 'resources', `${iconBase}-light.svg`),
+      dark: vscode.Uri.joinPath(context.extensionUri, 'resources', `${iconBase}-dark.svg`),
     }
 
     void ensureBootstrap(context).then((hub) => {
@@ -220,8 +227,12 @@ export class RestmanPanel {
       this.pending.length = 0
     })
     panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
-      // Reflect the request's method + name on the VS Code editor tab.
-      if (msg.type === 'setTitle') { panel.title = msg.title || 'restman'; return }
+      // Reflect the request's method + name (and per-method icon) on the tab.
+      if (msg.type === 'setTitle') {
+        panel.title = msg.title || 'restman'
+        if (msg.icon) panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', `icon-${msg.icon}.svg`)
+        return
+      }
       const hub = await ensureBootstrap(context)
       await hub.dispatch(key, msg)
     })

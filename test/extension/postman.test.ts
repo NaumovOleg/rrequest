@@ -58,8 +58,8 @@ describe('fromNative', () => {
   })
   it('round-trips method/url/headers', () => {
     const c = toNative(fromNative(toNative(pm)))
-    expect(c.requests[0].method).toBe('GET')
-    expect(c.requests[0].url).toBe('https://api.test/users')
+    expect((c.requests[0] as any).method).toBe('GET')
+    expect((c.requests[0] as any).url).toBe('https://api.test/users')
   })
   it('round-trips disabled headers and params', () => {
     const theCollection: Collection = { id: '1', name: 'API', workspaceId: '', requests: [
@@ -72,10 +72,10 @@ describe('fromNative', () => {
         body: { mode: 'none' } },
     ] }
     const back = toNative(fromNative(theCollection))
-    expect(back.requests[0].headers).toEqual([
+    expect((back.requests[0] as any).headers).toEqual([
       { key: 'A', value: '1', enabled: true },
       { key: 'B', value: '2', enabled: false },
     ])
-    expect(back.requests[0].params).toEqual([{ key: 'q', value: '1', enabled: false }])
+    expect((back.requests[0] as any).params).toEqual([{ key: 'q', value: '1', enabled: false }])
   })
 })

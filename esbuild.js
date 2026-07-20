@@ -8,7 +8,7 @@ const options = {
   platform: 'node',
   target: 'node18',
   format: 'cjs',
-  external: ['vscode', 'bufferutil', 'utf-8-validate'],
+  external: ['vscode', 'bufferutil', 'utf-8-validate', '@grpc/grpc-js', '@grpc/proto-loader'],
   outfile: 'dist/extension.js',
   sourcemap: true,
 }

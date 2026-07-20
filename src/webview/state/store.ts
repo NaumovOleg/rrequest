@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, type Collection, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type Workspace } from '../../shared/types'
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -16,11 +16,18 @@ function isPristineBlank(t: RestRequest): boolean {
     && t.body.mode === 'none' && !t.preRequestScript && !t.testScript
 }
 
-function findInTree(tree: Collection[], collectionId: string, folderId: string | null | undefined, reqId: string): RestRequest | undefined {
-  const c = tree.find((x) => x.id === collectionId)
-  if (!c) return undefined
-  if (folderId) return (c.folders ?? []).find((f) => f.id === folderId)?.requests.find((r) => r.id === reqId)
-  return c.requests.find((r) => r.id === reqId)
+// Find an item anywhere in the tree, returning its current location so an open
+// tab can pick up a new collection/folder after a move.
+function locateInTree(tree: Collection[], reqId: string): { item: CollectionItem; collectionId: string; folderId: string | null } | undefined {
+  for (const c of tree) {
+    const r = c.requests.find((x) => x.id === reqId)
+    if (r) return { item: r, collectionId: c.id, folderId: null }
+    for (const f of c.folders ?? []) {
+      const fr = f.requests.find((x) => x.id === reqId)
+      if (fr) return { item: fr, collectionId: c.id, folderId: f.id }
+    }
+  }
+  return undefined
 }
 
 type State = {
@@ -158,9 +165,14 @@ export const useStore = create<State>((set) => ({
     // linked tabs. Skip the active tab so a broadcast never clobbers what the
     // user is currently typing — its own edits already flow out via autosave.
     tabs: s.tabs.map((t) => {
-      if (!t.collectionId || t.id === s.activeTabId) return t
-      const found = findInTree(tree, t.collectionId, t.folderId, t.id)
-      return found ? { ...t, ...found } : t
+      if (!t.collectionId) return t
+      const loc = locateInTree(tree, t.id)
+      if (!loc || itemKind(loc.item) !== 'http') return t
+      // Always refresh the link (collection/folder) so a moved request shows its
+      // new path in the header. Skip the field merge for the active tab to avoid
+      // clobbering in-progress edits — its own edits flow out via autosave.
+      if (t.id === s.activeTabId) return { ...t, collectionId: loc.collectionId, folderId: loc.folderId }
+      return { ...t, ...(loc.item as RestRequest), collectionId: loc.collectionId, folderId: loc.folderId }
     }),
   })),
 
@@ -192,5 +204,5 @@ export const useStore = create<State>((set) => ({
   setEnvEditId: (envEditId) => set({ envEditId }),
   setGrpcMode: (grpcMode) => set({ grpcMode }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false }),
 }))

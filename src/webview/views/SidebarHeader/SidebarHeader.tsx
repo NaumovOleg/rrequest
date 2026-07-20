@@ -8,11 +8,13 @@ export function SidebarHeader({
   onTab,
   onNewHttp,
   onNewWs,
+  onNewGrpc,
 }: {
   tab: SidebarTab;
   onTab: (t: SidebarTab) => void;
   onNewHttp: () => void;
   onNewWs: () => void;
+  onNewGrpc: () => void;
 }) {
   return (
     <header className="rm-sbhead">
@@ -22,6 +24,7 @@ export function SidebarHeader({
         onClick={onNewHttp}
         items={[
           { label: "New HTTP Request", icon: "add", onClick: onNewHttp },
+          { label: "New gRPC Request", icon: "server-process", onClick: onNewGrpc },
           { label: "New WebSocket", icon: "plug", onClick: onNewWs },
         ]}
       />

@@ -142,6 +142,19 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: /rename request Req/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /delete request Req/i })).toBeNull()
   })
+  it('renders gRPC and WebSocket items with a type badge and opens them', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [
+      { id: 'g1', name: 'Greeter', kind: 'grpc', address: 'a', proto: 'p', service: 'S', method: 'M', message: '{}', metadata: [], plaintext: true } as any,
+      { id: 'w1', name: 'Socket', kind: 'ws', url: 'wss://x', headers: [] } as any,
+    ] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    expect(screen.getByText('gRPC')).toBeInTheDocument()
+    expect(screen.getByText('WS')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Greeter'))
+    const msg = posted.filter((m) => m.type === 'openRequest').pop()
+    expect(msg.request.id).toBe('g1')
+  })
   it('dropping a request on a folder posts moveRequest', () => {
     const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [{ id: 'f1', name: 'F', requests: [] }] }])

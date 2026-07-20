@@ -34,8 +34,8 @@ export class Hub {
   async dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
     const reply = await this.route(msg)
     if (reply) {
-      if (reply.type === 'response' || reply.type === 'pickedFile') this.postTo(fromId, reply)
-      else if (reply.type === 'openInEditor' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc') {
+      if (reply.type === 'response' || reply.type === 'pickedFile' || reply.type === 'grpcResponse') this.postTo(fromId, reply)
+      else if (reply.type === 'openInEditor' || reply.type === 'openGrpcRequest' || reply.type === 'openWsRequest' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc') {
         this.onOpen?.(reply)
       }
       // tree/environments/workspaces/history replies are covered by the snapshot below

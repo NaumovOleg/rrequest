@@ -88,6 +88,14 @@ body {
 .rm-subtab-bar { padding: var(--rm-sp-1) var(--rm-sp-2); border-bottom: 1px solid var(--rm-border); }
 .rm-subtab-select { min-width: 170px; font-weight: 600; }
 
+/* auto-generated (transport-managed) headers — read-only, greyed like Postman */
+.rm-auto-headers { padding: var(--rm-sp-1) var(--rm-sp-2); }
+.rm-auto-toggle { display: inline-flex; align-items: center; gap: var(--rm-sp-1); background: transparent; border: none; color: var(--rm-muted); cursor: pointer; font: inherit; font-size: 0.9em; padding: var(--rm-sp-1) 0; }
+.rm-auto-toggle:hover { color: var(--rm-fg); }
+.rm-auto-table { opacity: 0.6; }
+.rm-auto-table td { padding: 3px var(--rm-sp-2); color: var(--rm-muted); border-bottom: 1px dashed var(--rm-border); }
+.rm-auto-table .codicon-lock { font-size: 0.85em; }
+
 /* sub-tabs */
 .rm-subtabs { display: flex; gap: var(--rm-sp-3); padding: 0 var(--rm-sp-2); border-bottom: 1px solid var(--rm-border); }
 .rm-subtab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--rm-muted); padding: var(--rm-sp-1) 0; cursor: pointer; }
@@ -217,6 +225,16 @@ body {
 .rm-split-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px; background: var(--rm-border); }
 .rm-split-handle:hover::before { background: var(--rm-accent); left: 2px; width: 3px; }
 .rm-code-input { font-family: var(--vscode-editor-font-family, monospace); }
+.rm-graphql { display: flex; flex-direction: column; gap: var(--rm-sp-1); padding: var(--rm-sp-2); }
+.rm-graphql-label { font-size: 0.85em; color: var(--rm-muted); }
+.rm-grpc-form { display: flex; flex-direction: column; gap: var(--rm-sp-1); padding: var(--rm-sp-2); }
+.rm-inline-check { display: inline-flex; align-items: center; gap: var(--rm-sp-1); color: var(--rm-muted); font-size: 0.9em; white-space: nowrap; }
+
+/* env-var highlight input: mirror div behind a caret-only input */
+.rm-envinput { position: relative; display: block; }
+.rm-envinput-field { position: relative; width: 100%; background: transparent; color: transparent; caret-color: var(--rm-fg); }
+.rm-envinput-mirror { position: absolute; inset: 0; padding: 4px 6px; border: 1px solid transparent; white-space: pre; overflow: hidden; pointer-events: none; color: var(--rm-fg); font: inherit; line-height: normal; }
+.rm-envvar { color: var(--rm-m-query, #e0823d); background: color-mix(in srgb, var(--rm-m-query, #e0823d) 20%, transparent); border-radius: 2px; }
 .rm-body-toolbar { display: flex; gap: var(--rm-sp-1); padding: var(--rm-sp-1) var(--rm-sp-2); }
 .rm-btn--sm { padding: 2px 8px; font-size: 0.85em; }
 /* right-click context menu */

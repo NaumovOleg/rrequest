@@ -59,6 +59,7 @@ export function SidebarApp() {
           postToHost({ type: "openRequest", request: blankRequest() })
         }
         onNewWs={() => postToHost({ type: "openWebSocket" })}
+        onNewGrpc={() => postToHost({ type: "openGrpc" })}
       />
       <div className="rm-scroll rm-sbbody">
         {tab === "collections" ? (

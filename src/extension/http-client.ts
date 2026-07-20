@@ -54,6 +54,11 @@ function buildBody(req: RestRequest): { body?: string; contentType?: string } {
         .join('&')
       return { body: s, contentType: 'application/x-www-form-urlencoded' }
     }
+    case 'graphql': {
+      let variables: unknown = {}
+      try { variables = req.body.variables ? JSON.parse(req.body.variables) : {} } catch { variables = {} }
+      return { body: JSON.stringify({ query: req.body.query, variables }), contentType: 'application/json' }
+    }
     case 'formdata':
       // Multipart is assembled separately in sendRequest (fetch sets the boundary Content-Type).
       return {}
@@ -113,6 +118,8 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
             ? { ...request.body, text: sub(request.body.text) }
             : request.body.mode === 'urlencoded'
             ? { ...request.body, items: request.body.items.map((i) => ({ ...i, key: sub(i.key), value: sub(i.value) })) }
+            : request.body.mode === 'graphql'
+            ? { ...request.body, query: sub(request.body.query), variables: sub(request.body.variables) }
             : request.body,
       }
     : request

@@ -1,4 +1,12 @@
-import { newId, type HostMessage, type KeyValue, type WebviewMessage } from '../shared/types'
+import { newId, itemKind, type CollectionItem, type GrpcRequest, type HostMessage, type KeyValue, type RestRequest, type WebviewMessage, type WsRequest } from '../shared/types'
+
+// The host message that opens an item in the right kind of editor panel.
+function openItemMsg(item: CollectionItem, targetCollectionId?: string, targetFolderId?: string | null): HostMessage {
+  const kind = itemKind(item)
+  if (kind === 'grpc') return { type: 'openGrpcRequest', request: item as GrpcRequest, targetCollectionId, targetFolderId }
+  if (kind === 'ws') return { type: 'openWsRequest', request: item as WsRequest, targetCollectionId, targetFolderId }
+  return { type: 'openInEditor', request: item as RestRequest, targetCollectionId, targetFolderId }
+}
 import type { sendRequest as SendFn } from './http-client'
 import type { CollectionStore } from './collection-store'
 import type { HistoryStore } from './history-store'
@@ -22,6 +30,7 @@ export type RouterDeps = {
   runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
   runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
   ws?: WsManager
+  grpcInvoke?: (p: import('./grpc-client').GrpcParams) => Promise<import('./grpc-client').GrpcResult>
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -105,7 +114,7 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.saveRequest(msg.collectionId, msg.request, msg.folderId)
         const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
         if (c?.environmentId) deps.setActiveEnvId(c.environmentId)
-        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.collectionId, targetFolderId: msg.folderId }
+        return openItemMsg(msg.request, msg.collectionId, msg.folderId)
       }
       case 'duplicateRequest': {
         const all = await deps.collections.list()
@@ -164,7 +173,7 @@ export function createRouter(deps: RouterDeps) {
           const c = (await deps.collections.list()).find((x) => x.id === msg.targetCollectionId)
           if (c?.environmentId) deps.setActiveEnvId(c.environmentId)
         }
-        return { type: 'openInEditor', request: msg.request, targetCollectionId: msg.targetCollectionId, targetFolderId: msg.targetFolderId }
+        return openItemMsg(msg.request, msg.targetCollectionId, msg.targetFolderId)
       }
       case 'loadWorkspaces':
         return await wsSnapshot()
@@ -243,6 +252,14 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'showWebSocket' }
       case 'openGrpc':
         return { type: 'showGrpc' }
+      case 'grpcInvoke': {
+        if (!deps.grpcInvoke) return { type: 'grpcResponse', requestId: msg.requestId, ok: false, error: 'gRPC is not available', timeMs: 0 }
+        const r = await deps.grpcInvoke({
+          address: msg.address, proto: msg.proto, service: msg.service,
+          method: msg.method, message: msg.message, metadata: msg.metadata, plaintext: msg.plaintext,
+        })
+        return { type: 'grpcResponse', requestId: msg.requestId, ok: r.ok, message: r.message, error: r.error, timeMs: r.timeMs }
+      }
       case 'moveRequest': {
         const all = await deps.collections.list()
         const from = all.find((c) => c.id === msg.fromCollectionId)

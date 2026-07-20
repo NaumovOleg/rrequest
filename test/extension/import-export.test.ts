@@ -16,11 +16,11 @@ describe('detectFormat', () => {
 describe('parseImport', () => {
   it('imports native JSON as-is', () => {
     const c = parseImport(JSON.stringify(native))
-    expect(c.name).toBe('N'); expect(c.requests[0].url).toBe('https://a/x')
+    expect(c.name).toBe('N'); expect((c.requests[0] as any).url).toBe('https://a/x')
   })
   it('imports postman JSON via converter', () => {
     const c = parseImport(JSON.stringify(pm))
-    expect(c.name).toBe('P'); expect(c.requests[0].method).toBe('GET')
+    expect(c.name).toBe('P'); expect((c.requests[0] as any).method).toBe('GET')
   })
   it('throws on garbage', () => {
     expect(() => parseImport('{"nope":1}')).toThrow()

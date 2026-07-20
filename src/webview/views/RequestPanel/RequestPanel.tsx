@@ -9,6 +9,7 @@ import type {
   RequestBody,
 } from "../../../shared/types";
 import { FormDataEditor, EnvDropdown } from "../../components";
+import { EnvVarInput } from "../../elements";
 import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
 import { methodClass } from "../../method-color";
@@ -47,6 +48,25 @@ function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
   const rest = headers.filter((h) => h.key.toLowerCase() !== "content-type");
   return ct ? [...rest, { key: "Content-Type", value: ct, enabled: true }] : rest;
 }
+// Headers the transport fills in automatically (shown greyed, like Postman).
+// User-Agent is omitted here because it's an editable default header already.
+function autoHeaders(url: string, body: RequestBody): { key: string; value: string }[] {
+  let host = "";
+  try {
+    host = new URL(url).host;
+  } catch {
+    /* incomplete url */
+  }
+  const list = [
+    { key: "Host", value: host || "<calculated when sent>" },
+    { key: "Accept-Encoding", value: "gzip, deflate, br" },
+    { key: "Connection", value: "keep-alive" },
+  ];
+  if (body.mode !== "none")
+    list.push({ key: "Content-Length", value: "<calculated when sent>" });
+  return list;
+}
+
 function contentTypeFor(body: RequestBody): string | null {
   if (body.mode === "raw")
     return body.type === "json"
@@ -55,6 +75,7 @@ function contentTypeFor(body: RequestBody): string | null {
         ? "application/xml"
         : "text/plain";
   if (body.mode === "urlencoded") return "application/x-www-form-urlencoded";
+  if (body.mode === "graphql") return "application/json";
   return null; // none, formdata (client sets the multipart boundary)
 }
 
@@ -261,6 +282,7 @@ export function RequestPanel() {
   const [saveFolderId, setSaveFolderId] = useState("");
   const [curlText, setCurlText] = useState("");
   const [splitPct, setSplitPct] = useState(50);
+  const [showAuto, setShowAuto] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const update = useStore((s) => s.updateActive);
@@ -268,6 +290,12 @@ export function RequestPanel() {
   const tree = useStore((s) => s.tree);
   const pendingSaveCollectionId = useStore((s) => s.pendingSaveCollectionId);
   const pendingSaveFolderId = useStore((s) => s.pendingSaveFolderId);
+  const knownVars = useStore((s) => {
+    const e = s.environments.find((x) => x.id === s.activeEnvId);
+    return new Set(
+      (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key),
+    );
+  });
   useEffect(() => {
     setSaveCollectionId(pendingSaveCollectionId ?? "");
   }, [pendingSaveCollectionId]);
@@ -444,12 +472,12 @@ export function RequestPanel() {
             ))}
           </select>
         </label>
-        <input
-          className="rm-input rm-url-input"
+        <EnvVarInput
+          className="rm-url-input"
           placeholder="URL"
-          style={{ flex: 1 }}
           value={active.url}
-          onChange={(e) => onUrlChange(e.target.value)}
+          onChange={onUrlChange}
+          knownVars={knownVars}
         />
         <button
           className="rm-btn rm-btn--primary"
@@ -491,10 +519,46 @@ export function RequestPanel() {
               />
             )}
             {sub === "headers" && (
-              <KeyValueTable
-                rows={active.headers}
-                onChange={(headers) => update({ headers })}
-              />
+              <>
+                <KeyValueTable
+                  rows={active.headers}
+                  onChange={(headers) => update({ headers })}
+                />
+                {(() => {
+                  const auto = autoHeaders(active.url, active.body);
+                  return (
+                    <div className="rm-auto-headers">
+                      <button
+                        type="button"
+                        className="rm-auto-toggle"
+                        aria-expanded={showAuto}
+                        onClick={() => setShowAuto((v) => !v)}
+                      >
+                        <span
+                          className={`codicon codicon-chevron-${showAuto ? "down" : "right"}`}
+                        />{" "}
+                        {showAuto ? "Hide" : "Show"} auto-generated headers (
+                        {auto.length})
+                      </button>
+                      {showAuto && (
+                        <table className="rm-kvtable rm-auto-table">
+                          <tbody>
+                            {auto.map((h) => (
+                              <tr key={h.key}>
+                                <td>
+                                  <span className="codicon codicon-lock" />
+                                </td>
+                                <td>{h.key}</td>
+                                <td>{h.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
             )}
             {sub === "cookies" && (
               <KeyValueTable
@@ -535,12 +599,28 @@ export function RequestPanel() {
                               ? active.body.items
                               : [],
                         });
+                      else if (mode === "graphql") {
+                        // GraphQL is POSTed as JSON; default the method to POST.
+                        if (active.method === "GET") update({ method: "POST" });
+                        setBody({
+                          mode: "graphql",
+                          query:
+                            active.body.mode === "graphql"
+                              ? active.body.query
+                              : "",
+                          variables:
+                            active.body.mode === "graphql"
+                              ? active.body.variables
+                              : "",
+                        });
+                      }
                     }}
                   >
                     <option value="none">none</option>
                     <option value="raw">raw</option>
                     <option value="urlencoded">x-www-form-urlencoded</option>
                     <option value="formdata">form-data</option>
+                    <option value="graphql">GraphQL</option>
                   </select>
                   {active.body.mode === "raw" && (
                     <>
@@ -590,6 +670,36 @@ export function RequestPanel() {
                       setBody({ mode: "urlencoded", items })
                     }
                   />
+                )}
+                {active.body.mode === "graphql" && (
+                  <div className="rm-graphql">
+                    <label className="rm-graphql-label">Query</label>
+                    <textarea
+                      className="rm-input rm-code-input"
+                      aria-label="graphql query"
+                      rows={8}
+                      style={{ width: "100%" }}
+                      value={active.body.query}
+                      onChange={(e) =>
+                        active.body.mode === "graphql" &&
+                        setBody({ ...active.body, query: e.target.value })
+                      }
+                    />
+                    <label className="rm-graphql-label">
+                      Variables (JSON)
+                    </label>
+                    <textarea
+                      className="rm-input rm-code-input"
+                      aria-label="graphql variables"
+                      rows={4}
+                      style={{ width: "100%" }}
+                      value={active.body.variables}
+                      onChange={(e) =>
+                        active.body.mode === "graphql" &&
+                        setBody({ ...active.body, variables: e.target.value })
+                      }
+                    />
+                  </div>
                 )}
                 {active.body.mode === "formdata" && <FormDataEditor />}
               </div>

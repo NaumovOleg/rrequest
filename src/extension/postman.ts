@@ -1,4 +1,7 @@
-import { newId, type Collection, type Folder, type KeyValue, type RequestBody, type RestRequest, type HttpMethod } from '../shared/types'
+import { newId, itemKind, type Collection, type CollectionItem, type Folder, type KeyValue, type RequestBody, type RestRequest, type HttpMethod } from '../shared/types'
+
+// Postman v2.1 export covers HTTP requests only; gRPC/WebSocket items are skipped.
+const httpOnly = (rs: CollectionItem[]): RestRequest[] => rs.filter((r): r is RestRequest => itemKind(r) === 'http')
 
 const V21 = 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -102,9 +105,9 @@ function nativeRequestItem(r: RestRequest): any {
 }
 
 export function fromNative(c: Collection): any {
-  const item: any[] = c.requests.map(nativeRequestItem)
+  const item: any[] = httpOnly(c.requests).map(nativeRequestItem)
   for (const f of c.folders ?? []) {
-    item.push({ name: f.name, item: f.requests.map(nativeRequestItem) })
+    item.push({ name: f.name, item: httpOnly(f.requests).map(nativeRequestItem) })
   }
   return { info: { name: c.name, schema: V21 }, item }
 }

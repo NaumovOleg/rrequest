@@ -1,7 +1,7 @@
 import { useState, useEffect, type DragEvent } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
-import { newId, defaultHeaders, type Collection, type Folder, type RestRequest } from '../../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Folder, type RestRequest } from '../../../shared/types'
 import { MethodBadge } from '../../elements/MethodBadge'
 import { IconButton } from '../../elements/IconButton'
 import { PopupMenu } from '../../elements/PopupMenu'
@@ -22,7 +22,7 @@ export function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
-  const [ctx, setCtx] = useState<{ x: number; y: number; collectionId: string; folderId: string | null; request: RestRequest } | null>(null)
+  const [ctx, setCtx] = useState<{ x: number; y: number; collectionId: string; folderId: string | null; request: CollectionItem } | null>(null)
 
   useEffect(() => {
     if (!ctx) return
@@ -66,13 +66,20 @@ export function Sidebar() {
   const toggleFolder = (key: string) =>
     setExpandedFolders((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
 
-  const openExisting = (r: RestRequest, collectionId: string, folderId: string | null) =>
+  const openExisting = (r: CollectionItem, collectionId: string, folderId: string | null) =>
     postToHost({ type: 'openRequest', request: r, targetCollectionId: collectionId, targetFolderId: folderId })
 
   const expandCollection = (id: string) => setExpandedCollections((prev) => new Set(prev).add(id))
   const expandFolder = (key: string) => setExpandedFolders((prev) => new Set(prev).add(key))
 
-  const renderRequestRow = (r: RestRequest, collectionId: string, folderId: string | null) => {
+  const itemBadge = (r: CollectionItem) => {
+    const k = itemKind(r)
+    if (k === 'grpc') return <span className="rm-method rm-method--OTHER">gRPC</span>
+    if (k === 'ws') return <span className="rm-method rm-method--OTHER">WS</span>
+    return <MethodBadge method={(r as RestRequest).method} />
+  }
+
+  const renderRequestRow = (r: CollectionItem, collectionId: string, folderId: string | null) => {
     const isRenaming = renamingId === r.id
     const activate = () => openExisting(r, collectionId, folderId)
     return (
@@ -82,7 +89,7 @@ export function Sidebar() {
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, collectionId, folderId, request: r }) }}
         onClick={activate}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } }}>
-        <MethodBadge method={r.method} />{' '}
+        {itemBadge(r)}{' '}
         {isRenaming
           ? <RenameInput initial={r.name}
               onCommit={(name) => { postToHost({ type: 'renameRequest', collectionId, folderId, requestId: r.id, name }); setRenamingId(null) }}

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { newId, type Collection, type RestRequest } from '../shared/types'
+import { newId, type Collection, type CollectionItem } from '../shared/types'
 import { readJsonSafe, writeJsonAtomic } from './atomic-write'
 
 export class CollectionStore {
@@ -35,7 +35,7 @@ export class CollectionStore {
     return c
   }
 
-  async saveRequest(collectionId: string, request: RestRequest, folderId?: string | null): Promise<Collection> {
+  async saveRequest(collectionId: string, request: CollectionItem, folderId?: string | null): Promise<Collection> {
     const c = (await readJsonSafe<Collection>(this.file(collectionId)))
       ?? { id: collectionId, name: 'Collection', workspaceId: '', requests: [], folders: [] }
     if (!c.folders) c.folders = []

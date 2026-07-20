@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react'
 import { useStore } from '../../state/store'
-import { postToHost } from '../../ipc'
-import { newId, type KeyValue } from '../../../shared/types'
+import { postToHost, onHostMessage } from '../../ipc'
+import { newId, type KeyValue, type WsRequest } from '../../../shared/types'
 
 function WsHeadersTable({ rows, onChange }: {
   rows: KeyValue[]; onChange: (rows: KeyValue[]) => void
@@ -44,6 +45,47 @@ export function WebSocketPanel() {
   const setWsHeaders = useStore((s) => s.setWsHeaders)
   const wsStartConnect = useStore((s) => s.wsStartConnect)
   const wsAppendLog = useStore((s) => s.wsAppendLog)
+  const tree = useStore((s) => s.tree)
+
+  const [id, setId] = useState(() => newId())
+  const [name, setName] = useState('New WebSocket Request')
+  const [linkedCollectionId, setLinkedCollectionId] = useState<string | null>(null)
+  const [linkedFolderId, setLinkedFolderId] = useState<string | null>(null)
+  const [saveCollectionId, setSaveCollectionId] = useState('')
+  const [saveFolderId, setSaveFolderId] = useState('')
+
+  useEffect(() => {
+    return onHostMessage((m) => {
+      if (m.type === 'openWsRequest') {
+        const r = m.request
+        setId(r.id)
+        setName(r.name)
+        setWsUrl(r.url)
+        setWsHeaders(r.headers ?? [])
+        setLinkedCollectionId(m.targetCollectionId ?? null)
+        setLinkedFolderId(m.targetFolderId ?? null)
+        setSaveCollectionId(m.targetCollectionId ?? '')
+        setSaveFolderId(m.targetFolderId ?? '')
+      }
+    })
+  }, [setWsUrl, setWsHeaders])
+
+  useEffect(() => {
+    postToHost({ type: 'setTitle', title: `WS ${name}` })
+  }, [name])
+
+  const save = () => {
+    const collectionId = linkedCollectionId || saveCollectionId
+    if (!collectionId) return
+    const item: WsRequest = { id, name, kind: 'ws', url: wsUrl, headers: wsHeaders }
+    postToHost({ type: 'saveRequest', collectionId, folderId: linkedCollectionId ? linkedFolderId : saveFolderId || null, request: item })
+    setLinkedCollectionId(collectionId)
+    setLinkedFolderId(linkedCollectionId ? linkedFolderId : saveFolderId || null)
+  }
+
+  const saveFolders = tree.find((c) => c.id === saveCollectionId)?.folders ?? []
+  const linkedCollection = linkedCollectionId ? tree.find((c) => c.id === linkedCollectionId) : undefined
+  const linkedFolder = linkedCollection && linkedFolderId ? (linkedCollection.folders ?? []).find((f) => f.id === linkedFolderId) : undefined
 
   const connect = () => {
     const connId = newId()
@@ -60,6 +102,31 @@ export function WebSocketPanel() {
 
   return (
     <div className="rm-surface">
+      <header className="rm-req-meta">
+        <input className="rm-input rm-req-name" aria-label="websocket name" placeholder="Request name"
+          value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="rm-req-meta-actions">
+          {linkedCollectionId ? (
+            <span className="rm-req-target">
+              {linkedCollection?.name ?? 'Collection'}{linkedFolder ? ` / ${linkedFolder.name}` : ''}
+            </span>
+          ) : (
+            <>
+              <select className="rm-select" aria-label="save to collection" value={saveCollectionId}
+                onChange={(e) => setSaveCollectionId(e.target.value)}>
+                <option value="" disabled>Select collection</option>
+                {tree.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+              </select>
+              <select className="rm-select" aria-label="save to folder" value={saveFolderId}
+                onChange={(e) => setSaveFolderId(e.target.value)}>
+                <option value="">(root)</option>
+                {saveFolders.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}
+              </select>
+            </>
+          )}
+          <button className="rm-btn" disabled={!linkedCollectionId && !saveCollectionId} onClick={save}>Save</button>
+        </div>
+      </header>
       <div className="rm-urlbar">
         <input className="rm-input rm-url-input" aria-label="websocket url" placeholder="wss://..."
           value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} />

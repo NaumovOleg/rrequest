@@ -59,6 +59,19 @@ describe('sendRequest', () => {
     expect(seenInit.method).toBe('QUERY')
     expect(seenInit.body).toBe('{"q":"x"}')
   })
+  it('sends a GraphQL body as JSON { query, variables }', async () => {
+    let seenInit: any
+    const fetchImpl = (async (_url: string, init: any) => {
+      seenInit = init
+      return new Response('{}', { status: 200 })
+    }) as unknown as typeof fetch
+    await sendRequest(
+      baseReq({ method: 'POST', body: { mode: 'graphql', query: '{ me { id } }', variables: '{"x":1}' } }),
+      { fetchImpl },
+    )
+    expect((seenInit.headers as Headers).get('content-type')).toBe('application/json')
+    expect(JSON.parse(seenInit.body)).toEqual({ query: '{ me { id } }', variables: { x: 1 } })
+  })
   it('sends enabled cookies as a Cookie header', async () => {
     let seenInit: any
     const fetchImpl = (async (_url: string, init: any) => {

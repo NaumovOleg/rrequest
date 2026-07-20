@@ -11,26 +11,33 @@ const noop = () => {}
 describe('SidebarHeader', () => {
   it('primary New HTTP Request button fires onNewHttp', () => {
     const onNewHttp = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={onNewHttp} onNewWs={noop} />)
+    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={onNewHttp} onNewWs={noop} onNewGrpc={noop} />)
     fireEvent.click(screen.getByRole('button', { name: 'New HTTP Request' }))
     expect(onNewHttp).toHaveBeenCalled()
   })
   it('split menu exposes New WebSocket', () => {
     const onNewWs = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={onNewWs} />)
+    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={onNewWs} onNewGrpc={noop} />)
     fireEvent.click(screen.getByRole('button', { name: /new http request options/i }))
     fireEvent.click(screen.getByRole('menuitem', { name: /new websocket/i }))
     expect(onNewWs).toHaveBeenCalled()
   })
+  it('split menu exposes New gRPC Request', () => {
+    const onNewGrpc = vi.fn()
+    render(<SidebarHeader tab="collections" onTab={noop} onNewHttp={noop} onNewWs={noop} onNewGrpc={onNewGrpc} />)
+    fireEvent.click(screen.getByRole('button', { name: /new http request options/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /new grpc/i }))
+    expect(onNewGrpc).toHaveBeenCalled()
+  })
   it('Collections and History tabs switch via onTab', () => {
     const onTab = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} />)
+    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} onNewGrpc={noop} />)
     fireEvent.click(screen.getByRole('tab', { name: /history/i }))
     expect(onTab).toHaveBeenCalledWith('history')
   })
   it('Environments tab switches via onTab', () => {
     const onTab = vi.fn()
-    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} />)
+    render(<SidebarHeader tab="collections" onTab={onTab} onNewHttp={noop} onNewWs={noop} onNewGrpc={noop} />)
     fireEvent.click(screen.getByRole('tab', { name: /environments/i }))
     expect(onTab).toHaveBeenCalledWith('environments')
   })

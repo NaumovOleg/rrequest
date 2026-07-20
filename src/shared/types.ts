@@ -17,11 +17,13 @@ export type RequestBody =
   | { mode: 'none' }
   | { mode: 'raw'; type: 'json' | 'text' | 'xml'; text: string }
   | { mode: 'urlencoded'; items: KeyValue[] }
+  | { mode: 'graphql'; query: string; variables: string }
   | { mode: 'formdata'; items: FormDataItem[] }
 
 export type RestRequest = {
   id: string
   name: string
+  kind?: 'http'
   method: HttpMethod
   url: string
   params: KeyValue[]
@@ -33,9 +35,41 @@ export type RestRequest = {
   testScript?: string
 }
 
-/** Standard headers a fresh request starts with. */
+export type GrpcRequest = {
+  id: string
+  name: string
+  kind: 'grpc'
+  address: string
+  proto: string
+  service: string
+  method: string
+  message: string
+  metadata: KeyValue[]
+  plaintext: boolean
+}
+
+export type WsRequest = {
+  id: string
+  name: string
+  kind: 'ws'
+  url: string
+  headers: KeyValue[]
+}
+
+/** Anything that can live in a collection/folder. */
+export type CollectionItem = RestRequest | GrpcRequest | WsRequest
+
+export function itemKind(i: CollectionItem): 'http' | 'grpc' | 'ws' {
+  return i.kind ?? 'http'
+}
+
+/** Standard headers a fresh request starts with (all safe to set under Node fetch). */
 export function defaultHeaders(): KeyValue[] {
-  return [{ key: 'Accept', value: '*/*', enabled: true }]
+  return [
+    { key: 'Accept', value: '*/*', enabled: true },
+    { key: 'User-Agent', value: 'restman', enabled: true },
+    { key: 'Cache-Control', value: 'no-cache', enabled: true },
+  ]
 }
 
 export type HttpError = {
@@ -59,9 +93,9 @@ export type HttpResponse = {
   consoleLogs?: string[]
 }
 
-export type Folder = { id: string; name: string; requests: RestRequest[] }
+export type Folder = { id: string; name: string; requests: CollectionItem[] }
 
-export type Collection = { id: string; name: string; workspaceId: string; requests: RestRequest[]; folders?: Folder[]; environmentId?: string }
+export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string }
 
 export type Workspace = { id: string; name: string }
 
@@ -85,8 +119,8 @@ export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'sendRequest'; requestId: string; payload: RestRequest }
   | { type: 'loadTree' }
-  | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: RestRequest }
-  | { type: 'createRequest'; collectionId: string; folderId: string | null; request: RestRequest }
+  | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: CollectionItem }
+  | { type: 'createRequest'; collectionId: string; folderId: string | null; request: CollectionItem }
   | { type: 'duplicateRequest'; collectionId: string; folderId: string | null; requestId: string }
   | { type: 'setCollectionEnvironment'; collectionId: string; environmentId: string | null }
   | { type: 'createCollection'; name: string }
@@ -99,7 +133,7 @@ export type WebviewMessage =
   | { type: 'importCollection' }
   | { type: 'exportCollection'; id: string; format: 'native' | 'postman' }
   | { type: 'pickFile' }
-  | { type: 'openRequest'; request: RestRequest; targetCollectionId?: string; targetFolderId?: string | null }
+  | { type: 'openRequest'; request: CollectionItem; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'loadWorkspaces' }
   | { type: 'createWorkspace'; name: string }
   | { type: 'renameWorkspace'; id: string; name: string }
@@ -120,7 +154,8 @@ export type WebviewMessage =
   | { type: 'openEnvironments'; id?: string }
   | { type: 'openWebSocket' }
   | { type: 'openGrpc' }
-  | { type: 'setTitle'; title: string }
+  | { type: 'grpcInvoke'; requestId: string; address: string; proto: string; service: string; method: string; message: string; metadata: KeyValue[]; plaintext: boolean }
+  | { type: 'setTitle'; title: string; icon?: string }
 
 // host -> webview
 export type HostMessage =
@@ -130,6 +165,8 @@ export type HostMessage =
   | { type: 'environments'; environments: Environment[]; activeId: string | null }
   | { type: 'pickedFile'; path: string; filename: string }
   | { type: 'openInEditor'; request: RestRequest; targetCollectionId?: string; targetFolderId?: string | null }
+  | { type: 'openGrpcRequest'; request: GrpcRequest; targetCollectionId?: string; targetFolderId?: string | null }
+  | { type: 'openWsRequest'; request: WsRequest; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'workspaces'; workspaces: Workspace[]; activeId: string }
   | { type: 'wsOpen'; connId: string }
   | { type: 'wsMessage'; connId: string; data: string; at: number }
@@ -138,6 +175,7 @@ export type HostMessage =
   | { type: 'showEnvironments'; id?: string }
   | { type: 'showWebSocket' }
   | { type: 'showGrpc' }
+  | { type: 'grpcResponse'; requestId: string; ok: boolean; message?: string; error?: string; timeMs: number }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

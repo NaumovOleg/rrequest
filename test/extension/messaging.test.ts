@@ -42,8 +42,19 @@ function deps() {
 function routerAll(d: any) {
   return createRouter({ send: d.send, collections: d.collections, history: d.history,
     environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
-    workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id } })
+    workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+    grpcInvoke: d.grpcInvoke })
 }
+
+describe('createRouter grpc', () => {
+  it('routes grpcInvoke through the grpc dep and returns a grpcResponse to the sender', async () => {
+    const d: any = deps()
+    d.grpcInvoke = vi.fn(async () => ({ ok: true, message: '{"message":"hi"}', timeMs: 3 }))
+    const out = await routerAll(d)({ type: 'grpcInvoke', requestId: 'g1', address: 'localhost:50051', proto: 'p', service: 'S', method: 'M', message: '{}', metadata: [], plaintext: true }) as any
+    expect(d.grpcInvoke).toHaveBeenCalled()
+    expect(out).toEqual({ type: 'grpcResponse', requestId: 'g1', ok: true, message: '{"message":"hi"}', error: undefined, timeMs: 3 })
+  })
+})
 
 describe('createRouter', () => {
   it('routes sendRequest to send and returns a response message', async () => {
@@ -160,6 +171,20 @@ describe('createRouter workspace + openRequest', () => {
     const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
     const out = await router(d)({ type: 'openRequest', request: req, targetCollectionId: 'c1' })
     expect(out).toEqual({ type: 'openInEditor', request: req, targetCollectionId: 'c1' })
+  })
+  it('openRequest routes a gRPC item to openGrpcRequest', async () => {
+    const d = deps()
+    const item: any = { id: 'g1', name: 'Greeter', kind: 'grpc', address: 'a', proto: 'p', service: 'S', method: 'M', message: '{}', metadata: [], plaintext: true }
+    const out = await router(d)({ type: 'openRequest', request: item, targetCollectionId: 'c1', targetFolderId: null }) as any
+    expect(out.type).toBe('openGrpcRequest')
+    expect(out.request.id).toBe('g1')
+  })
+  it('openRequest routes a WebSocket item to openWsRequest', async () => {
+    const d = deps()
+    const item: any = { id: 'w1', name: 'Socket', kind: 'ws', url: 'wss://x', headers: [] }
+    const out = await router(d)({ type: 'openRequest', request: item, targetCollectionId: 'c1', targetFolderId: null }) as any
+    expect(out.type).toBe('openWsRequest')
+    expect(out.request.url).toBe('wss://x')
   })
   it('openRequest from a collection with a bound environment activates it', async () => {
     const d = deps()

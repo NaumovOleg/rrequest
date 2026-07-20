@@ -76,5 +76,36 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return reply.code(201).send({ driveFileId: fileId, revision });
   });
 
+  app.get("/workspaces", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    return deps.workspaces.listByOwner(user.id);
+  });
+
+  app.put("/workspaces/:id", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const id = (req.params as { id: string }).id;
+    const ws = deps.workspaces.get(id);
+    if (!ws) return reply.code(404).send({ error: "not found" });
+    if (ws.ownerUserId !== user.id) return reply.code(403).send({ error: "forbidden" });
+    const { snapshot } = req.body as { snapshot?: string };
+    if (typeof snapshot !== "string") return reply.code(400).send({ error: "snapshot required" });
+    const { revision } = await deps.driveFor(user).updateFile(ws.driveFileId, snapshot);
+    deps.workspaces.setRevision(id, revision, Date.now());
+    return { revision };
+  });
+
+  app.get("/workspaces/:id", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const id = (req.params as { id: string }).id;
+    const ws = deps.workspaces.get(id);
+    if (!ws) return reply.code(404).send({ error: "not found" });
+    if (ws.ownerUserId !== user.id) return reply.code(403).send({ error: "forbidden" });
+    const snapshot = await deps.driveFor(user).readFile(ws.driveFileId);
+    return { snapshot, revision: ws.revision };
+  });
+
   return app;
 }

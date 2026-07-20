@@ -14,8 +14,30 @@
       {
         "command": "restman.open",
         "title": "restman: Open"
+      },
+      {
+        "command": "restman.signInToSync",
+        "title": "restman: Sign in to sync (Google)"
+      },
+      {
+        "command": "restman.enableWorkspaceSync",
+        "title": "restman: Enable sync for active workspace"
+      },
+      {
+        "command": "restman.syncNow",
+        "title": "restman: Sync now"
       }
     ],
+    "configuration": {
+      "title": "restman",
+      "properties": {
+        "restman.syncServerUrl": {
+          "type": "string",
+          "default": "http://localhost:8787",
+          "description": "restman sync backend URL"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

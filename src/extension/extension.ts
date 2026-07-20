@@ -19,15 +19,19 @@ export function activate(context: vscode.ExtensionContext) {
   const collections = new CollectionStore(base)
   const environments = new EnvironmentStore(base)
 
+  let cachedSyncToken: string | undefined
+  void context.secrets.get('restman.syncToken').then((t) => { cachedSyncToken = t ?? undefined })
+
   const syncBaseUrl = (): string => vscode.workspace.getConfiguration('restman').get<string>('syncServerUrl', 'http://localhost:8787')
-  const getToken = (): string | undefined => context.globalState.get<string>('restman.syncToken')
+  const getToken = (): string | undefined => cachedSyncToken
   const syncClient = () => new SyncClient({ baseUrl: syncBaseUrl(), getToken })
 
   context.subscriptions.push(
     vscode.commands.registerCommand('restman.signInToSync', async () => {
       try {
         const token = await signIn({ baseUrl: syncBaseUrl(), openExternal: (u) => void vscode.env.openExternal(vscode.Uri.parse(u)) })
-        await context.globalState.update('restman.syncToken', token)
+        cachedSyncToken = token
+        await context.secrets.store('restman.syncToken', token)
         const me = await syncClient().me()
         await context.globalState.update('restman.syncEmail', me.email)
         void vscode.window.showInformationMessage(`restman: signed in as ${me.email}`)

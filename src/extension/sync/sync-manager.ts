@@ -48,10 +48,20 @@ export class SyncManager {
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     const { snapshot, revision } = await this.deps.client.pull(workspaceId)
-    const parsed = JSON.parse(snapshot) as WorkspaceSnapshot
-    const local = await this.deps.stores.getEnvironments(workspaceId)
-    const environments = mergeEnvironmentsPreservingSecrets(parsed.environments, local)
-    await this.deps.stores.applyPulled(workspaceId, parsed.collections, environments)
+    const remote = JSON.parse(snapshot) as WorkspaceSnapshot
+    const local = await this.buildLocalSnapshot(workspaceId)
+    const merged = mergeSnapshots(remote, local)
+    const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
+    const environments = mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs)
+    await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
     await this.deps.state.set(workspaceId, { ...state, lastRevision: revision })
+  }
+
+  async pullIfNewer(workspaceId: string, revision: string): Promise<boolean> {
+    const state = await this.deps.state.get(workspaceId)
+    if (!state?.synced) return false
+    if (state.lastRevision === revision) return false // we already have this (e.g. our own push)
+    await this.pull(workspaceId)
+    return true
   }
 }

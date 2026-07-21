@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
       await ensureBootstrap(context)
       const rt = getSyncRuntime()
       if (!rt) return void vscode.window.showWarningMessage('restman: sync not ready')
-      try { await rt.manager.pull(id); await rt.manager.push(id); void vscode.window.showInformationMessage('restman: synced') }
+      try { await rt.manager.pull(id); await rt.manager.push(id); await rt.refresh(); void vscode.window.showInformationMessage('restman: synced') }
       catch (e: any) { void vscode.window.showErrorMessage(`restman: sync failed: ${e?.message ?? e}`) }
     }),
   )

@@ -12,6 +12,7 @@ afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 const col = (): Collection => ({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })
 const env = (vars: any[]): Environment => ({ id: 'e1', name: 'Dev', workspaceId: 'w1', variables: vars })
+const req = (id: string, name = id) => ({ id, name, method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } })
 
 function stores(initial: { collections: Collection[]; environments: Environment[] }) {
   const box = { ...initial, applied: null as any }
@@ -48,6 +49,21 @@ describe('SyncManager', () => {
     await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).pull('w1')
     expect(box.applied.environments[0].variables[0].value).toBe('local-secret')
     expect((await state.get('w1'))?.lastRevision).toBe('5')
+  })
+
+  it('pull merges collections so a local-only request survives (does not clobber unpushed local requests)', async () => {
+    const localCollection: Collection = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [req('rLocal')] }
+    const remoteCollection: Collection = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [req('rRemote')] }
+    const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [remoteCollection], environments: [], updatedAt: 1, updatedBy: 'other' })
+    const client = { pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '9' })), enableSync: vi.fn(), push: vi.fn() } as any
+    const { port, box } = stores({ collections: [localCollection], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f1', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).pull('w1')
+    const appliedCol = box.applied.collections.find((c: Collection) => c.id === 'c1')
+    const ids = appliedCol.requests.map((r: any) => r.id).sort()
+    expect(ids).toEqual(['rLocal', 'rRemote'])
+    expect((await state.get('w1'))?.lastRevision).toBe('9')
   })
 
   it('push is a no-op when the workspace is not synced', async () => {

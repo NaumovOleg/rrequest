@@ -10,18 +10,26 @@ export function subscriptionsFor(userId: string, workspaces: WorkspaceStore): st
 
 let seq = 0;
 
+export function handleWsConnection(
+  socket: { close(code?: number, reason?: string): void; on(ev: string, cb: (...a: any[]) => void): void; send?(data: string): void },
+  reqUrl: string | undefined,
+  deps: { jwtSecret: string; workspaces: WorkspaceStore; realtime: Realtime },
+): void {
+  const url = new URL(reqUrl ?? "/", "http://localhost");
+  const token = url.searchParams.get("token") ?? "";
+  const session = verifySession(token, deps.jwtSecret);
+  if (!session) { socket.close(4001, "unauthorized"); return; }
+  const connId = `c${++seq}`;
+  const off = deps.realtime.register(connId, session.userId, subscriptionsFor(session.userId, deps.workspaces), (m: ChangeMsg) => {
+    try { socket.send?.(JSON.stringify(m)); } catch { /* socket closing */ }
+  });
+  socket.on("close", off);
+  socket.on("error", off);
+}
+
 export function attachWsServer(opts: { server: Server; jwtSecret: string; workspaces: WorkspaceStore; realtime: Realtime }): void {
   const wss = new WebSocketServer({ server: opts.server, path: "/ws" });
   wss.on("connection", (socket: WebSocket, req) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
-    const token = url.searchParams.get("token") ?? "";
-    const session = verifySession(token, opts.jwtSecret);
-    if (!session) { socket.close(4001, "unauthorized"); return; }
-    const connId = `c${++seq}`;
-    const off = opts.realtime.register(connId, session.userId, subscriptionsFor(session.userId, opts.workspaces), (m: ChangeMsg) => {
-      try { socket.send(JSON.stringify(m)); } catch { /* socket closing */ }
-    });
-    socket.on("close", off);
-    socket.on("error", off);
+    handleWsConnection(socket as any, req.url, { jwtSecret: opts.jwtSecret, workspaces: opts.workspaces, realtime: opts.realtime });
   });
 }

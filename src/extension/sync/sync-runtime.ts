@@ -42,8 +42,10 @@ export function createSyncRuntime(deps: {
     },
     // exposed so the host can route socket changes → pull → refresh
     async onSocketChange(m: ChangeMsg): Promise<void> {
-      await deps.manager.pull(m.workspaceId)
-      await deps.onPulled()
+      const changed = await deps.manager.pullIfNewer(m.workspaceId, m.revision)
+      if (changed) await deps.onPulled()
     },
+    // manual sync path repaints open webviews the same way auto-pull does
+    refresh: () => deps.onPulled(),
   }
 }

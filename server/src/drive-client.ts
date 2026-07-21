@@ -1,8 +1,14 @@
+export type WatchOpts = { channelId: string; address: string; token: string; ttlSeconds?: number };
+export type WatchInfo = { channelId: string; resourceId: string; expiration: number };
+
 export interface DriveClient {
   ensureFolder(name: string): Promise<string>;
   createFile(folderId: string, name: string, content: string): Promise<{ fileId: string; revision: string }>;
   updateFile(fileId: string, content: string): Promise<{ revision: string }>;
   readFile(fileId: string): Promise<string>;
+  getHeadRevision(fileId: string): Promise<string>;
+  watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo>;
+  stopChannel(opts: { channelId: string; resourceId: string }): Promise<void>;
 }
 
 const DRIVE = "https://www.googleapis.com/drive/v3";
@@ -61,12 +67,41 @@ export class GoogleDriveClient implements DriveClient {
     if (!res.ok) throw new Error(`Drive read failed: ${res.status}`);
     return await res.text();
   }
+
+  async getHeadRevision(fileId: string): Promise<string> {
+    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}?fields=headRevisionId`, { headers: await this.auth() });
+    if (!res.ok) throw new Error(`Drive head-revision failed: ${res.status}`);
+    return ((await res.json()) as { headRevisionId?: string }).headRevisionId ?? "";
+  }
+
+  async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
+    const body: Record<string, unknown> = { id: opts.channelId, type: "web_hook", address: opts.address, token: opts.token };
+    if (opts.ttlSeconds) body.expiration = Date.now() + opts.ttlSeconds * 1000;
+    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/watch?fields=resourceId,expiration`, {
+      method: "POST",
+      headers: { ...(await this.auth()), "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Drive watch failed: ${res.status}`);
+    const j = (await res.json()) as { resourceId: string; expiration?: string };
+    return { channelId: opts.channelId, resourceId: j.resourceId, expiration: j.expiration ? Number(j.expiration) : Date.now() + 3600_000 };
+  }
+
+  async stopChannel(opts: { channelId: string; resourceId: string }): Promise<void> {
+    const res = await this.fetchImpl(`${DRIVE}/channels/stop`, {
+      method: "POST",
+      headers: { ...(await this.auth()), "content-type": "application/json" },
+      body: JSON.stringify({ id: opts.channelId, resourceId: opts.resourceId }),
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`Drive channel stop failed: ${res.status}`);
+  }
 }
 
 // In-memory DriveClient for tests.
 export class FakeDriveClient implements DriveClient {
   private folders = new Map<string, string>();
   private files = new Map<string, { content: string; revision: number }>();
+  private channels = new Map<string, { fileId: string; resourceId: string; token: string; expiration: number }>();
   private seq = 0;
 
   async ensureFolder(name: string): Promise<string> {
@@ -90,4 +125,20 @@ export class FakeDriveClient implements DriveClient {
     if (!f) throw new Error("file not found");
     return f.content;
   }
+  async getHeadRevision(fileId: string): Promise<string> {
+    const f = this.files.get(fileId);
+    if (!f) throw new Error("file not found");
+    return String(f.revision);
+  }
+  async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
+    const resourceId = `res-${opts.channelId}`;
+    const expiration = Date.now() + (opts.ttlSeconds ?? 3600) * 1000;
+    this.channels.set(opts.channelId, { fileId, resourceId, token: opts.token, expiration });
+    return { channelId: opts.channelId, resourceId, expiration };
+  }
+  async stopChannel(opts: { channelId: string; resourceId: string }): Promise<void> {
+    this.channels.delete(opts.channelId);
+  }
+  // test helper
+  watched(channelId: string) { return this.channels.get(channelId); }
 }

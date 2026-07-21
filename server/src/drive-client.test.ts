@@ -21,3 +21,30 @@ describe("FakeDriveClient", () => {
     await expect(new FakeDriveClient().readFile("nope")).rejects.toThrow();
   });
 });
+
+describe("FakeDriveClient watch surface", () => {
+  it("getHeadRevision returns the current revision as a string and tracks updates", async () => {
+    const d = new FakeDriveClient();
+    const { fileId, revision } = await d.createFile("f", "n", "{}");
+    expect(await d.getHeadRevision(fileId)).toBe(revision);
+    const { revision: r2 } = await d.updateFile(fileId, "{\"v\":2}");
+    expect(await d.getHeadRevision(fileId)).toBe(r2);
+    expect(r2).not.toBe(revision);
+  });
+  it("watchFile records a channel and returns channelId/resourceId/expiration", async () => {
+    const d = new FakeDriveClient();
+    const { fileId } = await d.createFile("f", "n", "{}");
+    const info = await d.watchFile(fileId, { channelId: "ch1", address: "https://x/webhook", token: "tok" });
+    expect(info.channelId).toBe("ch1");
+    expect(info.resourceId).toBeTypeOf("string");
+    expect(info.expiration).toBeGreaterThan(Date.now());
+    expect(d.watched("ch1")).toMatchObject({ fileId, token: "tok" });
+  });
+  it("stopChannel removes a recorded channel", async () => {
+    const d = new FakeDriveClient();
+    const { fileId } = await d.createFile("f", "n", "{}");
+    const info = await d.watchFile(fileId, { channelId: "ch1", address: "a", token: "t" });
+    await d.stopChannel({ channelId: "ch1", resourceId: info.resourceId });
+    expect(d.watched("ch1")).toBeUndefined();
+  });
+});

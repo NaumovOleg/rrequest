@@ -1,13 +1,7 @@
 import * as vscode from 'vscode'
-import { RestmanPanel } from './panel'
+import { RestmanPanel, ensureBootstrap, getSyncRuntime } from './panel'
 import { SidebarViewProvider } from './sidebar-view'
-import { CollectionStore } from './collection-store'
-import { EnvironmentStore } from './environment-store'
-import { WorkspaceStore } from './workspace-store'
 import { SyncClient } from './sync/sync-client'
-import { SyncStateStore } from './sync/sync-state-store'
-import { SyncManager } from './sync/sync-manager'
-import { buildStoresPort } from './sync/wiring'
 import { signIn } from './sync/login'
 
 export function activate(context: vscode.ExtensionContext) {
@@ -15,11 +9,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('restman.open', () => { RestmanPanel.createOrShow(context) }),
     vscode.window.registerWebviewViewProvider('restman.sidebar', new SidebarViewProvider(context)),
   )
-
-  const base = context.globalStorageUri.fsPath
-  const collections = new CollectionStore(base)
-  const environments = new EnvironmentStore(base)
-  const workspaces = new WorkspaceStore(base)
 
   let cachedSyncToken: string | undefined
   void context.secrets.get('restman.syncToken').then((t) => { cachedSyncToken = t ?? undefined })
@@ -43,25 +32,25 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   )
 
-  const syncManager = () => new SyncManager({
-    client: syncClient(),
-    state: new SyncStateStore(context.globalStorageUri.fsPath),
-    stores: buildStoresPort(collections, environments, workspaces),
-    email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
-  })
   const activeWorkspaceId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
 
   context.subscriptions.push(
     vscode.commands.registerCommand('restman.enableWorkspaceSync', async () => {
       const id = activeWorkspaceId()
       if (!id) return void vscode.window.showWarningMessage('restman: no active workspace')
-      try { await syncManager().enable(id); void vscode.window.showInformationMessage('restman: workspace sync enabled') }
+      await ensureBootstrap(context)
+      const rt = getSyncRuntime()
+      if (!rt) return void vscode.window.showWarningMessage('restman: sync not ready')
+      try { await rt.manager.enable(id); void vscode.window.showInformationMessage('restman: workspace sync enabled') }
       catch (e: any) { void vscode.window.showErrorMessage(`restman: enable sync failed: ${e?.message ?? e}`) }
     }),
     vscode.commands.registerCommand('restman.syncNow', async () => {
       const id = activeWorkspaceId()
       if (!id) return void vscode.window.showWarningMessage('restman: no active workspace')
-      try { await syncManager().pull(id); await syncManager().push(id); void vscode.window.showInformationMessage('restman: synced') }
+      await ensureBootstrap(context)
+      const rt = getSyncRuntime()
+      if (!rt) return void vscode.window.showWarningMessage('restman: sync not ready')
+      try { await rt.manager.pull(id); await rt.manager.push(id); void vscode.window.showInformationMessage('restman: synced') }
       catch (e: any) { void vscode.window.showErrorMessage(`restman: sync failed: ${e?.message ?? e}`) }
     }),
   )

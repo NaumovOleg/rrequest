@@ -14,6 +14,12 @@ import { TrashStore } from './trash-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
+import { SyncClient } from './sync/sync-client'
+import { SyncStateStore } from './sync/sync-state-store'
+import { SyncManager } from './sync/sync-manager'
+import { SyncSocket } from './sync/sync-socket'
+import { buildStoresPort } from './sync/wiring'
+import { createSyncRuntime, isMutating } from './sync/sync-runtime'
 import { newId, defaultHeaders, type HostMessage, type RestRequest, type WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, codiconUri: string, cspSource: string, nonce: string): string {
@@ -43,6 +49,8 @@ function nonce(): string {
 // workspace-filtered tree + environments + workspaces + history, and creates a
 // singleton Hub shared by both the editor panel and the sidebar view.
 let bootstrapPromise: Promise<Hub> | undefined
+let syncRuntimeRef: ReturnType<typeof createSyncRuntime> | undefined
+export function getSyncRuntime(): ReturnType<typeof createSyncRuntime> | undefined { return syncRuntimeRef }
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise
   bootstrapPromise = (async () => {
@@ -144,6 +152,30 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       RestmanPanel.openOrReveal(context, 'grpc', 'gRPC', m)
     }
   })
+
+  // --- sync runtime (shares the router's stores + Hub) ---
+  const syncBaseUrl = (): string => vscode.workspace.getConfiguration('restman').get<string>('syncServerUrl', 'http://localhost:8787')
+  let cachedToken: string | undefined
+  void context.secrets.get('restman.syncToken').then((t) => { cachedToken = t ?? undefined })
+  context.secrets.onDidChange(async (e) => { if (e.key === 'restman.syncToken') cachedToken = (await context.secrets.get('restman.syncToken')) ?? undefined })
+  const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
+
+  const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
+  const manager = new SyncManager({
+    client: syncClient,
+    state: new SyncStateStore(base),
+    stores: buildStoresPort(collections, environments, workspaces),
+    email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
+  })
+  // SyncSocket's onChange references `runtime` before it is assigned; the arrow
+  // defers the read until a message arrives, by which point `runtime` is set.
+  let runtime: ReturnType<typeof createSyncRuntime>
+  const socket = new SyncSocket({ url: syncBaseUrl, token: () => cachedToken, onChange: (m) => { void runtime.onSocketChange(m) } })
+  runtime = createSyncRuntime({ manager, socket, onPulled: async () => { await hub.refresh() } })
+  hub.setAfterDispatch((msg) => { if (isMutating(msg.type)) runtime.schedulePush(activeWsId()) })
+  runtime.start()
+  syncRuntimeRef = runtime
+
   return hub
   })()
   bootstrapPromise.catch(() => { bootstrapPromise = undefined })

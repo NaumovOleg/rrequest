@@ -28,9 +28,18 @@ describe('SyncClient', () => {
     })
     expect(await client(f).enableSync('w1', 'W', '{"v":1}')).toEqual({ driveFileId: 'f1', revision: '1' })
   })
-  it('push PUTs to /workspaces/:id', async () => {
-    const f = fetchMock((url, init) => { expect(url).toBe('http://localhost:8787/workspaces/w1'); expect(init.method).toBe('PUT'); return { status: 200, body: { revision: '2' } } })
-    expect(await client(f).push('w1', '{"v":2}')).toEqual({ revision: '2' })
+  it('push PUTs {snapshot, baseRevision} and returns ok on 200', async () => {
+    const f = fetchMock((url, init) => {
+      expect(url).toBe('http://localhost:8787/workspaces/w1')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(init.body)).toEqual({ snapshot: '{"v":2}', baseRevision: '1' })
+      return { status: 200, body: { revision: '2' } }
+    })
+    expect(await client(f).push('w1', '{"v":2}', '1')).toEqual({ ok: true, revision: '2' })
+  })
+  it('push returns a conflict object on 409', async () => {
+    const f = fetchMock(() => ({ status: 409, body: { snapshot: '{"v":9}', revision: '5' } }))
+    expect(await client(f).push('w1', '{"v":2}', '1')).toEqual({ ok: false, conflict: true, snapshot: '{"v":9}', revision: '5' })
   })
   it('pull GETs /workspaces/:id', async () => {
     const f = fetchMock(() => ({ status: 200, body: { snapshot: '{"v":2}', revision: '2' } }))
@@ -38,6 +47,6 @@ describe('SyncClient', () => {
   })
   it('throws on a non-2xx response', async () => {
     const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
-    await expect(client(f).push('w1', '{}')).rejects.toThrow(/403/)
+    await expect(client(f).push('w1', '{}', '1')).rejects.toThrow(/403/)
   })
 })

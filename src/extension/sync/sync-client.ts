@@ -7,6 +7,10 @@ export type RemoteWorkspace = {
   updatedAt: number
 }
 
+export type PushResult =
+  | { ok: true; revision: string }
+  | { ok: false; conflict: true; snapshot: string; revision: string }
+
 export class SyncClient {
   private baseUrl: string
   private getToken: () => string | undefined
@@ -39,8 +43,19 @@ export class SyncClient {
   enableSync(workspaceId: string, name: string, snapshot: string): Promise<{ driveFileId: string; revision: string }> {
     return this.call('/workspaces', { method: 'POST', body: { workspaceId, name, snapshot } })
   }
-  push(id: string, snapshot: string): Promise<{ revision: string }> {
-    return this.call(`/workspaces/${id}`, { method: 'PUT', body: { snapshot } })
+  async push(id: string, snapshot: string, baseRevision: string): Promise<PushResult> {
+    const res = await this.fetchImpl(`${this.baseUrl}/workspaces/${id}`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${this.getToken() ?? ''}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ snapshot, baseRevision }),
+    })
+    if (res.status === 409) {
+      const body = (await res.json()) as { snapshot: string; revision: string }
+      return { ok: false, conflict: true, snapshot: body.snapshot, revision: body.revision }
+    }
+    if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
+    const body = (await res.json()) as { revision: string }
+    return { ok: true, revision: body.revision }
   }
   pull(id: string): Promise<{ snapshot: string; revision: string }> {
     return this.call(`/workspaces/${id}`)

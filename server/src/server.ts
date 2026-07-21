@@ -5,6 +5,7 @@ import { GoogleOAuth } from "./google-oauth.js";
 import { PendingStates } from "./pending-states.js";
 import { WorkspaceStore } from "./workspace-store.js";
 import { makeDriveFactory } from "./drive-factory.js";
+import { Realtime } from "./realtime.js";
 
 const config = loadConfig();
 const workspaces = new WorkspaceStore(config.dbPath);
@@ -20,6 +21,7 @@ const app = buildApp({
   states: new PendingStates(),
   workspaces,
   driveFor,
+  realtime: new Realtime(),
 });
 
 app.listen({ port: config.port, host: "0.0.0.0" })

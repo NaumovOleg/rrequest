@@ -5,6 +5,7 @@ import type { GoogleOAuth } from "./google-oauth.js";
 import type { PendingStates } from "./pending-states.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import type { DriveFactory } from "./drive-factory.js";
+import type { Realtime } from "./realtime.js";
 import { randomUUID } from "node:crypto";
 import { signSession } from "./jwt.js";
 import { requireUser } from "./auth.js";
@@ -17,6 +18,7 @@ export type AppDeps = {
   states: PendingStates;
   workspaces: WorkspaceStore;
   driveFor: DriveFactory;
+  realtime: Realtime;
 };
 
 function stripSnapshotSecrets(snapshot: string): string {
@@ -116,10 +118,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const ws = deps.workspaces.get(id);
     if (!ws) return reply.code(404).send({ error: "not found" });
     if (ws.ownerUserId !== user.id) return reply.code(403).send({ error: "forbidden" });
-    const { snapshot } = req.body as { snapshot?: string };
-    if (typeof snapshot !== "string") return reply.code(400).send({ error: "snapshot required" });
-    const { revision } = await deps.driveFor(user).updateFile(ws.driveFileId, snapshot);
+    const { snapshot, baseRevision } = req.body as { snapshot?: string; baseRevision?: string };
+    if (typeof snapshot !== "string" || typeof baseRevision !== "string") return reply.code(400).send({ error: "snapshot + baseRevision required" });
+    const drive = deps.driveFor(user);
+    if (baseRevision !== ws.revision) {
+      const current = await drive.readFile(ws.driveFileId);
+      return reply.code(409).send({ snapshot: current, revision: ws.revision });
+    }
+    const clean = stripSnapshotSecrets(snapshot);
+    const { revision } = await drive.updateFile(ws.driveFileId, clean);
     deps.workspaces.setRevision(id, revision, Date.now());
+    deps.realtime.broadcast(id, { type: "workspace-changed", workspaceId: id, revision, updatedBy: user.email });
     return { revision };
   });
 

@@ -5,6 +5,7 @@ import { WorkspaceStore } from "./workspace-store";
 import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
+import { Realtime } from "./realtime";
 import { signSession } from "./jwt";
 
 const cfg = {
@@ -18,7 +19,7 @@ function make() {
   const user = users.upsertByGoogle({ googleSub: "g", email: "a@x.com", refreshToken: "rt" });
   const workspaces = new WorkspaceStore(":memory:");
   const drive = new FakeDriveClient();
-  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive });
+  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime() });
   return { app, user, users, workspaces, drive, token: signSession(user.id, "j") };
 }
 

@@ -33,4 +33,37 @@ describe("POST /webhook", () => {
     const res = await app.inject({ method: "POST", url: "/webhook", headers: { "x-goog-resource-state": "update" }, payload: "" });
     expect(res.statusCode).toBe(200);
   });
+  it("returns 200 for an empty body with content-type: application/json (Google Drive push notification shape)", async () => {
+    const users = new UserStore(":memory:", "k");
+    const workspaces = new WorkspaceStore(":memory:");
+    const watch = new WatchChannelStore(":memory:");
+    const drive = new FakeDriveClient();
+    const realtime = new Realtime();
+    const watchService = new WatchService({ config: cfg, users, workspaces, watch, driveFor: () => drive, realtime });
+    const spy = vi.spyOn(watchService, "handleNotification");
+    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, watchService });
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-channel-id": "c1",
+        "x-goog-channel-token": "t1",
+        "x-goog-resource-state": "update",
+      },
+      payload: "",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledWith({ channelId: "c1", token: "t1", resourceState: "update" });
+  });
+  it("returns 200 for a non-empty JSON body, ignoring the body entirely", async () => {
+    const app = buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime() });
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook",
+      headers: { "content-type": "application/json" },
+      payload: '{"anything":1}',
+    });
+    expect(res.statusCode).toBe(200);
+  });
 });

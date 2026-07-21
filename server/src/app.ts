@@ -49,13 +49,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   app.get("/health", async () => ({ ok: true }));
 
-  app.post("/webhook", async (req, reply) => {
-    const h = req.headers as Record<string, string | undefined>;
-    const channelId = h["x-goog-channel-id"] ?? "";
-    const token = h["x-goog-channel-token"] ?? "";
-    const resourceState = h["x-goog-resource-state"] ?? "";
-    await deps.watchService?.handleNotification({ channelId, token, resourceState });
-    return reply.code(200).send({ ok: true });
+  // Google Drive `files.watch` push notifications arrive with headers set but
+  // an empty body, sometimes tagged `content-type: application/json`.
+  // Fastify's default JSON body parser 400s on an empty JSON body
+  // (FST_ERR_CTP_EMPTY_JSON_BODY), which would make Google retry and
+  // eventually disable the channel. This route never reads req.body, so we
+  // scope a permissive no-op content-type parser to this route only via an
+  // encapsulated child plugin -- the parent app's JSON parser (needed by
+  // /workspaces etc.) is untouched.
+  app.register(async (webhook) => {
+    webhook.removeAllContentTypeParsers();
+    webhook.addContentTypeParser("*", (_req, _payload, done) => done(null, undefined));
+    webhook.post("/webhook", async (req, reply) => {
+      const h = req.headers as Record<string, string | undefined>;
+      const channelId = h["x-goog-channel-id"] ?? "";
+      const token = h["x-goog-channel-token"] ?? "";
+      const resourceState = h["x-goog-resource-state"] ?? "";
+      await deps.watchService?.handleNotification({ channelId, token, resourceState });
+      return reply.code(200).send({ ok: true });
+    });
   });
 
   app.get("/auth/start", async (req, reply) => {

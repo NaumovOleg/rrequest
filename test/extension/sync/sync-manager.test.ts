@@ -17,6 +17,7 @@ function stores(initial: { collections: Collection[]; environments: Environment[
   const box = { ...initial, applied: null as any }
   return {
     port: {
+      getName: async () => 'RealName',
       getCollections: async () => box.collections,
       getEnvironments: async () => box.environments,
       applyPulled: async (_id: string, collections: Collection[], environments: Environment[]) => { box.applied = { collections, environments } },
@@ -30,8 +31,9 @@ describe('SyncManager', () => {
     const client = { enableSync: vi.fn(async () => ({ driveFileId: 'f1', revision: '1' })), push: vi.fn(), pull: vi.fn() } as any
     const { port } = stores({ collections: [col()], environments: [env([{ key: 'token', value: 'sekret', enabled: true, secret: true }])] })
     const state = new SyncStateStore(dir)
-    await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).enable('w1', 'W')
+    await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).enable('w1')
     const snap = JSON.parse(client.enableSync.mock.calls[0][2])
+    expect(snap.name).toBe('RealName')
     expect(snap.environments[0].variables[0].value).toBe('') // secret stripped
     expect((await state.get('w1'))?.synced).toBe(true)
     expect((await state.get('w1'))?.lastRevision).toBe('1')
@@ -53,5 +55,29 @@ describe('SyncManager', () => {
     const { port } = stores({ collections: [], environments: [] })
     await new SyncManager({ client, state: new SyncStateStore(dir), stores: port, email: () => 'a@x.com' }).push('w1')
     expect(client.push).not.toHaveBeenCalled()
+  })
+
+  it('push merges and retries on conflict, then records the new revision', async () => {
+    const localCol = { id: 'c-local', name: 'Local', workspaceId: 'w1', requests: [] }
+    const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'RealName', collections: [{ id: 'c-remote', name: 'Remote', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
+    let pushes = 0
+    const client = {
+      enableSync: vi.fn(),
+      pull: vi.fn(),
+      push: vi.fn(async (_id: string, snapshot: string, _base: string) => {
+        pushes += 1
+        if (pushes === 1) return { ok: false, conflict: true, snapshot: remoteSnap, revision: '7' }
+        // second push should carry both collections (merged)
+        const parsed = JSON.parse(snapshot)
+        expect(parsed.collections.map((c: any) => c.id).sort()).toEqual(['c-local', 'c-remote'])
+        return { ok: true, revision: '8' }
+      }),
+    } as any
+    const { port } = stores({ collections: [localCol], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f1', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).push('w1')
+    expect(pushes).toBe(2)
+    expect((await state.get('w1'))?.lastRevision).toBe('8')
   })
 })

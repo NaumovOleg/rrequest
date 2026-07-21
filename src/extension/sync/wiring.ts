@@ -1,10 +1,15 @@
 import type { Collection, Environment } from '../../shared/types'
 import type { CollectionStore } from '../collection-store'
 import type { EnvironmentStore } from '../environment-store'
+import type { WorkspaceStore } from '../workspace-store'
 import type { StoresPort } from './sync-manager'
 
-export function buildStoresPort(collections: CollectionStore, environments: EnvironmentStore): StoresPort {
+export function buildStoresPort(collections: CollectionStore, environments: EnvironmentStore, workspaces: WorkspaceStore): StoresPort {
   return {
+    async getName(workspaceId: string): Promise<string> {
+      const ws = (await workspaces.list()).find((w) => w.id === workspaceId)
+      return ws?.name ?? workspaceId
+    },
     async getCollections(workspaceId: string): Promise<Collection[]> {
       return (await collections.list()).filter((c) => (c.workspaceId || workspaceId) === workspaceId)
     },

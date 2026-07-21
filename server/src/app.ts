@@ -6,6 +6,7 @@ import type { PendingStates } from "./pending-states.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import type { DriveFactory } from "./drive-factory.js";
 import type { Realtime } from "./realtime.js";
+import type { WatchService } from "./watch-service.js";
 import { randomUUID } from "node:crypto";
 import { signSession } from "./jwt.js";
 import { requireUser } from "./auth.js";
@@ -19,6 +20,7 @@ export type AppDeps = {
   workspaces: WorkspaceStore;
   driveFor: DriveFactory;
   realtime: Realtime;
+  watchService?: WatchService;
 };
 
 function stripSnapshotSecrets(snapshot: string): string {
@@ -46,6 +48,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: false });
 
   app.get("/health", async () => ({ ok: true }));
+
+  app.post("/webhook", async (req, reply) => {
+    const h = req.headers as Record<string, string | undefined>;
+    const channelId = h["x-goog-channel-id"] ?? "";
+    const token = h["x-goog-channel-token"] ?? "";
+    const resourceState = h["x-goog-resource-state"] ?? "";
+    await deps.watchService?.handleNotification({ channelId, token, resourceState });
+    return reply.code(200).send({ ok: true });
+  });
 
   app.get("/auth/start", async (req, reply) => {
     const cb = (req.query as { cb?: string }).cb;

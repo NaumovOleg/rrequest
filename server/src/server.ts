@@ -6,10 +6,12 @@ import { PendingStates } from "./pending-states.js";
 import { WorkspaceStore } from "./workspace-store.js";
 import { makeDriveFactory } from "./drive-factory.js";
 import { Realtime } from "./realtime.js";
+import { attachWsServer } from "./ws-server.js";
 
 const config = loadConfig();
 const workspaces = new WorkspaceStore(config.dbPath);
 const driveFor = makeDriveFactory(config);
+const realtime = new Realtime();
 const app = buildApp({
   config,
   users: new UserStore(config.dbPath, config.tokenEncKey),
@@ -21,9 +23,12 @@ const app = buildApp({
   states: new PendingStates(),
   workspaces,
   driveFor,
-  realtime: new Realtime(),
+  realtime,
 });
 
 app.listen({ port: config.port, host: "0.0.0.0" })
-  .then((addr) => console.log(`restman sync server on ${addr}`))
+  .then((addr) => {
+    attachWsServer({ server: app.server, jwtSecret: config.jwtSecret, workspaces, realtime });
+    console.log(`restman sync server on ${addr}`);
+  })
   .catch((err) => { console.error(err); process.exit(1); });

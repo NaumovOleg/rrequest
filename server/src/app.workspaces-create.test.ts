@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { buildApp } from "./app";
 import { UserStore } from "./user-store";
 import { WorkspaceStore } from "./workspace-store";
+import { WatchChannelStore } from "./watch-channel-store";
+import { WatchService } from "./watch-service";
 import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
@@ -105,5 +107,27 @@ describe("POST /workspaces", () => {
     const stored = JSON.parse(get.json().snapshot);
     expect(stored.environments[0].variables[0].value).toBe("");
     expect(stored.environments[0].variables[1].value).toBe("visible");
+  });
+
+  it("registers a watch channel when a watchService is configured", async () => {
+    const users = new UserStore(":memory:", "k");
+    const user = users.upsertByGoogle({ googleSub: "g", email: "a@x.com", refreshToken: "rt" });
+    const workspaces = new WorkspaceStore(":memory:");
+    const watch = new WatchChannelStore(":memory:");
+    const drive = new FakeDriveClient();
+    const watchService = new WatchService({
+      config: { publicWebhookUrl: "https://x", channelTtlSeconds: 604800 },
+      users, workspaces, watch, driveFor: () => drive, realtime: new Realtime(),
+    });
+    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime(), watchService });
+    const token = signSession(user.id, "j");
+
+    const res = await app.inject({
+      method: "POST", url: "/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { workspaceId: "ws1", name: "Team", snapshot: '{"version":1}' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(watch.getByWorkspaceId("ws1")).toBeDefined();
   });
 });

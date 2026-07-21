@@ -125,6 +125,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
     const now = Date.now();
     deps.workspaces.upsert({ id: workspaceId, name, ownerUserId: user.id, driveFileId: fileId, hashFolderId, revision, updatedAt: now });
+    await deps.watchService?.ensureWatch(workspaceId);
     return reply.code(201).send({ driveFileId: fileId, revision });
   });
 

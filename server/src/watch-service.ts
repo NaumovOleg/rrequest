@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { UserStore } from "./user-store.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import type { WatchChannelStore } from "./watch-channel-store.js";
@@ -5,10 +6,11 @@ import type { DriveFactory } from "./drive-factory.js";
 import type { Realtime } from "./realtime.js";
 
 export type WatchDeps = {
-  // NOTE: Config does not yet have `publicWebhookUrl` (added in a later task).
-  // Using an inline structural type here (instead of `Pick<Config, "publicWebhookUrl">`)
-  // keeps this compiling now and remains compatible once Config gains the field.
-  config: { publicWebhookUrl?: string };
+  // NOTE: Config does not yet have `publicWebhookUrl` / `channelTtlSeconds`
+  // (added in a later task). Using an inline structural type here (instead of
+  // `Pick<Config, "publicWebhookUrl" | "channelTtlSeconds">`) keeps this
+  // compiling now and remains compatible once Config gains the fields.
+  config: { publicWebhookUrl?: string; channelTtlSeconds?: number };
   users: UserStore;
   workspaces: WorkspaceStore;
   watch: WatchChannelStore;
@@ -48,5 +50,24 @@ export class WatchService {
     if (!ch) return "unknown";
     if (ch.token !== input.token) return "unauthorized";
     return this.detectAndBroadcast(ch.workspaceId);
+  }
+
+  async ensureWatch(workspaceId: string): Promise<void> {
+    const address = this.deps.config.publicWebhookUrl;
+    if (!address) return;
+    const ws = this.deps.workspaces.get(workspaceId);
+    if (!ws) return;
+    const drive = this.driveForOwner(ws.ownerUserId);
+    if (!drive) return;
+    const existing = this.deps.watch.getByWorkspaceId(workspaceId);
+    if (existing) {
+      try { await drive.stopChannel({ channelId: existing.channelId, resourceId: existing.resourceId }); } catch { /* best-effort */ }
+    }
+    const channelId = randomUUID();
+    const token = randomUUID();
+    const info = await drive.watchFile(ws.driveFileId, {
+      channelId, token, address: `${address.replace(/\/$/, "")}/webhook`, ttlSeconds: this.deps.config.channelTtlSeconds,
+    });
+    this.deps.watch.upsert({ workspaceId, channelId, resourceId: info.resourceId, token, expiration: info.expiration });
   }
 }

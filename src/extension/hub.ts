@@ -12,6 +12,7 @@ type Sink = (m: HostMessage) => void
 export class Hub {
   private readonly sinks = new Map<string, Sink>()
   private onOpen?: (m: HostMessage) => void
+  private afterDispatch?: (msg: WebviewMessage) => void
   constructor(
     private readonly route: (m: WebviewMessage) => Promise<HostMessage | undefined>,
     private readonly snapshot: () => Promise<HostMessage[]>,
@@ -24,6 +25,14 @@ export class Hub {
 
   // The host wires this to create/reveal the panel a reply should open in.
   setOpen(fn: (m: HostMessage) => void) { this.onOpen = fn }
+
+  // The host wires this to trigger sync (e.g. schedule a push) after a mutation.
+  setAfterDispatch(fn: (msg: WebviewMessage) => void): void { this.afterDispatch = fn }
+
+  // Re-broadcast the current snapshot to all sinks (used after an incoming sync pull).
+  async refresh(): Promise<void> {
+    for (const m of await this.snapshot()) this.broadcast(m)
+  }
 
   // Direct post to one sink (used by the WsManager to reach the ws panel).
   emitTo(id: string, m: HostMessage): void { this.postTo(id, m) }
@@ -41,5 +50,6 @@ export class Hub {
       // tree/environments/workspaces/history replies are covered by the snapshot below
     }
     for (const m of await this.snapshot()) this.broadcast(m)
+    this.afterDispatch?.(msg)
   }
 }

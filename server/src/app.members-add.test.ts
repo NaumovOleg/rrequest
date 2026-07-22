@@ -53,4 +53,20 @@ describe("POST /workspaces/:id/members", () => {
     const res = await t.app.inject({ method: "POST", url: "/workspaces/w1/members", headers: { authorization: `Bearer ${signSession(t.owner.id, "j")}` }, payload: { email: "e@x.com", role: "owner" } });
     expect(res.statusCode).toBe(400);
   });
+  it("re-inviting the same email updates the existing membership in place instead of duplicating it", async () => {
+    const t = await seeded();
+    const first = await t.app.inject({ method: "POST", url: "/workspaces/w1/members", headers: { authorization: `Bearer ${signSession(t.owner.id, "j")}` }, payload: { email: "e@x.com", role: "editor" } });
+    expect(first.statusCode).toBe(201);
+
+    const second = await t.app.inject({ method: "POST", url: "/workspaces/w1/members", headers: { authorization: `Bearer ${signSession(t.owner.id, "j")}` }, payload: { email: "e@x.com", role: "viewer" } });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ role: "viewer" });
+
+    expect(t.memberships.listByWorkspace("w1")).toHaveLength(1);
+    expect(t.memberships.roleForUser("w1", t.existing.id)).toBe("viewer");
+
+    const perms = t.drive.permissions(t.fileId).filter((p) => p.email === "e@x.com");
+    expect(perms).toHaveLength(1);
+    expect(perms[0]).toMatchObject({ email: "e@x.com", role: "reader" });
+  });
 });

@@ -50,6 +50,17 @@ export class MembershipStore {
     const r = this.db.prepare("SELECT * FROM memberships WHERE workspace_id = ? AND pending_email = ?").get(workspaceId, email) as Row | undefined;
     return r ? toM(r) : undefined;
   }
+  findByWorkspaceUser(workspaceId: string, userId: string): Membership | undefined {
+    const r = this.db.prepare("SELECT * FROM memberships WHERE workspace_id = ? AND user_id = ?").get(workspaceId, userId) as Row | undefined;
+    return r ? toM(r) : undefined;
+  }
+  update(id: string, patch: { role?: Role; permissionId?: string }): void {
+    const cur = this.getById(id);
+    if (!cur) return;
+    const role = patch.role ?? cur.role;
+    const permissionId = patch.permissionId ?? cur.permissionId;
+    this.db.prepare("UPDATE memberships SET role = ?, permission_id = ? WHERE id = ?").run(role, permissionId, id);
+  }
   resolvePending(email: string, userId: string): number {
     const info = this.db.prepare("UPDATE memberships SET user_id = ?, pending_email = NULL WHERE pending_email = ?").run(userId, email);
     return info.changes;

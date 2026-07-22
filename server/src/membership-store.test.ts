@@ -31,4 +31,24 @@ describe("MembershipStore", () => {
     expect(s.getById(m.id)).toBeUndefined();
     expect(s.listByWorkspace("w1")).toHaveLength(0);
   });
+
+  describe("findByWorkspaceUser / update", () => {
+    it("findByWorkspaceUser returns the resolved membership; undefined for a non-member", () => {
+      const s = new MembershipStore(":memory:");
+      const m = s.add({ ...base, userId: "u1" });
+      expect(s.findByWorkspaceUser("w1", "u1")).toMatchObject({ id: m.id, workspaceId: "w1", userId: "u1", role: "editor" });
+      expect(s.findByWorkspaceUser("w1", "nobody")).toBeUndefined();
+      expect(s.findByWorkspaceUser("other-ws", "u1")).toBeUndefined();
+    });
+    it("update changes role and/or permissionId in place, leaving other fields intact", () => {
+      const s = new MembershipStore(":memory:");
+      const m = s.add({ ...base, userId: "u1" });
+      s.update(m.id, { role: "viewer", permissionId: "p2" });
+      expect(s.getById(m.id)).toMatchObject({ id: m.id, workspaceId: "w1", userId: "u1", role: "viewer", permissionId: "p2" });
+      expect(s.listByWorkspace("w1")).toHaveLength(1);
+      // partial patch: only role changes, permissionId retained
+      s.update(m.id, { role: "editor" });
+      expect(s.getById(m.id)).toMatchObject({ role: "editor", permissionId: "p2" });
+    });
+  });
 });

@@ -193,8 +193,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!email || (role !== "editor" && role !== "viewer")) return reply.code(400).send({ error: "email + role (editor|viewer) required" });
     const drive = ownerDriveFor(deps, ws);
     if (!drive) return reply.code(500).send({ error: "owner unavailable" });
-    const { permissionId } = await drive.createPermission(ws.driveFileId, { email, role: role === "editor" ? "writer" : "reader", sendNotificationEmail: true });
     const account = deps.users.getByEmail(email);
+    const driveRole = role === "editor" ? "writer" : "reader";
+    const existing = (account ? deps.memberships.findByWorkspaceUser(id, account.id) : undefined)
+      ?? deps.memberships.findByWorkspaceEmail(id, email);
+    if (existing) {
+      // update in place: revoke the old permission, grant the new one (writer/reader may differ), update the row
+      try { await drive.deletePermission(ws.driveFileId, existing.permissionId); } catch { /* best-effort */ }
+      const { permissionId } = await drive.createPermission(ws.driveFileId, { email, role: driveRole, sendNotificationEmail: false });
+      deps.memberships.update(existing.id, { role, permissionId });
+      return reply.code(200).send({ id: existing.id, email, role, pending: !existing.userId });
+    }
+    const { permissionId } = await drive.createPermission(ws.driveFileId, { email, role: driveRole, sendNotificationEmail: true });
     const m = deps.memberships.add(account
       ? { workspaceId: id, userId: account.id, role, permissionId }
       : { workspaceId: id, pendingEmail: email, role, permissionId });

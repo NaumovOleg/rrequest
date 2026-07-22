@@ -181,5 +181,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { snapshot, revision: ws.revision, role };
   });
 
+  app.post("/workspaces/:id/members", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const id = (req.params as { id: string }).id;
+    const ws = deps.workspaces.get(id);
+    if (!ws) return reply.code(404).send({ error: "not found" });
+    if (resolveRole(deps, id, user.id) !== "owner") return reply.code(403).send({ error: "forbidden" });
+    const { email, role } = req.body as { email?: string; role?: string };
+    if (!email || (role !== "editor" && role !== "viewer")) return reply.code(400).send({ error: "email + role (editor|viewer) required" });
+    const drive = ownerDriveFor(deps, ws);
+    if (!drive) return reply.code(500).send({ error: "owner unavailable" });
+    const { permissionId } = await drive.createPermission(ws.driveFileId, { email, role: role === "editor" ? "writer" : "reader", sendNotificationEmail: true });
+    const account = deps.users.getByEmail(email);
+    const m = deps.memberships.add(account
+      ? { workspaceId: id, userId: account.id, role, permissionId }
+      : { workspaceId: id, pendingEmail: email, role, permissionId });
+    return reply.code(201).send({ id: m.id, email, role, pending: !account });
+  });
+
   return app;
 }

@@ -35,4 +35,10 @@ export class UserStore {
     if (!r) return undefined;
     return { id: r.id, email: r.email, googleSub: r.google_sub, refreshToken: decrypt(r.refresh_token, this.encKey) };
   }
+
+  getByEmail(email: string): User | undefined {
+    const r = this.db.prepare("SELECT * FROM users WHERE email = ?").get(email) as Row | undefined;
+    if (!r) return undefined;
+    return { id: r.id, email: r.email, googleSub: r.google_sub, refreshToken: decrypt(r.refresh_token, this.encKey) };
+  }
 }

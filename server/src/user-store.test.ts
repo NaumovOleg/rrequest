@@ -21,3 +21,13 @@ describe("UserStore", () => {
     expect(new UserStore(":memory:", "enc").getById("nope")).toBeUndefined();
   });
 });
+
+describe("UserStore.getByEmail", () => {
+  it("returns the user with the given email, or undefined", () => {
+    const s = new UserStore(":memory:", "enckey");
+    const u = s.upsertByGoogle({ googleSub: "g1", email: "a@x.com", refreshToken: "rt1" });
+    expect(s.getByEmail("a@x.com")?.id).toBe(u.id);
+    expect(s.getByEmail("a@x.com")?.refreshToken).toBe("rt1");
+    expect(s.getByEmail("missing@x.com")).toBeUndefined();
+  });
+});

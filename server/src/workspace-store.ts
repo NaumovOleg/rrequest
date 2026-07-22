@@ -57,4 +57,8 @@ export class WorkspaceStore {
   setRevision(id: string, revision: string, updatedAt: number): void {
     this.db.prepare("UPDATE workspaces SET revision = ?, updated_at = ? WHERE id = ?").run(revision, updatedAt, id);
   }
+
+  allIds(): string[] {
+    return (this.db.prepare("SELECT id FROM workspaces").all() as { id: string }[]).map((r) => r.id);
+  }
 }

@@ -70,4 +70,25 @@ export class WatchService {
     });
     this.deps.watch.upsert({ workspaceId, channelId, resourceId: info.resourceId, token, expiration: info.expiration });
   }
+
+  async pollAll(): Promise<number> {
+    let broadcast = 0;
+    for (const id of this.deps.workspaces.allIds()) {
+      try { if ((await this.detectAndBroadcast(id)) === "broadcast") broadcast += 1; }
+      catch { /* transient Drive/network error — next tick retries */ }
+    }
+    return broadcast;
+  }
+
+  async renewExpiring(withinMs: number): Promise<number> {
+    const now = this.now();
+    let renewed = 0;
+    for (const ch of this.deps.watch.all()) {
+      if (ch.expiration - now <= withinMs) {
+        try { await this.ensureWatch(ch.workspaceId); renewed += 1; }
+        catch { /* best-effort; next tick retries */ }
+      }
+    }
+    return renewed;
+  }
 }

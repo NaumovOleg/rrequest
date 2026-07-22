@@ -200,5 +200,40 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return reply.code(201).send({ id: m.id, email, role, pending: !account });
   });
 
+  app.get("/workspaces/:id/members", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const id = (req.params as { id: string }).id;
+    const ws = deps.workspaces.get(id);
+    if (!ws) return reply.code(404).send({ error: "not found" });
+    if (!resolveRole(deps, id, user.id)) return reply.code(403).send({ error: "forbidden" });
+    const ownerEmail = deps.users.getById(ws.ownerUserId)?.email ?? "";
+    const members = [
+      { email: ownerEmail, role: "owner" as const, pending: false },
+      ...deps.memberships.listByWorkspace(id).map((m) => ({
+        id: m.id,
+        email: m.userId ? (deps.users.getById(m.userId)?.email ?? "") : (m.pendingEmail ?? ""),
+        role: m.role,
+        pending: !m.userId,
+      })),
+    ];
+    return { members };
+  });
+
+  app.delete("/workspaces/:id/members/:memberId", async (req, reply) => {
+    const user = requireUser(req, deps);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const { id, memberId } = req.params as { id: string; memberId: string };
+    const ws = deps.workspaces.get(id);
+    if (!ws) return reply.code(404).send({ error: "not found" });
+    if (resolveRole(deps, id, user.id) !== "owner") return reply.code(403).send({ error: "forbidden" });
+    const m = deps.memberships.getById(memberId);
+    if (!m || m.workspaceId !== id) return reply.code(404).send({ error: "member not found" });
+    const drive = ownerDriveFor(deps, ws);
+    if (drive) { try { await drive.deletePermission(ws.driveFileId, m.permissionId); } catch { /* best-effort */ } }
+    deps.memberships.remove(memberId);
+    return { ok: true };
+  });
+
   return app;
 }

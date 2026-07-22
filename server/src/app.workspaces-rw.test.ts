@@ -6,6 +6,7 @@ import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
 import { Realtime } from "./realtime";
+import { MembershipStore } from "./membership-store";
 import { signSession } from "./jwt";
 
 const cfg = {
@@ -21,7 +22,7 @@ async function seeded() {
   const other = users.upsertByGoogle({ googleSub: "g2", email: "b@x.com", refreshToken: "rt" });
   const workspaces = new WorkspaceStore(":memory:");
   const drive = new FakeDriveClient();
-  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime() });
+  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
   const tokenOwner = signSession(owner.id, "j");
   await app.inject({ method: "POST", url: "/workspaces", headers: { authorization: `Bearer ${tokenOwner}` }, payload: { workspaceId: "ws1", name: "Team", snapshot: '{"v":1}' } });
   return { app, workspaces, tokenOwner, tokenOther: signSession(other.id, "j") };
@@ -46,7 +47,7 @@ describe("workspace read/write", () => {
     await app.inject({ method: "PUT", url: "/workspaces/ws1", headers: { authorization: `Bearer ${tokenOwner}` }, payload: { snapshot: '{"v":2}', baseRevision: "1" } });
     const res = await app.inject({ method: "GET", url: "/workspaces/ws1", headers: { authorization: `Bearer ${tokenOwner}` } });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ snapshot: '{"v":2}', revision: "2" });
+    expect(res.json()).toEqual({ snapshot: '{"v":2}', revision: "2", role: "owner" });
   });
   it("403 when a non-owner tries to push", async () => {
     const { app, tokenOther } = await seeded();

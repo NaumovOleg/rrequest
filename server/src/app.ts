@@ -11,6 +11,8 @@ import { randomUUID } from "node:crypto";
 import { signSession } from "./jwt.js";
 import { requireUser } from "./auth.js";
 import { folderNameForUser } from "./drive-factory.js";
+import type { MembershipStore } from "./membership-store.js";
+import { resolveRole, ownerDriveFor } from "./authz.js";
 
 export type AppDeps = {
   config: Config;
@@ -21,6 +23,7 @@ export type AppDeps = {
   driveFor: DriveFactory;
   realtime: Realtime;
   watchService?: WatchService;
+  memberships: MembershipStore;
 };
 
 function stripSnapshotSecrets(snapshot: string): string {
@@ -162,9 +165,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const id = (req.params as { id: string }).id;
     const ws = deps.workspaces.get(id);
     if (!ws) return reply.code(404).send({ error: "not found" });
-    if (ws.ownerUserId !== user.id) return reply.code(403).send({ error: "forbidden" });
-    const snapshot = await deps.driveFor(user).readFile(ws.driveFileId);
-    return { snapshot, revision: ws.revision };
+    const role = resolveRole(deps, id, user.id);
+    if (!role) return reply.code(403).send({ error: "forbidden" });
+    const drive = ownerDriveFor(deps, ws);
+    if (!drive) return reply.code(500).send({ error: "owner unavailable" });
+    const snapshot = await drive.readFile(ws.driveFileId);
+    return { snapshot, revision: ws.revision, role };
   });
 
   return app;

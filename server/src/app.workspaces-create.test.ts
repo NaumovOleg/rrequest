@@ -8,6 +8,7 @@ import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
 import { Realtime } from "./realtime";
+import { MembershipStore } from "./membership-store";
 import { signSession } from "./jwt";
 
 const cfg = {
@@ -22,7 +23,7 @@ function make() {
   const user = users.upsertByGoogle({ googleSub: "g", email: "a@x.com", refreshToken: "rt" });
   const workspaces = new WorkspaceStore(":memory:");
   const drive = new FakeDriveClient();
-  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime() });
+  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
   return { app, user, users, workspaces, drive, token: signSession(user.id, "j") };
 }
 
@@ -120,7 +121,7 @@ describe("POST /workspaces", () => {
       config: { publicWebhookUrl: "https://x", channelTtlSeconds: 604800 },
       users, workspaces, watch, driveFor: () => drive, realtime: new Realtime(),
     });
-    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime(), watchService });
+    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime: new Realtime(), watchService, memberships: new MembershipStore(":memory:") });
     const token = signSession(user.id, "j");
 
     const res = await app.inject({

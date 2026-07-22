@@ -7,6 +7,7 @@ import { verifySession } from "./jwt";
 import { WorkspaceStore } from "./workspace-store";
 import { FakeDriveClient } from "./drive-client";
 import { Realtime } from "./realtime";
+import { MembershipStore } from "./membership-store";
 
 const cfg = {
   port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k",
@@ -23,7 +24,7 @@ function makeGoogle() {
 function make() {
   const states = new PendingStates();
   const users = new UserStore(":memory:", "k");
-  const app = buildApp({ config: cfg, users, google: makeGoogle(), states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime() });
+  const app = buildApp({ config: cfg, users, google: makeGoogle(), states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
   return { app, states, users };
 }
 
@@ -76,7 +77,7 @@ describe("auth routes", () => {
       getToken: async () => { throw new Error("bad code"); },
       verifyIdToken: async () => ({ getPayload: () => ({}) }),
     } as any, "cid");
-    const app = buildApp({ config: cfg, users, google, states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime() });
+    const app = buildApp({ config: cfg, users, google, states, workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
     states.put("state-x", "http://localhost:5000");
     const res = await app.inject({ method: "GET", url: "/auth/callback?code=bad&state=state-x" });
     expect(res.statusCode).toBe(400);

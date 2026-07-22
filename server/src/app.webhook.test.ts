@@ -8,6 +8,7 @@ import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
 import { Realtime } from "./realtime";
+import { MembershipStore } from "./membership-store";
 
 const cfg = { port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k", googleClientId: "cid", googleClientSecret: "sec", googleRedirectUri: "http://localhost:8787/auth/callback", publicWebhookUrl: "https://x", pollIntervalMs: 60000, channelTtlSeconds: 604800 } as any;
 const google = new GoogleOAuth({ generateAuthUrl: () => "g", getToken: async () => ({ tokens: {} }), verifyIdToken: async () => ({ getPayload: () => ({}) }) } as any, "cid");
@@ -21,7 +22,7 @@ describe("POST /webhook", () => {
     const realtime = new Realtime();
     const watchService = new WatchService({ config: cfg, users, workspaces, watch, driveFor: () => drive, realtime });
     const spy = vi.spyOn(watchService, "handleNotification");
-    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, watchService });
+    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, watchService, memberships: new MembershipStore(":memory:") });
     const res = await app.inject({ method: "POST", url: "/webhook", headers: {
       "x-goog-channel-id": "c1", "x-goog-channel-token": "t1", "x-goog-resource-state": "update",
     }, payload: "" });
@@ -29,7 +30,7 @@ describe("POST /webhook", () => {
     expect(spy).toHaveBeenCalledWith({ channelId: "c1", token: "t1", resourceState: "update" });
   });
   it("returns 200 even when no watchService is configured", async () => {
-    const app = buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime() });
+    const app = buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
     const res = await app.inject({ method: "POST", url: "/webhook", headers: { "x-goog-resource-state": "update" }, payload: "" });
     expect(res.statusCode).toBe(200);
   });
@@ -41,7 +42,7 @@ describe("POST /webhook", () => {
     const realtime = new Realtime();
     const watchService = new WatchService({ config: cfg, users, workspaces, watch, driveFor: () => drive, realtime });
     const spy = vi.spyOn(watchService, "handleNotification");
-    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, watchService });
+    const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, watchService, memberships: new MembershipStore(":memory:") });
     const res = await app.inject({
       method: "POST",
       url: "/webhook",
@@ -57,7 +58,7 @@ describe("POST /webhook", () => {
     expect(spy).toHaveBeenCalledWith({ channelId: "c1", token: "t1", resourceState: "update" });
   });
   it("returns 200 for a non-empty JSON body, ignoring the body entirely", async () => {
-    const app = buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime() });
+    const app = buildApp({ config: cfg, users: new UserStore(":memory:", "k"), google, states: new PendingStates(), workspaces: new WorkspaceStore(":memory:"), driveFor: () => new FakeDriveClient(), realtime: new Realtime(), memberships: new MembershipStore(":memory:") });
     const res = await app.inject({
       method: "POST",
       url: "/webhook",

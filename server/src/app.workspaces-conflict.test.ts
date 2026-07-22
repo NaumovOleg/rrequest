@@ -6,6 +6,7 @@ import { GoogleOAuth } from "./google-oauth";
 import { PendingStates } from "./pending-states";
 import { FakeDriveClient } from "./drive-client";
 import { Realtime } from "./realtime";
+import { MembershipStore } from "./membership-store";
 import { signSession } from "./jwt";
 
 const cfg = { port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k", googleClientId: "cid", googleClientSecret: "sec", googleRedirectUri: "http://localhost:8787/auth/callback", pollIntervalMs: 60000, channelTtlSeconds: 604800 };
@@ -17,7 +18,7 @@ async function seeded() {
   const workspaces = new WorkspaceStore(":memory:");
   const drive = new FakeDriveClient();
   const realtime = new Realtime();
-  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime });
+  const app = buildApp({ config: cfg, users, google, states: new PendingStates(), workspaces, driveFor: () => drive, realtime, memberships: new MembershipStore(":memory:") });
   const token = signSession(owner.id, "j");
   await app.inject({ method: "POST", url: "/workspaces", headers: { authorization: `Bearer ${token}` }, payload: { workspaceId: "ws1", name: "T", snapshot: '{"v":1}' } });
   return { app, token, workspaces, realtime };

@@ -10,6 +10,7 @@ import { attachWsServer } from "./ws-server.js";
 import { WatchChannelStore } from "./watch-channel-store.js";
 import { WatchService } from "./watch-service.js";
 import { WatchScheduler } from "./watch-scheduler.js";
+import { MembershipStore } from "./membership-store.js";
 
 const config = loadConfig();
 const workspaces = new WorkspaceStore(config.dbPath);
@@ -17,6 +18,7 @@ const driveFor = makeDriveFactory(config);
 const realtime = new Realtime();
 const users = new UserStore(config.dbPath, config.tokenEncKey);
 const watch = new WatchChannelStore(config.dbPath);
+const memberships = new MembershipStore(config.dbPath);
 const watchService = new WatchService({ config, users, workspaces, watch, driveFor, realtime });
 const app = buildApp({
   config,
@@ -31,6 +33,7 @@ const app = buildApp({
   driveFor,
   realtime,
   watchService,
+  memberships,
 });
 
 app.listen({ port: config.port, host: "0.0.0.0" })

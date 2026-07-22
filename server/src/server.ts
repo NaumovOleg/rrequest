@@ -38,7 +38,7 @@ const app = buildApp({
 
 app.listen({ port: config.port, host: "0.0.0.0" })
   .then((addr) => {
-    attachWsServer({ server: app.server, jwtSecret: config.jwtSecret, workspaces, realtime });
+    attachWsServer({ server: app.server, jwtSecret: config.jwtSecret, workspaces, memberships, realtime });
     new WatchScheduler({ service: watchService, pollIntervalMs: config.pollIntervalMs }).start();
     console.log(`restman sync server on ${addr}`);
   })

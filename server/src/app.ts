@@ -88,6 +88,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     try {
       const profile = await deps.google.exchange(code);
       const user = deps.users.upsertByGoogle(profile);
+      deps.memberships.resolvePending(user.email, user.id);
       const token = signSession(user.id, deps.config.jwtSecret);
       const url = new URL(cb);
       url.searchParams.set("token", token);

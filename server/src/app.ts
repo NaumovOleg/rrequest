@@ -144,10 +144,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const id = (req.params as { id: string }).id;
     const ws = deps.workspaces.get(id);
     if (!ws) return reply.code(404).send({ error: "not found" });
-    if (ws.ownerUserId !== user.id) return reply.code(403).send({ error: "forbidden" });
+    const role = resolveRole(deps, id, user.id);
+    if (role !== "owner" && role !== "editor") return reply.code(403).send({ error: "forbidden" });
     const { snapshot, baseRevision } = req.body as { snapshot?: string; baseRevision?: string };
     if (typeof snapshot !== "string" || typeof baseRevision !== "string") return reply.code(400).send({ error: "snapshot + baseRevision required" });
-    const drive = deps.driveFor(user);
+    const drive = ownerDriveFor(deps, ws);
+    if (!drive) return reply.code(500).send({ error: "owner unavailable" });
     if (baseRevision !== ws.revision) {
       const current = await drive.readFile(ws.driveFileId);
       return reply.code(409).send({ snapshot: current, revision: ws.revision });

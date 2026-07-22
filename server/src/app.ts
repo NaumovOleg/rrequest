@@ -135,7 +135,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.get("/workspaces", async (req, reply) => {
     const user = requireUser(req, deps);
     if (!user) return reply.code(401).send({ error: "unauthorized" });
-    return deps.workspaces.listByOwner(user.id);
+    const owned = deps.workspaces.listByOwner(user.id).map((w) => ({ ...w, role: "owner" as const }));
+    const ownedIds = new Set(owned.map((w) => w.id));
+    const shared = deps.memberships.listByUser(user.id)
+      .filter((m) => !ownedIds.has(m.workspaceId))
+      .map((m) => { const w = deps.workspaces.get(m.workspaceId); return w ? { ...w, role: m.role } : undefined; })
+      .filter((w): w is NonNullable<typeof w> => !!w);
+    return [...owned, ...shared];
   });
 
   app.put("/workspaces/:id", async (req, reply) => {

@@ -6,6 +6,9 @@ export type Config = {
   googleClientId: string;
   googleClientSecret: string;
   googleRedirectUri: string;
+  publicWebhookUrl?: string;
+  pollIntervalMs: number;
+  channelTtlSeconds: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -22,5 +25,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     googleClientId: req("GOOGLE_CLIENT_ID"),
     googleClientSecret: req("GOOGLE_CLIENT_SECRET"),
     googleRedirectUri: req("GOOGLE_REDIRECT_URI"),
+    publicWebhookUrl: env.PUBLIC_WEBHOOK_URL,
+    pollIntervalMs: Number(env.POLL_INTERVAL_MS ?? 60000),
+    channelTtlSeconds: Number(env.CHANNEL_TTL_SECONDS ?? 604800),
   };
 }

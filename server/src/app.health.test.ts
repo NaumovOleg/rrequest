@@ -10,6 +10,7 @@ import { Realtime } from "./realtime";
 const cfg = {
   port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k",
   googleClientId: "cid", googleClientSecret: "sec", googleRedirectUri: "http://localhost:8787/auth/callback",
+  pollIntervalMs: 60000, channelTtlSeconds: 604800,
 };
 const fakeGoogle = new GoogleOAuth({
   generateAuthUrl: (o: any) => `https://g/?state=${o.state}`,

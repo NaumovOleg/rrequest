@@ -19,3 +19,18 @@ describe("loadConfig", () => {
     expect(() => loadConfig({} as any)).toThrow(/JWT_SECRET/);
   });
 });
+
+describe("loadConfig watch settings", () => {
+  it("defaults poll interval + channel ttl and leaves publicWebhookUrl undefined", () => {
+    const c = loadConfig({ ...base } as any);
+    expect(c.publicWebhookUrl).toBeUndefined();
+    expect(c.pollIntervalMs).toBe(60000);
+    expect(c.channelTtlSeconds).toBe(604800);
+  });
+  it("reads overrides from env", () => {
+    const c = loadConfig({ ...base, PUBLIC_WEBHOOK_URL: "https://pub", POLL_INTERVAL_MS: "5000", CHANNEL_TTL_SECONDS: "3600" } as any);
+    expect(c.publicWebhookUrl).toBe("https://pub");
+    expect(c.pollIntervalMs).toBe(5000);
+    expect(c.channelTtlSeconds).toBe(3600);
+  });
+});

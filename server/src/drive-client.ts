@@ -9,6 +9,8 @@ export interface DriveClient {
   getHeadRevision(fileId: string): Promise<string>;
   watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo>;
   stopChannel(opts: { channelId: string; resourceId: string }): Promise<void>;
+  createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }>;
+  deletePermission(fileId: string, permissionId: string): Promise<void>;
 }
 
 const DRIVE = "https://www.googleapis.com/drive/v3";
@@ -95,6 +97,25 @@ export class GoogleDriveClient implements DriveClient {
     });
     if (!res.ok && res.status !== 404) throw new Error(`Drive channel stop failed: ${res.status}`);
   }
+
+  async createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }> {
+    const q = `sendNotificationEmail=${opts.sendNotificationEmail ? "true" : "false"}&fields=id`;
+    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/permissions?${q}`, {
+      method: "POST",
+      headers: { ...(await this.auth()), "content-type": "application/json" },
+      body: JSON.stringify({ role: opts.role, type: "user", emailAddress: opts.email }),
+    });
+    if (!res.ok) throw new Error(`Drive permission create failed: ${res.status}`);
+    return { permissionId: ((await res.json()) as { id: string }).id };
+  }
+
+  async deletePermission(fileId: string, permissionId: string): Promise<void> {
+    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/permissions/${permissionId}`, {
+      method: "DELETE",
+      headers: await this.auth(),
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`Drive permission delete failed: ${res.status}`);
+  }
 }
 
 // In-memory DriveClient for tests.
@@ -102,7 +123,9 @@ export class FakeDriveClient implements DriveClient {
   private folders = new Map<string, string>();
   private files = new Map<string, { content: string; revision: number }>();
   private channels = new Map<string, { fileId: string; resourceId: string; token: string; expiration: number }>();
+  private perms = new Map<string, { permissionId: string; email: string; role: "writer" | "reader" }[]>();
   private seq = 0;
+  private permSeq = 0;
 
   async ensureFolder(name: string): Promise<string> {
     if (!this.folders.has(name)) this.folders.set(name, `folder-${name}`);
@@ -141,4 +164,17 @@ export class FakeDriveClient implements DriveClient {
   }
   // test helper
   watched(channelId: string) { return this.channels.get(channelId); }
+
+  async createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }> {
+    const permissionId = `perm-${++this.permSeq}`;
+    const list = this.perms.get(fileId) ?? [];
+    list.push({ permissionId, email: opts.email, role: opts.role });
+    this.perms.set(fileId, list);
+    return { permissionId };
+  }
+  async deletePermission(fileId: string, permissionId: string): Promise<void> {
+    this.perms.set(fileId, (this.perms.get(fileId) ?? []).filter((p) => p.permissionId !== permissionId));
+  }
+  // test helper
+  permissions(fileId: string) { return this.perms.get(fileId) ?? []; }
 }

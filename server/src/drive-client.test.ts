@@ -48,3 +48,15 @@ describe("FakeDriveClient watch surface", () => {
     expect(d.watched("ch1")).toBeUndefined();
   });
 });
+
+describe("FakeDriveClient permissions", () => {
+  it("creates and lists a permission, and deletes it", async () => {
+    const d = new FakeDriveClient();
+    const { fileId } = await d.createFile("f", "n", "{}");
+    const { permissionId } = await d.createPermission(fileId, { email: "m@x.com", role: "writer", sendNotificationEmail: true });
+    expect(permissionId).toBeTypeOf("string");
+    expect(d.permissions(fileId)).toEqual([{ permissionId, email: "m@x.com", role: "writer" }]);
+    await d.deletePermission(fileId, permissionId);
+    expect(d.permissions(fileId)).toEqual([]);
+  });
+});

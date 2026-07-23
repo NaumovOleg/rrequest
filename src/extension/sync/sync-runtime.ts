@@ -19,6 +19,7 @@ export function createSyncRuntime(deps: {
   socket: SyncSocket
   onPulled: () => Promise<void>
   debounceMs?: number
+  state?: { all(): Promise<Record<string, { role?: string }>> }
 }) {
   const debounceMs = deps.debounceMs ?? 1500
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -28,6 +29,15 @@ export function createSyncRuntime(deps: {
     clearTimeout(timers.get(workspaceId))
     timers.set(workspaceId, setTimeout(() => { void deps.manager.push(workspaceId) }, debounceMs))
   }
+
+  const roles = new Map<string, string>()
+  const refreshRoleCache = async (): Promise<void> => {
+    roles.clear()
+    const all = (await deps.state?.all()) ?? {}
+    for (const [id, s] of Object.entries(all)) if (s.role) roles.set(id, s.role)
+  }
+  const roleOf = (id: string) => roles.get(id) as 'owner' | 'editor' | 'viewer' | undefined
+  const isReadOnly = (id: string) => roleOf(id) === 'viewer'
 
   return {
     manager: deps.manager,
@@ -43,9 +53,15 @@ export function createSyncRuntime(deps: {
     // exposed so the host can route socket changes → pull → refresh
     async onSocketChange(m: ChangeMsg): Promise<void> {
       const changed = await deps.manager.pullIfNewer(m.workspaceId, m.revision)
-      if (changed) await deps.onPulled()
+      if (changed) {
+        await refreshRoleCache()
+        await deps.onPulled()
+      }
     },
     // manual sync path repaints open webviews the same way auto-pull does
     refresh: () => deps.onPulled(),
+    refreshRoleCache,
+    roleOf,
+    isReadOnly,
   }
 }

@@ -42,4 +42,16 @@ describe('createSyncRuntime', () => {
     await rt.onSocketChange({ type: 'workspace-changed', workspaceId: 'w1', revision: '4', updatedBy: 'other' })
     expect(onPulled).toHaveBeenCalledTimes(1)
   })
+
+  it('exposes isReadOnly from the role cache (viewer = read-only)', async () => {
+    const state = { all: async () => ({ w1: { role: 'viewer' }, w2: { role: 'editor' } }) } as any
+    const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(), refreshRoles: vi.fn() } as any
+    const socket = { start: vi.fn(), stop: vi.fn() } as any
+    const rt = createSyncRuntime({ manager, socket, onPulled: async () => {}, state })
+    await rt.refreshRoleCache()
+    expect(rt.isReadOnly('w1')).toBe(true)
+    expect(rt.isReadOnly('w2')).toBe(false)
+    expect(rt.isReadOnly('unknown')).toBe(false)
+    expect(rt.roleOf('w2')).toBe('editor')
+  })
 })

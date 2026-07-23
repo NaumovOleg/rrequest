@@ -116,6 +116,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     ws: wsManager,
     grpcInvoke,
     trash,
+    isReadOnly: (id) => syncRuntimeRef?.isReadOnly(id) ?? false,
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -127,7 +128,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     return [
       { type: 'tree', collections: cols },
       { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
-      { type: 'workspaces', workspaces: await workspaces.list(), activeId: ws },
+      { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: syncRuntimeRef?.roleOf(w.id) })), activeId: ws },
       { type: 'history', entries: hist },
       { type: 'trash', entries: trashed },
     ]
@@ -161,9 +162,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
 
   const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
+  const syncState = new SyncStateStore(base)
   const manager = new SyncManager({
     client: syncClient,
-    state: new SyncStateStore(base),
+    state: syncState,
     stores: buildStoresPort(collections, environments, workspaces),
     email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
   })
@@ -171,10 +173,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // defers the read until a message arrives, by which point `runtime` is set.
   let runtime: ReturnType<typeof createSyncRuntime>
   const socket = new SyncSocket({ url: syncBaseUrl, token: () => cachedToken, onChange: (m) => { void runtime.onSocketChange(m) } })
-  runtime = createSyncRuntime({ manager, socket, onPulled: async () => { await hub.refresh() } })
+  runtime = createSyncRuntime({ manager, socket, state: syncState, onPulled: async () => { await hub.refresh() } })
   hub.setAfterDispatch((msg) => { if (isMutating(msg.type)) runtime.schedulePush(activeWsId()) })
   runtime.start()
   syncRuntimeRef = runtime
+  void runtime.refreshRoleCache()
+  void manager.refreshRoles().then(() => runtime.refreshRoleCache())
 
   return hub
   })()

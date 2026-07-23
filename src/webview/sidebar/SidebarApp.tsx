@@ -11,6 +11,7 @@ import { Sidebar } from "../views/Sidebar/Sidebar";
 import { SidebarEnvironments } from "../views/SidebarEnvironments/SidebarEnvironments";
 import { TrashView } from "../views/Trash/TrashView";
 import { History } from "../components";
+import { Toaster } from "../elements";
 
 function blankRequest(): RestRequest {
   return {
@@ -33,6 +34,7 @@ export function SidebarApp() {
   const setWorkspaces = useStore((s) => s.setWorkspaces);
   const setHistory = useStore((s) => s.setHistory);
   const setTrash = useStore((s) => s.setTrash);
+  const pushToast = useStore((s) => s.pushToast);
   const [tab, setTab] = useState<SidebarTab>("collections");
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export function SidebarApp() {
         setWorkspaces(m.workspaces, m.activeId);
       else if (m.type === "history") setHistory(m.entries);
       else if (m.type === "trash") setTrash(m.entries);
+      else if (m.type === "toast") pushToast(m.level, m.message);
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadWorkspaces" });
@@ -52,7 +55,7 @@ export function SidebarApp() {
     postToHost({ type: "loadHistory" });
     postToHost({ type: "loadTrash" });
     return off;
-  }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory, setTrash]);
+  }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory, setTrash, pushToast]);
 
   return (
     <div className="rm-surface rm-surface--sidebar">
@@ -76,6 +79,7 @@ export function SidebarApp() {
           <History />
         )}
       </div>
+      <Toaster />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { RequestPanel } from "../views/RequestPanel/RequestPanel";
 import { WebSocketPanel } from "../views/WebSocket/WebSocketPanel";
 import { Environments } from "../views/Environments/Environments";
 import { GrpcPanel } from "../views/Grpc/GrpcPanel";
+import { Toaster } from "../elements";
 
 export function EditorApp() {
   const setTree = useStore((s) => s.setTree);
@@ -26,6 +27,7 @@ export function EditorApp() {
   const setEnvEditId = useStore((s) => s.setEnvEditId);
   const grpcMode = useStore((s) => s.grpcMode);
   const setGrpcMode = useStore((s) => s.setGrpcMode);
+  const pushToast = useStore((s) => s.pushToast);
   const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
   const activeLabel = active ? `${active.method} ${active.name}` : undefined;
   const activeMethod = active?.method;
@@ -108,6 +110,8 @@ export function EditorApp() {
             data: `error: ${m.message}`,
             at: Date.now(),
           });
+      } else if (m.type === "toast") {
+        pushToast(m.level, m.message);
       }
     });
     postToHost({ type: "ready" });
@@ -129,6 +133,7 @@ export function EditorApp() {
     setEnvEditId,
     setWsMode,
     setGrpcMode,
+    pushToast,
   ]);
 
   return (
@@ -142,6 +147,7 @@ export function EditorApp() {
       ) : (
         <RequestPanel />
       )}
+      <Toaster />
     </div>
   );
 }

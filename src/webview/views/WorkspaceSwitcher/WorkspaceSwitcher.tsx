@@ -17,6 +17,8 @@ export function WorkspaceSwitcher() {
   const { workspaces, activeId, active, create, rename, remove, select } = useWorkspace();
   const isViewer = useStore((s) => s.isViewer());
   const isOwner = useStore((s) => s.activeWorkspace()?.role === "owner");
+  const authEmail = useStore((s) => s.authEmail);
+  const synced = useStore((s) => s.activeSynced());
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -141,6 +143,33 @@ export function WorkspaceSwitcher() {
       </div>
 
       {active?.role && <span className="rm-role-badge">{ROLE_LABEL[active.role]}</span>}
+
+      {authEmail && active && (
+        synced ? (
+          <div className="rm-sync-status">
+            <span className="codicon codicon-cloud" aria-hidden="true" />
+            <span className="rm-sync-status-text">
+              synced · {ROLE_LABEL[active.role ?? "owner"]}
+            </span>
+            <button
+              type="button"
+              className="rm-sync-now"
+              onClick={() => postToHost({ type: "syncNow", workspaceId: active.id })}
+            >
+              Sync Now
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="rm-btn rm-btn--ghost rm-btn--sm rm-sync-enable"
+            onClick={() => postToHost({ type: "enableSync", workspaceId: active.id })}
+          >
+            <span className="codicon codicon-cloud-upload" aria-hidden="true" />
+            Enable Sync
+          </button>
+        )
+      )}
 
       {!isViewer && (
         <IconButton

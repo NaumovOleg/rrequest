@@ -175,6 +175,17 @@ body {
   flex: none;
 }
 
+/* per-workspace sync control — sits beside the role badge */
+.rm-sync-enable { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--rm-muted); }
+.rm-sync-enable:hover { color: var(--rm-fg); }
+.rm-sync-enable .codicon { font-size: 13px; }
+
+.rm-sync-status { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 0.85em; color: var(--rm-muted); white-space: nowrap; }
+.rm-sync-status .codicon-cloud { font-size: 13px; color: var(--rm-success); }
+.rm-sync-status-text { white-space: nowrap; }
+.rm-sync-now { flex: none; background: transparent; border: none; padding: 0; margin-left: 2px; color: var(--rm-muted); cursor: pointer; font: inherit; font-size: 1em; text-decoration: none; }
+.rm-sync-now:hover { color: var(--rm-fg); text-decoration: underline; }
+
 /* url bar polish */
 .rm-urlbar .rm-btn--primary { padding: 4px 20px; font-weight: 600; }
 .rm-method-select { font-weight: 700; text-align: left; }

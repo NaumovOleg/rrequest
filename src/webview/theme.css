@@ -209,6 +209,15 @@ body {
 .rm-sbhead { display: flex; flex-direction: column; gap: var(--rm-sp-2); padding: var(--rm-sp-2); border-bottom: 1px solid var(--rm-border); }
 .rm-sbbody { flex: 1; min-height: 0; overflow-y: auto; }
 
+/* account strip: quiet utility row above the workspace switcher */
+.rm-account { display: flex; align-items: center; gap: var(--rm-sp-1); min-height: 18px; font-size: 0.85em; color: var(--rm-muted); }
+.rm-account .codicon-account { font-size: 13px; flex: none; }
+.rm-account-email { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--rm-fg); }
+.rm-linkbtn { margin-left: auto; flex: none; background: transparent; border: none; padding: 0; color: var(--rm-muted); cursor: pointer; font: inherit; font-size: 1em; text-decoration: none; }
+.rm-linkbtn:hover { color: var(--rm-fg); text-decoration: underline; }
+.rm-account .rm-btn--ghost { display: inline-flex; align-items: center; gap: var(--rm-sp-1); font-size: 1em; color: var(--rm-muted); }
+.rm-account .rm-btn--ghost:hover { color: var(--rm-fg); }
+
 /* workspace switcher: a trigger that doubles as the popup's search field */
 .rm-ws-switcher { position: relative; display: flex; align-items: center; gap: var(--rm-sp-1); }
 .rm-ws-trigger { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }

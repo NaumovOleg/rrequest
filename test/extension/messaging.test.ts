@@ -524,3 +524,36 @@ describe('createRouter trash targeted restore', () => {
     expect(trash.items).toHaveLength(0)
   })
 })
+
+describe('createRouter viewer read-only gate', () => {
+  function router(d: any, isReadOnly: (id: string) => boolean) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+      isReadOnly })
+  }
+
+  it('blocks a mutating message on a read-only (viewer) workspace with a toast', async () => {
+    const d = deps(); d.activeWorkspaceId = 'w1'
+    const before = await d.collections.list()
+    const route = router(d, (id) => id === 'w1')
+    const reply = await route({ type: 'createCollection', name: 'Nope' } as any)
+    expect(reply).toEqual({ type: 'toast', level: 'error', message: 'This workspace is read-only (viewer access).' })
+    expect(await d.collections.list()).toEqual(before)
+    expect(d.collections.createCollection).not.toHaveBeenCalled()
+  })
+
+  it('allows mutations when not read-only', async () => {
+    const d = deps(); d.activeWorkspaceId = 'w1'
+    const route = router(d, () => false)
+    await route({ type: 'createCollection', name: 'Yes' } as any)
+    expect(d.collections.createCollection).toHaveBeenCalledWith('Yes', 'w1')
+  })
+
+  it('allows a non-mutating message even when read-only', async () => {
+    const d = deps(); d.activeWorkspaceId = 'w1'
+    const route = router(d, () => true)
+    const reply = await route({ type: 'loadTree' } as any)
+    expect(reply).not.toEqual(expect.objectContaining({ type: 'toast' }))
+  })
+})

@@ -1,4 +1,5 @@
 import { newId, itemKind, type CollectionItem, type GrpcRequest, type HostMessage, type KeyValue, type RestRequest, type WebviewMessage, type WsRequest } from '../shared/types'
+import { isMutating } from './sync/sync-runtime'
 
 // The host message that opens an item in the right kind of editor panel.
 function openItemMsg(item: CollectionItem, targetCollectionId?: string, targetFolderId?: string | null): HostMessage {
@@ -32,6 +33,7 @@ export type RouterDeps = {
   ws?: WsManager
   grpcInvoke?: (p: import('./grpc-client').GrpcParams) => Promise<import('./grpc-client').GrpcResult>
   trash?: import('./trash-store').TrashStore
+  isReadOnly?: (workspaceId: string) => boolean
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -105,6 +107,9 @@ export function createRouter(deps: RouterDeps) {
   }
 
   return async function route(msg: WebviewMessage): Promise<HostMessage | undefined> {
+    if (isMutating(msg.type) && deps.isReadOnly?.(deps.getActiveWorkspaceId())) {
+      return { type: 'toast', level: 'error', message: 'This workspace is read-only (viewer access).' }
+    }
     switch (msg.type) {
       case 'sendRequest': {
         const raw = msg.payload

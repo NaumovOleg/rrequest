@@ -4,6 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { SyncManager } from '../../../src/extension/sync/sync-manager'
 import { SyncStateStore } from '../../../src/extension/sync/sync-state-store'
+import { SyncForbiddenError } from '../../../src/extension/sync/sync-client'
 import type { Collection, Environment } from '../../../src/shared/types'
 
 let dir: string
@@ -114,5 +115,28 @@ describe('SyncManager', () => {
     await new SyncManager({ client, state, stores: port, email: () => 'me' }).refreshRoles()
     expect((await state.get('w1'))?.role).toBe('viewer')
     expect(await state.get('w2')).toBeUndefined()
+  })
+  it('push drops sync (synced=false) but keeps local data on a 403', async () => {
+    const applyPulled = vi.fn()
+    const client = { push: vi.fn(async () => { throw new SyncForbiddenError() }), enableSync: vi.fn(), pull: vi.fn() } as any
+    const { port } = stores({ collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [] })
+    port.applyPulled = applyPulled
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'editor', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).push('w1')
+    expect((await state.get('w1'))?.synced).toBe(false)
+    expect((await state.get('w1'))?.driveFileId).toBe('f') // kept for re-share
+    expect(applyPulled).not.toHaveBeenCalled() // local data untouched
+  })
+  it('pull drops sync on a 403 without touching local stores', async () => {
+    const applyPulled = vi.fn()
+    const client = { pull: vi.fn(async () => { throw new SyncForbiddenError() }), push: vi.fn(), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    port.applyPulled = applyPulled
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'viewer', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).pull('w1')
+    expect((await state.get('w1'))?.synced).toBe(false)
+    expect(applyPulled).not.toHaveBeenCalled()
   })
 })

@@ -47,14 +47,23 @@ export class SyncManager {
   async pull(workspaceId: string): Promise<void> {
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
-    const { snapshot, revision } = await this.deps.client.pull(workspaceId)
+    const { snapshot, revision, role } = await this.deps.client.pull(workspaceId)
     const remote = JSON.parse(snapshot) as WorkspaceSnapshot
     const local = await this.buildLocalSnapshot(workspaceId)
     const merged = mergeSnapshots(remote, local)
     const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
     const environments = mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs)
     await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
-    await this.deps.state.set(workspaceId, { ...state, lastRevision: revision })
+    await this.deps.state.set(workspaceId, { ...state, lastRevision: revision, role: role ?? state.role })
+  }
+
+  async refreshRoles(): Promise<void> {
+    const remote = await this.deps.client.listWorkspaces()
+    for (const w of remote) {
+      if (!w.role) continue
+      const state = await this.deps.state.get(w.id)
+      if (state?.synced) await this.deps.state.set(w.id, { ...state, role: w.role })
+    }
   }
 
   async pullIfNewer(workspaceId: string, revision: string): Promise<boolean> {

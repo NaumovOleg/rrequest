@@ -96,4 +96,23 @@ describe('SyncManager', () => {
     expect(pushes).toBe(2)
     expect((await state.get('w1'))?.lastRevision).toBe('8')
   })
+
+  it('pull records the role returned by the server', async () => {
+    const client = { pull: vi.fn(async () => ({ snapshot: JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [], environments: [], updatedAt: 1, updatedBy: 'x' }), revision: '5', role: 'viewer' })), push: vi.fn(), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'editor', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).pull('w1')
+    expect((await state.get('w1'))?.role).toBe('viewer')
+  })
+  it('refreshRoles updates synced workspaces roles from listWorkspaces', async () => {
+    const client = { listWorkspaces: vi.fn(async () => [{ id: 'w1', role: 'viewer' }, { id: 'w2', role: 'owner' }]) } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'editor', lastRevision: '1', synced: true })
+    // w2 not synced locally -> should be ignored
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).refreshRoles()
+    expect((await state.get('w1'))?.role).toBe('viewer')
+    expect(await state.get('w2')).toBeUndefined()
+  })
 })

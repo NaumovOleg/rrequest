@@ -207,9 +207,32 @@ body {
 
 /* sidebar header (workspace row + new-request split button + tab strip) */
 .rm-sbhead { display: flex; flex-direction: column; gap: var(--rm-sp-2); padding: var(--rm-sp-2); border-bottom: 1px solid var(--rm-border); }
-.rm-ws-row { display: flex; align-items: center; gap: var(--rm-sp-1); }
-.rm-ws-row .rm-combo { flex: 1; min-width: 0; }
 .rm-sbbody { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* workspace switcher: a trigger that doubles as the popup's search field */
+.rm-ws-switcher { position: relative; display: flex; align-items: center; gap: var(--rm-sp-1); }
+.rm-ws-trigger { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.rm-ws-trigger-icon { position: absolute; left: 7px; color: var(--rm-muted); pointer-events: none; z-index: 1; }
+.rm-ws-trigger .rm-ws-search { width: 100%; padding-left: 26px; padding-right: 22px; cursor: pointer; }
+.rm-ws-trigger .rm-ws-search:focus { cursor: text; }
+.rm-ws-chevron { position: absolute; right: 6px; color: var(--rm-muted); pointer-events: none; font-size: 13px; }
+
+.rm-ws-popup { position: absolute; left: 0; top: 100%; z-index: 20; margin-top: 4px; width: min(320px, 90vw); display: flex; flex-direction: column; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 6px 20px rgba(0,0,0,.35); overflow: hidden; }
+.rm-ws-popup-head { padding: var(--rm-sp-1) var(--rm-sp-2); border-bottom: 1px solid var(--rm-border); display: flex; justify-content: flex-end; }
+.rm-ws-create { width: 100%; }
+.rm-ws-list { max-height: 320px; overflow-y: auto; padding: var(--rm-sp-1) 0; }
+.rm-ws-section { padding: var(--rm-sp-1) var(--rm-sp-2) 2px; font-size: 0.72em; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--rm-muted); }
+.rm-ws-section:not(:first-child) { margin-top: var(--rm-sp-1); }
+.rm-ws-row { display: flex; align-items: center; gap: 6px; padding: 0 var(--rm-sp-2); border-radius: 0; }
+.rm-ws-row:hover, .rm-ws-row:focus-within { background: var(--rm-hover); }
+.rm-ws-row.is-active { background: color-mix(in srgb, var(--rm-accent) 12%, transparent); }
+.rm-ws-check { flex: none; width: 14px; display: inline-flex; color: var(--rm-accent); }
+.rm-ws-type-icon { flex: none; color: var(--rm-muted); font-size: 14px; }
+.rm-ws-name { flex: 1; min-width: 0; text-align: left; background: transparent; border: none; color: var(--rm-fg); padding: 6px 2px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-ws-row.is-active .rm-ws-name { font-weight: 600; }
+.rm-ws-row-actions { flex: none; display: flex; gap: 2px; opacity: 0; }
+.rm-ws-row:hover .rm-ws-row-actions, .rm-ws-row:focus-within .rm-ws-row-actions { opacity: 1; }
+.rm-ws-empty { padding: var(--rm-sp-2); color: var(--rm-muted); font-size: 0.9em; text-align: center; }
 
 /* split button */
 .rm-split { display: flex; align-items: stretch; width: 100%; }

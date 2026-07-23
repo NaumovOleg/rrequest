@@ -4,9 +4,9 @@ import { UserStore } from "./user-store";
 import { WorkspaceStore } from "./workspace-store";
 import { WatchChannelStore } from "./watch-channel-store";
 import { WatchService } from "./watch-service";
-import { GoogleOAuth } from "./google-oauth";
+import { GoogleOAuth } from "./domain/google-oauth";
 import { PendingStates } from "./pending-states";
-import { FakeDriveClient } from "./drive-client";
+import { FakeDriveClient } from "./domain/drive-client";
 import { Realtime } from "./realtime";
 import { MembershipStore } from "./membership-store";
 

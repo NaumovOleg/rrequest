@@ -3,11 +3,11 @@ import { buildApp } from "./app";
 import { UserStore } from "./user-store";
 import { WorkspaceStore } from "./workspace-store";
 import { MembershipStore } from "./membership-store";
-import { GoogleOAuth } from "./google-oauth";
+import { GoogleOAuth } from "./domain/google-oauth";
 import { PendingStates } from "./pending-states";
-import { FakeDriveClient } from "./drive-client";
+import { FakeDriveClient } from "./domain/drive-client";
 import { Realtime } from "./realtime";
-import { signSession } from "./jwt";
+import { signSession } from "./domain/jwt";
 
 const cfg = { port: 8787, dbPath: ":memory:", jwtSecret: "j", tokenEncKey: "k", googleClientId: "c", googleClientSecret: "s", googleRedirectUri: "http://localhost:8787/auth/callback", pollIntervalMs: 60000, channelTtlSeconds: 604800 } as any;
 const google = new GoogleOAuth({ generateAuthUrl: () => "g", getToken: async () => ({ tokens: {} }), verifyIdToken: async () => ({ getPayload: () => ({}) }) } as any, "c");

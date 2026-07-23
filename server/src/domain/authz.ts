@@ -1,6 +1,6 @@
-import type { WorkspaceStore } from "./workspace-store.js";
-import type { UserStore } from "./user-store.js";
-import type { MembershipStore } from "./membership-store.js";
+import type { WorkspaceStore } from "../workspace-store.js";
+import type { UserStore } from "../user-store.js";
+import type { MembershipStore } from "../membership-store.js";
 import type { DriveFactory } from "./drive-factory.js";
 import type { DriveClient } from "./drive-client.js";
 

@@ -1,10 +1,10 @@
-import { loadConfig } from "./config.js";
+import { loadConfig } from "./domain/config.js";
 import { buildApp } from "./app.js";
 import { UserStore } from "./user-store.js";
-import { GoogleOAuth } from "./google-oauth.js";
+import { GoogleOAuth } from "./domain/google-oauth.js";
 import { PendingStates } from "./pending-states.js";
 import { WorkspaceStore } from "./workspace-store.js";
-import { makeDriveFactory } from "./drive-factory.js";
+import { makeDriveFactory } from "./domain/drive-factory.js";
 import { Realtime } from "./realtime.js";
 import { attachWsServer } from "./ws-server.js";
 import { WatchChannelStore } from "./watch-channel-store.js";

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { resolveRole, ownerDriveFor } from "./authz";
-import { WorkspaceStore } from "./workspace-store";
-import { UserStore } from "./user-store";
-import { MembershipStore } from "./membership-store";
+import { WorkspaceStore } from "../workspace-store";
+import { UserStore } from "../user-store";
+import { MembershipStore } from "../membership-store";
 import { FakeDriveClient } from "./drive-client";
 
 function setup() {

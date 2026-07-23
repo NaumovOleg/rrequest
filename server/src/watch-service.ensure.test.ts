@@ -3,7 +3,7 @@ import { WatchService } from "./watch-service";
 import { WorkspaceStore } from "./workspace-store";
 import { UserStore } from "./user-store";
 import { WatchChannelStore } from "./watch-channel-store";
-import { FakeDriveClient } from "./drive-client";
+import { FakeDriveClient } from "./domain/drive-client";
 import { Realtime } from "./realtime";
 
 function make(publicWebhookUrl?: string) {

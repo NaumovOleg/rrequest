@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { requireUser } from "./auth";
 import { UserStore } from "./user-store";
-import { signSession } from "./jwt";
+import { signSession } from "./domain/jwt";
 
 const deps = () => {
   const users = new UserStore(":memory:", "k");

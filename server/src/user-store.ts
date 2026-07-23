@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
-import { encrypt, decrypt } from "./crypto.js";
+import { encrypt, decrypt } from "./domain/crypto.js";
 
 export type User = { id: string; email: string; googleSub: string; refreshToken: string };
 

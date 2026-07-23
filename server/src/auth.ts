@@ -1,4 +1,4 @@
-import { verifySession } from "./jwt.js";
+import { verifySession } from "./domain/jwt.js";
 import type { UserStore, User } from "./user-store.js";
 
 export function requireUser(

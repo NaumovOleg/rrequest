@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { buildApp } from "./app";
 import { UserStore } from "./user-store";
-import { GoogleOAuth } from "./google-oauth";
+import { GoogleOAuth } from "./domain/google-oauth";
 import { PendingStates } from "./pending-states";
-import { signSession } from "./jwt";
+import { signSession } from "./domain/jwt";
 import { WorkspaceStore } from "./workspace-store";
-import { FakeDriveClient } from "./drive-client";
+import { FakeDriveClient } from "./domain/drive-client";
 import { Realtime } from "./realtime";
 import { MembershipStore } from "./membership-store";
 

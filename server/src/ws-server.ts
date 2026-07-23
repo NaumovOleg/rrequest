@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { verifySession } from "./jwt.js";
+import { verifySession } from "./domain/jwt.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import type { MembershipStore } from "./membership-store.js";
 import type { Realtime, ChangeMsg } from "./realtime.js";

@@ -3,7 +3,7 @@ import { subscriptionsFor, handleWsConnection } from "./ws-server";
 import { WorkspaceStore } from "./workspace-store";
 import { MembershipStore } from "./membership-store";
 import { Realtime } from "./realtime";
-import { signSession } from "./jwt";
+import { signSession } from "./domain/jwt";
 
 describe("subscriptionsFor", () => {
   it("returns owned workspace ids plus the user's shared (membership) workspace ids", () => {

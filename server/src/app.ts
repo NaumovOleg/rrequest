@@ -1,18 +1,19 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import type { Config } from "./config.js";
+import type { Config } from "./domain/config.js";
 import type { UserStore } from "./user-store.js";
-import type { GoogleOAuth } from "./google-oauth.js";
+import type { GoogleOAuth } from "./domain/google-oauth.js";
 import type { PendingStates } from "./pending-states.js";
 import type { WorkspaceStore } from "./workspace-store.js";
-import type { DriveFactory } from "./drive-factory.js";
+import type { DriveFactory } from "./domain/drive-factory.js";
 import type { Realtime } from "./realtime.js";
 import type { WatchService } from "./watch-service.js";
 import { randomUUID } from "node:crypto";
-import { signSession } from "./jwt.js";
+import { signSession } from "./domain/jwt.js";
 import { requireUser } from "./auth.js";
-import { folderNameForUser } from "./drive-factory.js";
+import { folderNameForUser } from "./domain/drive-factory.js";
 import type { MembershipStore } from "./membership-store.js";
-import { resolveRole, ownerDriveFor } from "./authz.js";
+import { resolveRole, ownerDriveFor } from "./domain/authz.js";
+import { stripSnapshotSecrets } from "./domain/snapshot.js";
 
 export type AppDeps = {
   config: Config;
@@ -25,18 +26,6 @@ export type AppDeps = {
   watchService?: WatchService;
   memberships: MembershipStore;
 };
-
-function stripSnapshotSecrets(snapshot: string): string {
-  try {
-    const obj = JSON.parse(snapshot) as { environments?: { variables?: { secret?: boolean; value?: string }[] }[] };
-    for (const env of obj.environments ?? []) {
-      for (const v of env.variables ?? []) if (v.secret === true) v.value = "";
-    }
-    return JSON.stringify(obj);
-  } catch {
-    return snapshot;
-  }
-}
 
 function isLoopbackCb(cb: string): boolean {
   try {

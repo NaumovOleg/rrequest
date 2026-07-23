@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { UserStore } from "./user-store.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import type { WatchChannelStore } from "./watch-channel-store.js";
-import type { DriveFactory } from "./drive-factory.js";
+import type { DriveFactory } from "./domain/drive-factory.js";
 import type { Realtime } from "./realtime.js";
 
 export type WatchDeps = {

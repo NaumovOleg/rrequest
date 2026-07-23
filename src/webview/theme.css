@@ -332,3 +332,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rm-toast { animation: none; }
 }
+
+/* members / invite panel */
+.rm-members { display: flex; flex-direction: column; gap: var(--rm-sp-3); padding: var(--rm-sp-4); max-width: 560px; }
+.rm-members-head { display: flex; align-items: center; justify-content: space-between; }
+.rm-members-title { font-weight: 600; font-size: 1.15em; }
+.rm-invite-banner { display: flex; align-items: center; gap: var(--rm-sp-2); background: var(--rm-hover); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); padding: var(--rm-sp-2) var(--rm-sp-3); color: var(--rm-muted); font-size: 0.92em; }
+.rm-invite-banner .codicon-info { color: var(--rm-accent); flex: none; }
+.rm-invite-block { display: flex; flex-direction: column; gap: var(--rm-sp-2); }
+.rm-invite-form { display: flex; gap: var(--rm-sp-2); }
+.rm-invite-form .rm-input { flex: 1; min-width: 0; }
+.rm-invite-form .rm-select { width: 110px; flex: none; }
+.rm-invite-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--rm-sp-2); }
+.rm-btn--tertiary { background: transparent; border-color: transparent; color: var(--rm-accent); padding: 3px 2px; }
+.rm-btn--tertiary:hover { background: transparent; text-decoration: underline; }
+.rm-members-list-head { margin-top: var(--rm-sp-1); }
+.rm-members-list { display: flex; flex-direction: column; border-top: 1px solid var(--rm-border); }
+.rm-member-row { display: flex; align-items: center; gap: var(--rm-sp-2); padding: var(--rm-sp-2) 0; border-bottom: 1px solid var(--rm-border); }
+.rm-member-email { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-member-badges { display: flex; align-items: center; gap: var(--rm-sp-1); flex: none; }
+.rm-pending-tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 1px 7px; border-radius: 999px; background: transparent; border: 1px solid var(--rm-warn); color: var(--rm-warn); white-space: nowrap; flex: none; }
+.rm-member-row .rm-actions { opacity: 0; flex: none; }
+.rm-member-row:hover .rm-actions, .rm-member-row:focus-within .rm-actions { opacity: 1; }

@@ -6,6 +6,7 @@ import { RequestPanel } from "../views/RequestPanel/RequestPanel";
 import { WebSocketPanel } from "../views/WebSocket/WebSocketPanel";
 import { Environments } from "../views/Environments/Environments";
 import { GrpcPanel } from "../views/Grpc/GrpcPanel";
+import { Members } from "../views/Members/Members";
 import { Toaster } from "../elements";
 
 export function EditorApp() {
@@ -27,6 +28,10 @@ export function EditorApp() {
   const setEnvEditId = useStore((s) => s.setEnvEditId);
   const grpcMode = useStore((s) => s.grpcMode);
   const setGrpcMode = useStore((s) => s.setGrpcMode);
+  const membersMode = useStore((s) => s.membersMode);
+  const setMembersMode = useStore((s) => s.setMembersMode);
+  const setMembersWorkspaceId = useStore((s) => s.setMembersWorkspaceId);
+  const setMembers = useStore((s) => s.setMembers);
   const pushToast = useStore((s) => s.pushToast);
   const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
   const activeLabel = active ? `${active.method} ${active.name}` : undefined;
@@ -36,12 +41,14 @@ export function EditorApp() {
   // panels post their own title/icon, so skip them here.
   useEffect(() => {
     if (wsMode || grpcMode) return;
-    if (envMode) {
+    if (membersMode) {
+      postToHost({ type: "setTitle", title: "Members" });
+    } else if (envMode) {
       postToHost({ type: "setTitle", title: "Environments" });
     } else if (activeLabel && activeMethod) {
       postToHost({ type: "setTitle", title: activeLabel, icon: `method-${activeMethod}` });
     }
-  }, [activeLabel, activeMethod, envMode, wsMode, grpcMode]);
+  }, [activeLabel, activeMethod, envMode, wsMode, grpcMode, membersMode]);
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -71,6 +78,11 @@ export function EditorApp() {
         setWsMode(true);
       } else if (m.type === "showGrpc" || m.type === "openGrpcRequest") {
         setGrpcMode(true);
+      } else if (m.type === "showMembers") {
+        setMembersMode(true);
+        setMembersWorkspaceId(m.workspaceId);
+      } else if (m.type === "members") {
+        setMembers(m.members);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -133,6 +145,9 @@ export function EditorApp() {
     setEnvEditId,
     setWsMode,
     setGrpcMode,
+    setMembersMode,
+    setMembersWorkspaceId,
+    setMembers,
     pushToast,
   ]);
 
@@ -144,6 +159,8 @@ export function EditorApp() {
         <WebSocketPanel />
       ) : grpcMode ? (
         <GrpcPanel />
+      ) : membersMode ? (
+        <Members />
       ) : (
         <RequestPanel />
       )}

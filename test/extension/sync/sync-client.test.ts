@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { SyncClient } from '../../../src/extension/sync/sync-client'
+import { SyncClient, SyncForbiddenError } from '../../../src/extension/sync/sync-client'
 
 function fetchMock(handler: (url: string, init: any) => { status: number; body: any }) {
   return vi.fn(async (url: string, init: any) => {
@@ -47,6 +47,44 @@ describe('SyncClient', () => {
   })
   it('throws on a non-2xx response', async () => {
     const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
-    await expect(client(f).push('w1', '{}', '1')).rejects.toThrow(/403/)
+    await expect(client(f).push('w1', '{}', '1')).rejects.toBeInstanceOf(SyncForbiddenError)
+  })
+})
+
+describe('SyncClient members + 403', () => {
+  it('listMembers GETs the members array', async () => {
+    const f = fetchMock((url, init) => {
+      expect(url).toBe('http://localhost:8787/workspaces/w1/members')
+      expect(init.method ?? 'GET').toBe('GET')
+      return { status: 200, body: { members: [{ email: 'o@x.com', role: 'owner', pending: false }, { id: 'm1', email: 'e@x.com', role: 'editor', pending: false }] } }
+    })
+    const list = await client(f).listMembers('w1')
+    expect(list).toHaveLength(2)
+    expect(list[1]).toMatchObject({ id: 'm1', role: 'editor' })
+  })
+  it('addMember POSTs email+role and returns the member', async () => {
+    const f = fetchMock((url, init) => {
+      expect(url).toBe('http://localhost:8787/workspaces/w1/members')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body)).toEqual({ email: 'n@x.com', role: 'viewer' })
+      return { status: 201, body: { id: 'm2', email: 'n@x.com', role: 'viewer', pending: true } }
+    })
+    expect(await client(f).addMember('w1', { email: 'n@x.com', role: 'viewer' })).toMatchObject({ id: 'm2', pending: true })
+  })
+  it('removeMember DELETEs the member', async () => {
+    const f = fetchMock((url, init) => {
+      expect(url).toBe('http://localhost:8787/workspaces/w1/members/m1')
+      expect(init.method).toBe('DELETE')
+      return { status: 200, body: { ok: true } }
+    })
+    await client(f).removeMember('w1', 'm1')
+  })
+  it('a 403 on a GET throws SyncForbiddenError', async () => {
+    const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
+    await expect(client(f).pull('w1')).rejects.toBeInstanceOf(SyncForbiddenError)
+  })
+  it('a 403 on push throws SyncForbiddenError', async () => {
+    const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
+    await expect(client(f).push('w1', '{}', '1')).rejects.toBeInstanceOf(SyncForbiddenError)
   })
 })

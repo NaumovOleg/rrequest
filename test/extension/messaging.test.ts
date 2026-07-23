@@ -554,6 +554,28 @@ describe('createRouter trash targeted restore', () => {
   })
 })
 
+describe('createRouter sync control routes', () => {
+  it('routes sync/account messages to the syncControl port', async () => {
+    const calls: string[] = []
+    const syncControl = {
+      signIn: async () => { calls.push('signIn') },
+      signOut: async () => { calls.push('signOut') },
+      enable: async (id: string) => { calls.push('enable:' + id) },
+      syncNow: async (id: string) => { calls.push('syncNow:' + id) },
+    }
+    const d = deps()
+    const route = createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => 'w1', setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+      syncControl })
+    expect(await route({ type: 'signIn' } as any)).toBeUndefined()
+    expect(await route({ type: 'enableSync', workspaceId: 'w1' } as any)).toBeUndefined()
+    await route({ type: 'signOut' } as any)
+    await route({ type: 'syncNow', workspaceId: 'w2' } as any)
+    expect(calls).toEqual(['signIn', 'enable:w1', 'signOut', 'syncNow:w2'])
+  })
+})
+
 describe('createRouter viewer read-only gate', () => {
   function router(d: any, isReadOnly: (id: string) => boolean) {
     return createRouter({ send: d.send, collections: d.collections, history: d.history,

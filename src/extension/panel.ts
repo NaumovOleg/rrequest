@@ -20,6 +20,7 @@ import { SyncManager } from './sync/sync-manager'
 import { SyncSocket } from './sync/sync-socket'
 import { buildStoresPort } from './sync/wiring'
 import { createSyncRuntime, isMutating } from './sync/sync-runtime'
+import { signIn } from './sync/login'
 import { newId, defaultHeaders, type HostMessage, type RestRequest, type WebviewMessage } from '../shared/types'
 
 export function buildHtml(scriptUri: string, styleUri: string, codiconUri: string, cspSource: string, nonce: string): string {
@@ -51,6 +52,9 @@ function nonce(): string {
 let bootstrapPromise: Promise<Hub> | undefined
 let syncRuntimeRef: ReturnType<typeof createSyncRuntime> | undefined
 export function getSyncRuntime(): ReturnType<typeof createSyncRuntime> | undefined { return syncRuntimeRef }
+type SyncControlPort = { signIn(): Promise<void>; signOut(): Promise<void>; enable(workspaceId: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }
+let syncControlRef: SyncControlPort | undefined
+export function getSyncControl(): SyncControlPort | undefined { return syncControlRef }
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise
   bootstrapPromise = (async () => {
@@ -141,6 +145,15 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     trash,
     isReadOnly: (id) => syncRuntimeRef?.isReadOnly(id) ?? false,
     members: membersPort,
+    // syncControlPort is built after the sync runtime below (it needs manager/
+    // runtime/hub, which don't exist yet at createRouter time), so this is a
+    // deferred-closure thunk over syncControlRef — same pattern as isReadOnly.
+    syncControl: {
+      signIn: () => syncControlRef!.signIn(),
+      signOut: () => syncControlRef!.signOut(),
+      enable: (id: string) => syncControlRef!.enable(id),
+      syncNow: (id: string) => syncControlRef!.syncNow(id),
+    },
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -200,6 +213,31 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   syncRuntimeRef = runtime
   void runtime.refreshRoleCache()
   void manager.refreshRoles().then(() => runtime.refreshRoleCache())
+
+  const syncControlPort: SyncControlPort = {
+    signIn: async () => {
+      const token = await signIn({ baseUrl: syncBaseUrl(), openExternal: (u) => void vscode.env.openExternal(vscode.Uri.parse(u)) })
+      cachedToken = token
+      await context.secrets.store('restman.syncToken', token)
+      try { const me = await syncClient.me(); await context.globalState.update('restman.syncEmail', me.email); hub.authState(me.email) }
+      catch { hub.authState(null) }
+    },
+    signOut: async () => {
+      await context.secrets.delete('restman.syncToken'); cachedToken = undefined
+      await context.globalState.update('restman.syncEmail', undefined)
+      await runtime.refreshRoleCache()
+      hub.authState(null)
+    },
+    enable: async (id: string) => {
+      try { await manager.enable(id); await runtime.refreshRoleCache() }
+      catch (e: any) { hub.toast('error', `Enable sync failed: ${e?.message ?? e}`) }
+    },
+    syncNow: async (id: string) => {
+      try { await manager.pull(id); await manager.push(id); await runtime.refreshRoleCache() }
+      catch (e: any) { hub.toast('error', `Sync failed: ${e?.message ?? e}`) }
+    },
+  }
+  syncControlRef = syncControlPort
 
   return hub
   })()

@@ -26,15 +26,26 @@ describe('viewer read-only UX', () => {
     expect(screen.queryByText(/viewer/i)).toBeNull()
   })
 
-  it('hides the "new workspace" and rename/delete affordances for a viewer, but keeps switching enabled', () => {
+  it('hides "Create Workspace" and row edit/delete affordances for a viewer once the popup is open, but keeps switching enabled', () => {
     useStore.getState().setWorkspaces(
       [{ id: 'w1', name: 'Shared', role: 'viewer' }, { id: 'w2', name: 'Other', role: 'viewer' }],
       'w1',
     )
     render(<WorkspaceSwitcher />)
-    expect(screen.queryByRole('button', { name: /new workspace/i })).toBeNull()
+    // open the popup the way a user would -- click the switch-workspace trigger
+    fireEvent.click(screen.getByLabelText(/workspaces|switch/i))
+    expect(screen.queryByRole('button', { name: /create workspace/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^edit$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull()
     // switching workspace (the combo textbox) stays enabled for a viewer
     expect(screen.getByRole('textbox')).not.toBeDisabled()
+  })
+
+  it('shows "Create Workspace" for an owner once the popup is open', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Mine', role: 'owner' }], 'w1')
+    render(<WorkspaceSwitcher />)
+    fireEvent.click(screen.getByLabelText(/workspaces|switch/i))
+    expect(screen.getByRole('button', { name: /create workspace/i })).toBeTruthy()
   })
 
   it('disables RequestPanel Save when the active workspace is a viewer, even with a collection chosen', () => {

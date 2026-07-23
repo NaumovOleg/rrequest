@@ -1,4 +1,4 @@
-import { newId, itemKind, type CollectionItem, type GrpcRequest, type HostMessage, type KeyValue, type RestRequest, type WebviewMessage, type WsRequest } from '../shared/types'
+import { newId, itemKind, type CollectionItem, type GrpcRequest, type HostMessage, type KeyValue, type Member, type RestRequest, type WebviewMessage, type WsRequest } from '../shared/types'
 import { isMutating } from './sync/sync-runtime'
 
 // The host message that opens an item in the right kind of editor panel.
@@ -34,6 +34,7 @@ export type RouterDeps = {
   grpcInvoke?: (p: import('./grpc-client').GrpcParams) => Promise<import('./grpc-client').GrpcResult>
   trash?: import('./trash-store').TrashStore
   isReadOnly?: (workspaceId: string) => boolean
+  members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -377,6 +378,16 @@ export function createRouter(deps: RouterDeps) {
       }
       case 'openEnvironments':
         return { type: 'showEnvironments', id: msg.id }
+      case 'openMembers':
+        return { type: 'showMembers', workspaceId: msg.workspaceId }
+      case 'loadMembers':
+        return { type: 'members', members: (await deps.members?.list(msg.workspaceId)) ?? [] }
+      case 'addMember':
+        await deps.members?.add(msg.workspaceId, msg.email, msg.role)
+        return { type: 'members', members: (await deps.members?.list(msg.workspaceId)) ?? [] }
+      case 'removeMember':
+        await deps.members?.remove(msg.workspaceId, msg.memberId)
+        return { type: 'members', members: (await deps.members?.list(msg.workspaceId)) ?? [] }
       case 'openWebSocket':
         return { type: 'showWebSocket' }
       case 'openGrpc':

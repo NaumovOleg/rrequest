@@ -337,6 +337,35 @@ describe('createRouter item + folder routes', () => {
   })
 })
 
+describe('createRouter members routes', () => {
+  function r(d: any, members?: any) {
+    return createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id },
+      members })
+  }
+  it('openMembers returns showMembers', async () => {
+    const out = await r(deps())({ type: 'openMembers', workspaceId: 'w1' } as any)
+    expect(out).toEqual({ type: 'showMembers', workspaceId: 'w1' })
+  })
+  it('loadMembers returns the members list from the port', async () => {
+    const members = { list: vi.fn(async () => [{ email: 'o@x.com', role: 'owner', pending: false }]), add: vi.fn(async () => {}), remove: vi.fn(async () => {}) }
+    const out = await r(deps(), members)({ type: 'loadMembers', workspaceId: 'w1' } as any)
+    expect(out).toEqual({ type: 'members', members: [{ email: 'o@x.com', role: 'owner', pending: false }] })
+  })
+  it('addMember calls the port then returns the refreshed list', async () => {
+    const added: any[] = []
+    const members = {
+      list: vi.fn(async () => added.slice()),
+      add: vi.fn(async (_w: string, email: string, role: string) => { added.push({ id: 'm1', email, role, pending: false }) }),
+      remove: vi.fn(async () => {}),
+    }
+    const out = await r(deps(), members)({ type: 'addMember', workspaceId: 'w1', email: 'e@x.com', role: 'editor' } as any)
+    expect(members.add).toHaveBeenCalledWith('w1', 'e@x.com', 'editor')
+    expect(out).toEqual({ type: 'members', members: [{ id: 'm1', email: 'e@x.com', role: 'editor', pending: false }] })
+  })
+})
+
 describe('createRouter ws routes', () => {
   function wsRouter(d: any, ws: any) {
     return createRouter({ send: d.send, collections: d.collections, history: d.history,

@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { IconButton, ComboInput } from "../../elements";
 import { useWorkspace } from "../../state/useWorkspace";
+import { useStore } from "../../state/store";
 import { postToHost } from "../../ipc";
+
+const ROLE_LABEL = { owner: "Owner", editor: "Editor", viewer: "Viewer" } as const;
 
 export function WorkspaceSwitcher() {
   const { workspaces, active, create, rename, remove, select } = useWorkspace();
+  const isViewer = useStore((s) => s.isViewer());
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [typed, setTyped] = useState("");
 
@@ -16,22 +20,33 @@ export function WorkspaceSwitcher() {
         placeholder="No workspace"
         onChange={() => {}}
         onSelect={(item) => select(item.value)}
-        onEdit={(item, newName) => rename(item.value, newName)}
-        onDelete={(item) => {
-          setTyped("");
-          setConfirm({ id: item.value, name: item.label });
-        }}
+        onEdit={isViewer ? undefined : (item, newName) => rename(item.value, newName)}
+        onDelete={
+          isViewer
+            ? undefined
+            : (item) => {
+                setTyped("");
+                setConfirm({ id: item.value, name: item.label });
+              }
+        }
       />
-      <IconButton
-        icon="cloud-download"
-        label="import collection"
-        onClick={() => postToHost({ type: "importCollection" })}
-      />
-      <IconButton
-        icon="add"
-        label="new workspace"
-        onClick={() => create("New Workspace")}
-      />
+      {active?.role && (
+        <span className="rm-role-badge">{ROLE_LABEL[active.role]}</span>
+      )}
+      {!isViewer && (
+        <IconButton
+          icon="cloud-download"
+          label="import collection"
+          onClick={() => postToHost({ type: "importCollection" })}
+        />
+      )}
+      {!isViewer && (
+        <IconButton
+          icon="add"
+          label="new workspace"
+          onClick={() => create("New Workspace")}
+        />
+      )}
 
       {confirm && (
         <div className="rm-modal-scrim" onClick={() => setConfirm(null)}>

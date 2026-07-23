@@ -11,10 +11,12 @@ export function SplitButton({
   label,
   onClick,
   items,
+  disabled,
 }: {
   label: string;
   onClick: () => void;
   items: SplitItem[];
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -31,7 +33,7 @@ export function SplitButton({
 
   return (
     <div className="rm-split" ref={ref}>
-      <button type="button" className="rm-split-main" onClick={onClick}>
+      <button type="button" className="rm-split-main" onClick={onClick} disabled={disabled}>
         {label}
       </button>
       <button
@@ -39,6 +41,7 @@ export function SplitButton({
         className="rm-split-toggle"
         aria-label={`${label} options`}
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
       >
         <span className="codicon codicon-chevron-down" />

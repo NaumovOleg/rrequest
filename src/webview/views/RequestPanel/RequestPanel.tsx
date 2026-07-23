@@ -285,6 +285,7 @@ export function RequestPanel() {
   const [showAuto, setShowAuto] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
+  const isViewer = useStore((s) => s.isViewer());
   const update = useStore((s) => s.updateActive);
   const openNewTab = useStore((s) => s.openNewTab);
   const tree = useStore((s) => s.tree);
@@ -303,9 +304,12 @@ export function RequestPanel() {
     setSaveFolderId(pendingSaveFolderId ?? "");
   }, [pendingSaveFolderId]);
   // Linked tabs (opened from a collection) autosave their edits back to the
-  // tree, debounced, so any field change — name included — stays in sync.
+  // tree, debounced, so any field change — name included — stays in sync. A
+  // viewer can't mutate the shared tree (the router would reject it anyway),
+  // so skip firing the request entirely rather than let it round-trip into a
+  // rejection toast.
   useEffect(() => {
-    if (!active || !active.collectionId) return;
+    if (!active || !active.collectionId || isViewer) return;
     const t = setTimeout(() => {
       const { collectionId, folderId, ...request } = active;
       postToHost({
@@ -316,7 +320,7 @@ export function RequestPanel() {
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [active]);
+  }, [active, isViewer]);
   if (!active) return <div className="rm-panel">No request open</div>;
 
   const send = () => {
@@ -376,6 +380,7 @@ export function RequestPanel() {
   };
 
   const save = () => {
+    if (isViewer) return;
     const { collectionId: linkC, folderId: linkF, ...request } = active;
     const collectionId = linkC || saveCollectionId;
     if (!collectionId) return;
@@ -447,7 +452,7 @@ export function RequestPanel() {
           )}
           <button
             className="rm-btn"
-            disabled={!active.collectionId && !saveCollectionId}
+            disabled={isViewer || (!active.collectionId && !saveCollectionId)}
             onClick={save}
           >
             Save

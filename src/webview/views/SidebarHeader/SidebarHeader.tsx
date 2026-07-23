@@ -1,5 +1,6 @@
 import { SplitButton } from "../../elements";
 import { WorkspaceSwitcher } from "../WorkspaceSwitcher/WorkspaceSwitcher";
+import { useStore } from "../../state/store";
 
 export type SidebarTab = "collections" | "environments" | "history" | "trash";
 
@@ -16,12 +17,14 @@ export function SidebarHeader({
   onNewWs: () => void;
   onNewGrpc: () => void;
 }) {
+  const isViewer = useStore((s) => s.isViewer());
   return (
     <header className="rm-sbhead">
       <WorkspaceSwitcher />
       <SplitButton
         label="New HTTP Request"
         onClick={onNewHttp}
+        disabled={isViewer}
         items={[
           { label: "New HTTP Request", icon: "add", onClick: onNewHttp },
           { label: "New gRPC Request", icon: "server-process", onClick: onNewGrpc },

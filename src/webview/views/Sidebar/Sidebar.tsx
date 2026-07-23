@@ -18,6 +18,7 @@ type DragPayload =
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
   const environments = useStore((s) => s.environments)
+  const isViewer = useStore((s) => s.isViewer())
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -41,24 +42,28 @@ export function Sidebar() {
     e.dataTransfer.setData('application/json', JSON.stringify(payload))
 
   // A request can drop on a collection root or a folder; a folder can drop only
-  // on a collection root (folders don't nest).
-  const dropHandlers = (dropKey: string, toCollectionId: string, toFolderId: string | null) => ({
-    onDragOver: (e: DragEvent) => { e.preventDefault(); setDropTarget(dropKey) },
-    onDragLeave: () => setDropTarget((cur) => (cur === dropKey ? null : cur)),
-    onDrop: (e: DragEvent) => {
-      e.preventDefault()
-      setDropTarget(null)
-      const raw = e.dataTransfer.getData('application/json')
-      if (!raw) return
-      const p = JSON.parse(raw) as DragPayload
-      if (p.kind === 'folder') {
-        if (toFolderId) return // can't drop a folder into a folder
-        postToHost({ type: 'moveFolder', fromCollectionId: p.fromCollectionId, toCollectionId, folderId: p.folderId })
-      } else {
-        postToHost({ type: 'moveRequest', fromCollectionId: p.fromCollectionId, fromFolderId: p.fromFolderId, requestId: p.requestId, toCollectionId, toFolderId })
-      }
-    },
-  })
+  // on a collection root (folders don't nest). A viewer can't rearrange the
+  // shared tree, so dragging/dropping is a no-op for them.
+  const dropHandlers = (dropKey: string, toCollectionId: string, toFolderId: string | null) => {
+    if (isViewer) return {}
+    return {
+      onDragOver: (e: DragEvent) => { e.preventDefault(); setDropTarget(dropKey) },
+      onDragLeave: () => setDropTarget((cur) => (cur === dropKey ? null : cur)),
+      onDrop: (e: DragEvent) => {
+        e.preventDefault()
+        setDropTarget(null)
+        const raw = e.dataTransfer.getData('application/json')
+        if (!raw) return
+        const p = JSON.parse(raw) as DragPayload
+        if (p.kind === 'folder') {
+          if (toFolderId) return // can't drop a folder into a folder
+          postToHost({ type: 'moveFolder', fromCollectionId: p.fromCollectionId, toCollectionId, folderId: p.folderId })
+        } else {
+          postToHost({ type: 'moveRequest', fromCollectionId: p.fromCollectionId, fromFolderId: p.fromFolderId, requestId: p.requestId, toCollectionId, toFolderId })
+        }
+      },
+    }
+  }
 
   const toggleCollection = (id: string) =>
     setExpandedCollections((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
@@ -84,9 +89,9 @@ export function Sidebar() {
     const activate = () => openExisting(r, collectionId, folderId)
     return (
       <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
-        draggable={!isRenaming}
+        draggable={!isRenaming && !isViewer}
         onDragStart={(e) => startDrag(e, { kind: 'request', fromCollectionId: collectionId, fromFolderId: folderId, requestId: r.id })}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtx({ x: e.clientX, y: e.clientY, collectionId, folderId, request: r }) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, collectionId, folderId, request: r }) }}
         onClick={activate}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } }}>
         {itemBadge(r)}{' '}
@@ -95,9 +100,11 @@ export function Sidebar() {
               onCommit={(name) => { postToHost({ type: 'renameRequest', collectionId, folderId, requestId: r.id, name }); setRenamingId(null) }}
               onCancel={() => setRenamingId(null)} />
           : <span className="rm-tree-label">{r.name}</span>}
-        <div className="rm-actions">
-          <IconButton icon="edit" label={`rename request ${r.name}`} onClick={() => setRenamingId(r.id)} />
-        </div>
+        {!isViewer && (
+          <div className="rm-actions">
+            <IconButton icon="edit" label={`rename request ${r.name}`} onClick={() => setRenamingId(r.id)} />
+          </div>
+        )}
       </div>
     )
   }
@@ -109,7 +116,7 @@ export function Sidebar() {
     return (
       <div key={f.id}>
         <div className={`rm-tree-row${dropTarget === key ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
-          draggable={!isRenaming}
+          draggable={!isRenaming && !isViewer}
           onDragStart={(e) => { e.stopPropagation(); startDrag(e, { kind: 'folder', fromCollectionId: c.id, folderId: f.id }) }}
           onClick={() => toggleFolder(key)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFolder(key) } }}
@@ -121,13 +128,15 @@ export function Sidebar() {
                 onCommit={(name) => { postToHost({ type: 'renameFolder', collectionId: c.id, folderId: f.id, name }); setRenamingId(null) }}
                 onCancel={() => setRenamingId(null)} />
             : <span className="rm-tree-label">{f.name}</span>}
-          <div className="rm-actions">
-            <IconButton icon="add" label={`add request to ${f.name}`}
-              onClick={() => { expandCollection(c.id); expandFolder(key); postToHost({ type: 'createRequest', collectionId: c.id, folderId: f.id, request: blankRequest() }) }} />
-            <IconButton icon="edit" label={`rename folder ${f.name}`} onClick={() => setRenamingId(f.id)} />
-            <IconButton icon="trash" label={`delete folder ${f.name}`}
-              onClick={() => postToHost({ type: 'deleteFolder', collectionId: c.id, folderId: f.id })} />
-          </div>
+          {!isViewer && (
+            <div className="rm-actions">
+              <IconButton icon="add" label={`add request to ${f.name}`}
+                onClick={() => { expandCollection(c.id); expandFolder(key); postToHost({ type: 'createRequest', collectionId: c.id, folderId: f.id, request: blankRequest() }) }} />
+              <IconButton icon="edit" label={`rename folder ${f.name}`} onClick={() => setRenamingId(f.id)} />
+              <IconButton icon="trash" label={`delete folder ${f.name}`}
+                onClick={() => postToHost({ type: 'deleteFolder', collectionId: c.id, folderId: f.id })} />
+            </div>
+          )}
         </div>
         {isExpanded && (
           <div className="rm-tree-children">
@@ -159,8 +168,10 @@ export function Sidebar() {
       )}
       <div className="rm-tree-head">
         <span className="rm-section-title">Collections</span>
-        <IconButton icon="add" label="add collection"
-          onClick={() => postToHost({ type: 'createCollection', name: 'New Collection' })} />
+        {!isViewer && (
+          <IconButton icon="add" label="add collection"
+            onClick={() => postToHost({ type: 'createCollection', name: 'New Collection' })} />
+        )}
       </div>
       {tree.map((c) => {
         const isExpanded = expandedCollections.has(c.id)
@@ -179,13 +190,17 @@ export function Sidebar() {
                     onCancel={() => setRenamingId(null)} />
                 : <span className="rm-tree-label">{c.name}</span>}
               <div className="rm-actions">
-                <IconButton icon="new-folder" label={`new folder in ${c.name}`}
-                  onClick={() => postToHost({ type: 'createFolder', collectionId: c.id, name: 'New Folder' })} />
-                <IconButton icon="add" label={`add request to ${c.name}`}
-                  onClick={() => { expandCollection(c.id); postToHost({ type: 'createRequest', collectionId: c.id, folderId: null, request: blankRequest() }) }} />
-                <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
-                <IconButton icon="trash" label={`delete collection ${c.name}`}
-                  onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
+                {!isViewer && (
+                  <>
+                    <IconButton icon="new-folder" label={`new folder in ${c.name}`}
+                      onClick={() => postToHost({ type: 'createFolder', collectionId: c.id, name: 'New Folder' })} />
+                    <IconButton icon="add" label={`add request to ${c.name}`}
+                      onClick={() => { expandCollection(c.id); postToHost({ type: 'createRequest', collectionId: c.id, folderId: null, request: blankRequest() }) }} />
+                    <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
+                    <IconButton icon="trash" label={`delete collection ${c.name}`}
+                      onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
+                  </>
+                )}
                 <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={[
                   { label: `Environment: ${environments.find((e) => e.id === c.environmentId)?.name ?? 'None'}`, icon: 'globe', onClick: () => {} },
                   ...environments.map((e) => ({

@@ -161,6 +161,20 @@ body {
 .codicon { font-size: 15px; line-height: 1; }
 .rm-rename-input { padding: 1px 4px; }
 
+/* role badge — a quiet chip next to the active workspace name */
+.rm-role-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--vscode-badge-background, var(--rm-hover));
+  color: var(--vscode-badge-foreground, var(--rm-muted));
+  white-space: nowrap;
+  flex: none;
+}
+
 /* url bar polish */
 .rm-urlbar .rm-btn--primary { padding: 4px 20px; font-weight: 600; }
 .rm-method-select { font-weight: 700; text-align: left; }
@@ -205,6 +219,7 @@ body {
 .rm-split-toggle:hover { background: var(--rm-accent-hover); }
 .rm-split-menu { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; margin-top: 2px; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 2px 8px rgba(0,0,0,.3); padding: 2px; }
 .rm-split { position: relative; }
+.rm-split-main:disabled, .rm-split-toggle:disabled { opacity: .5; cursor: default; }
 
 /* request pane (Postman-style: meta header, url bar, config | response split) */
 .rm-reqpane { flex: 1; min-height: 0; display: flex; flex-direction: column; }

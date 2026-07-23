@@ -82,6 +82,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   let cachedToken: string | undefined
   void context.secrets.get('restman.syncToken').then((t) => { cachedToken = t ?? undefined })
   context.secrets.onDidChange(async (e) => { if (e.key === 'restman.syncToken') cachedToken = (await context.secrets.get('restman.syncToken')) ?? undefined })
+  const currentAuthEmail = (): string | null => cachedToken ? (context.globalState.get<string>('restman.syncEmail') ?? null) : null
   const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
 
   const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
@@ -151,9 +152,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     return [
       { type: 'tree', collections: cols },
       { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
-      { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: syncRuntimeRef?.roleOf(w.id) })), activeId: ws },
+      { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: syncRuntimeRef?.roleOf(w.id), synced: syncRuntimeRef?.syncedOf(w.id) })), activeId: ws },
       { type: 'history', entries: hist },
       { type: 'trash', entries: trashed },
+      { type: 'authState', email: currentAuthEmail() },
     ]
   }
 

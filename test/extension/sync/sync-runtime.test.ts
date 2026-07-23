@@ -54,4 +54,15 @@ describe('createSyncRuntime', () => {
     expect(rt.isReadOnly('unknown')).toBe(false)
     expect(rt.roleOf('w2')).toBe('editor')
   })
+
+  it('syncedOf reflects the sync-state synced flag from the cache', async () => {
+    const state = { all: async () => ({ w1: { role: 'owner', synced: true }, w2: { role: 'viewer', synced: false } }) } as any
+    const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(), refreshRoles: vi.fn() } as any
+    const socket = { start: vi.fn(), stop: vi.fn() } as any
+    const rt = createSyncRuntime({ manager, socket, onPulled: async () => {}, state })
+    await rt.refreshRoleCache()
+    expect(rt.syncedOf('w1')).toBe(true)
+    expect(rt.syncedOf('w2')).toBe(false)
+    expect(rt.syncedOf('unknown')).toBe(false)
+  })
 })

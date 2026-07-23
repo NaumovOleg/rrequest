@@ -40,6 +40,9 @@ export class Hub {
   // Broadcast a toast to every sink (used by the host to surface e.g. a 403 from a member op).
   toast(level: 'error' | 'info', message: string): void { this.broadcast({ type: 'toast', level, message }) }
 
+  // Broadcast the current auth state to every sink (used by the host after sign-in/out).
+  authState(email: string | null): void { this.broadcast({ type: 'authState', email }) }
+
   private postTo(id: string, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }
 

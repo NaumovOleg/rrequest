@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type RestRequest, type TrashEntry, type Workspace } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole } from '../../shared/types'
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -54,6 +54,10 @@ type State = {
   envMode: boolean
   envEditId: string | null
   grpcMode: boolean
+  members: Member[]
+  membersMode: boolean
+  membersWorkspaceId: string | null
+  toasts: { id: string; level: 'error' | 'info'; message: string }[]
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -82,10 +86,17 @@ type State = {
   setEnvMode(v: boolean): void
   setEnvEditId(id: string | null): void
   setGrpcMode(v: boolean): void
+  setMembers(list: Member[]): void
+  setMembersMode(v: boolean): void
+  setMembersWorkspaceId(id: string | null): void
+  pushToast(level: 'error' | 'info', message: string): void
+  dismissToast(id: string): void
+  isViewer(): boolean
+  activeWorkspace(): Workspace | undefined
   __reset(): void
 }
 
-export const useStore = create<State>((set) => ({
+export const useStore = create<State>((set, get) => ({
   tabs: [],
   activeTabId: undefined,
   tree: [],
@@ -109,6 +120,10 @@ export const useStore = create<State>((set) => ({
   envMode: false,
   envEditId: null,
   grpcMode: false,
+  members: [],
+  membersMode: false,
+  membersWorkspaceId: null,
+  toasts: [],
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -209,5 +224,13 @@ export const useStore = create<State>((set) => ({
   setEnvEditId: (envEditId) => set({ envEditId }),
   setGrpcMode: (grpcMode) => set({ grpcMode }),
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false }),
+  setMembers: (members) => set({ members }),
+  setMembersMode: (membersMode) => set({ membersMode }),
+  setMembersWorkspaceId: (membersWorkspaceId) => set({ membersWorkspaceId }),
+  pushToast: (level, message) => set((s) => ({ toasts: [...s.toasts, { id: newId(), level, message }] })),
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  activeWorkspace: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId) },
+  isViewer: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.role === 'viewer' },
+
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [] }),
 }))

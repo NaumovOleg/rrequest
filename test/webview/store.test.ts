@@ -200,3 +200,26 @@ describe('store setTree tab reconciliation', () => {
     expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Typing')
   })
 })
+
+describe('store sharing state', () => {
+  it('isViewer reflects the active workspace role', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'A', role: 'viewer' }, { id: 'w2', name: 'B', role: 'owner' }], 'w1')
+    expect(useStore.getState().isViewer()).toBe(true)
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'A', role: 'viewer' }, { id: 'w2', name: 'B', role: 'owner' }], 'w2')
+    expect(useStore.getState().isViewer()).toBe(false)
+  })
+  it('pushToast adds a toast with an id; dismissToast removes it', () => {
+    useStore.getState().pushToast('error', 'nope')
+    const t = useStore.getState().toasts
+    expect(t).toHaveLength(1)
+    expect(t[0]).toMatchObject({ level: 'error', message: 'nope' })
+    useStore.getState().dismissToast(t[0].id)
+    expect(useStore.getState().toasts).toHaveLength(0)
+  })
+  it('setMembers / membersMode round-trip', () => {
+    useStore.getState().setMembers([{ email: 'o@x.com', role: 'owner', pending: false }])
+    expect(useStore.getState().members).toHaveLength(1)
+    useStore.getState().setMembersMode(true)
+    expect(useStore.getState().membersMode).toBe(true)
+  })
+})

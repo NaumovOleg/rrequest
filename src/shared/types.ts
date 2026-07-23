@@ -97,7 +97,10 @@ export type Folder = { id: string; name: string; requests: CollectionItem[] }
 
 export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string }
 
-export type Workspace = { id: string; name: string }
+export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
+export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
+
+export type Workspace = { id: string; name: string; role?: WorkspaceRole }
 
 // A deleted thing kept for restore. `data` is the full snapshot (collections and
 // folders keep their children); `path` records ancestors so a folder/request can
@@ -171,6 +174,10 @@ export type WebviewMessage =
   | { type: 'openGrpc' }
   | { type: 'grpcInvoke'; requestId: string; address: string; proto: string; service: string; method: string; message: string; metadata: KeyValue[]; plaintext: boolean }
   | { type: 'setTitle'; title: string; icon?: string }
+  | { type: 'openMembers'; workspaceId: string }
+  | { type: 'loadMembers'; workspaceId: string }
+  | { type: 'addMember'; workspaceId: string; email: string; role: 'editor' | 'viewer' }
+  | { type: 'removeMember'; workspaceId: string; memberId: string }
 
 // host -> webview
 export type HostMessage =
@@ -193,6 +200,8 @@ export type HostMessage =
   | { type: 'showGrpc' }
   | { type: 'grpcResponse'; requestId: string; ok: boolean; message?: string; error?: string; timeMs: number }
   | { type: 'toast'; level: 'error' | 'info'; message: string }
+  | { type: 'showMembers'; workspaceId: string }
+  | { type: 'members'; members: Member[] }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

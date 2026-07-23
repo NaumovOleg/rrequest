@@ -37,6 +37,9 @@ export class Hub {
   // Direct post to one sink (used by the WsManager to reach the ws panel).
   emitTo(id: string, m: HostMessage): void { this.postTo(id, m) }
 
+  // Broadcast a toast to every sink (used by the host to surface e.g. a 403 from a member op).
+  toast(level: 'error' | 'info', message: string): void { this.broadcast({ type: 'toast', level, message }) }
+
   private postTo(id: string, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }
 
@@ -44,7 +47,7 @@ export class Hub {
     const reply = await this.route(msg)
     if (reply) {
       if (reply.type === 'response' || reply.type === 'pickedFile' || reply.type === 'grpcResponse') this.postTo(fromId, reply)
-      else if (reply.type === 'openInEditor' || reply.type === 'openGrpcRequest' || reply.type === 'openWsRequest' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc') {
+      else if (reply.type === 'openInEditor' || reply.type === 'openGrpcRequest' || reply.type === 'openWsRequest' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc' || reply.type === 'showMembers') {
         this.onOpen?.(reply)
       }
       // tree/environments/workspaces/history replies are covered by the snapshot below

@@ -14,7 +14,7 @@ import { TrashStore } from './trash-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
-import { SyncClient } from './sync/sync-client'
+import { SyncClient, SyncForbiddenError } from './sync/sync-client'
 import { SyncStateStore } from './sync/sync-state-store'
 import { SyncManager } from './sync/sync-manager'
 import { SyncSocket } from './sync/sync-socket'
@@ -68,12 +68,34 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     await context.globalState.update('restman.activeWorkspaceId', list[0].id)
   }
 
-  // createRouter runs before the Hub exists, so the WsManager's emit is a
-  // lazily-bound closure over hubRef, which is assigned right after the Hub
-  // is constructed below.
+  // createRouter runs before the Hub exists, so the WsManager's emit (and the
+  // members port's toast-on-403) are lazily-bound closures over hubRef, which
+  // is assigned right after the Hub is constructed below.
   const wsFactory: WsFactory = (url, opts) => new WebSocket(url, { headers: opts.headers }) as unknown as import('./ws-manager').WsSocket
   let hubRef: Hub | undefined
   const wsManager = new WsManager((m) => hubRef?.emitTo('ws', m), wsFactory)
+
+  // syncClient is constructed early (it has no Hub dependency) so the router's
+  // members port can be built over it below; the rest of the sync runtime
+  // (which does need the Hub) is wired up after the Hub is constructed.
+  const syncBaseUrl = (): string => vscode.workspace.getConfiguration('restman').get<string>('syncServerUrl', 'http://localhost:8787')
+  let cachedToken: string | undefined
+  void context.secrets.get('restman.syncToken').then((t) => { cachedToken = t ?? undefined })
+  context.secrets.onDidChange(async (e) => { if (e.key === 'restman.syncToken') cachedToken = (await context.secrets.get('restman.syncToken')) ?? undefined })
+  const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
+
+  const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
+  const membersPort = {
+    list: (id: string) => syncClient.listMembers(id),
+    add: async (id: string, email: string, role: 'editor' | 'viewer') => {
+      try { await syncClient.addMember(id, { email, role }) }
+      catch (e) { if (e instanceof SyncForbiddenError) { hubRef?.toast('error', 'Only the owner can add members.'); return } throw e }
+    },
+    remove: async (id: string, memberId: string) => {
+      try { await syncClient.removeMember(id, memberId) }
+      catch (e) { if (e instanceof SyncForbiddenError) { hubRef?.toast('error', 'Only the owner can remove members.'); return } throw e }
+    },
+  }
 
   const route = createRouter({
     send: sendRequest,
@@ -117,6 +139,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     grpcInvoke,
     trash,
     isReadOnly: (id) => syncRuntimeRef?.isReadOnly(id) ?? false,
+    members: membersPort,
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -151,17 +174,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       RestmanPanel.openOrReveal(context, 'ws', 'WebSocket', m)
     } else if (m.type === 'showGrpc') {
       RestmanPanel.openOrReveal(context, 'grpc', 'gRPC', m)
+    } else if (m.type === 'showMembers') {
+      RestmanPanel.openOrReveal(context, 'members', 'Members', m)
     }
   })
 
-  // --- sync runtime (shares the router's stores + Hub) ---
-  const syncBaseUrl = (): string => vscode.workspace.getConfiguration('restman').get<string>('syncServerUrl', 'http://localhost:8787')
-  let cachedToken: string | undefined
-  void context.secrets.get('restman.syncToken').then((t) => { cachedToken = t ?? undefined })
-  context.secrets.onDidChange(async (e) => { if (e.key === 'restman.syncToken') cachedToken = (await context.secrets.get('restman.syncToken')) ?? undefined })
-  const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
-
-  const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
+  // --- sync runtime (shares the router's stores + Hub; syncClient itself was
+  // constructed earlier so the router's members port could be built over it) ---
   const syncState = new SyncStateStore(base)
   const manager = new SyncManager({
     client: syncClient,

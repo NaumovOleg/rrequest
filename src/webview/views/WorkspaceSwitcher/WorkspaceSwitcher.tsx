@@ -9,6 +9,7 @@ const ROLE_LABEL = { owner: "Owner", editor: "Editor", viewer: "Viewer" } as con
 export function WorkspaceSwitcher() {
   const { workspaces, active, create, rename, remove, select } = useWorkspace();
   const isViewer = useStore((s) => s.isViewer());
+  const isOwner = useStore((s) => s.activeWorkspace()?.role === "owner");
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [typed, setTyped] = useState("");
 
@@ -45,6 +46,15 @@ export function WorkspaceSwitcher() {
           icon="add"
           label="new workspace"
           onClick={() => create("New Workspace")}
+        />
+      )}
+      {isOwner && active && (
+        <IconButton
+          icon="organization"
+          label="members"
+          onClick={() =>
+            postToHost({ type: "openMembers", workspaceId: active.id })
+          }
         />
       )}
 

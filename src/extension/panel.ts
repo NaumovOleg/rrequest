@@ -143,7 +143,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     ws: wsManager,
     grpcInvoke,
     trash,
-    isReadOnly: (id) => syncRuntimeRef?.isReadOnly(id) ?? false,
+    // Only enforce a role when signed in. The role cache is loaded from the
+    // on-disk sync-state, which survives sign-out; without this gate a former
+    // viewer would stay locked out (and the role badge would linger) after
+    // signing out, and likewise on a cold start while signed out.
+    isReadOnly: (id) => (cachedToken ? syncRuntimeRef?.isReadOnly(id) : false) ?? false,
     members: membersPort,
     // syncControlPort is built after the sync runtime below (it needs manager/
     // runtime/hub, which don't exist yet at createRouter time), so this is a
@@ -165,7 +169,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     return [
       { type: 'tree', collections: cols },
       { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
-      { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: syncRuntimeRef?.roleOf(w.id), synced: syncRuntimeRef?.syncedOf(w.id) })), activeId: ws },
+      { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: cachedToken ? syncRuntimeRef?.roleOf(w.id) : undefined, synced: cachedToken ? syncRuntimeRef?.syncedOf(w.id) : undefined })), activeId: ws },
       { type: 'history', entries: hist },
       { type: 'trash', entries: trashed },
       { type: 'authState', email: currentAuthEmail() },

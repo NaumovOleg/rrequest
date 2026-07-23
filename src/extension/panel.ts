@@ -215,25 +215,31 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   void manager.refreshRoles().then(() => runtime.refreshRoleCache())
 
   const syncControlPort: SyncControlPort = {
+    // Each control ends with runtime.refresh() (= hub.refresh, re-broadcast the
+    // snapshot) so the UI updates even on the command-palette path, which calls
+    // the port directly rather than through hub.dispatch (which broadcasts on
+    // its own). Idempotent double-broadcast on the webview path is harmless.
     signIn: async () => {
       const token = await signIn({ baseUrl: syncBaseUrl(), openExternal: (u) => void vscode.env.openExternal(vscode.Uri.parse(u)) })
       cachedToken = token
       await context.secrets.store('restman.syncToken', token)
       try { const me = await syncClient.me(); await context.globalState.update('restman.syncEmail', me.email); hub.authState(me.email) }
       catch { hub.authState(null) }
+      await runtime.refresh()
     },
     signOut: async () => {
       await context.secrets.delete('restman.syncToken'); cachedToken = undefined
       await context.globalState.update('restman.syncEmail', undefined)
       await runtime.refreshRoleCache()
       hub.authState(null)
+      await runtime.refresh()
     },
     enable: async (id: string) => {
-      try { await manager.enable(id); await runtime.refreshRoleCache() }
+      try { await manager.enable(id); await runtime.refreshRoleCache(); await runtime.refresh() }
       catch (e: any) { hub.toast('error', `Enable sync failed: ${e?.message ?? e}`) }
     },
     syncNow: async (id: string) => {
-      try { await manager.pull(id); await manager.push(id); await runtime.refreshRoleCache() }
+      try { await manager.pull(id); await manager.push(id); await runtime.refreshRoleCache(); await runtime.refresh() }
       catch (e: any) { hub.toast('error', `Sync failed: ${e?.message ?? e}`) }
     },
   }

@@ -58,6 +58,7 @@ type State = {
   membersMode: boolean
   membersWorkspaceId: string | null
   toasts: { id: string; level: 'error' | 'info'; message: string }[]
+  authEmail: string | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -93,6 +94,8 @@ type State = {
   dismissToast(id: string): void
   isViewer(): boolean
   activeWorkspace(): Workspace | undefined
+  setAuthEmail(email: string | null): void
+  activeSynced(): boolean
   __reset(): void
 }
 
@@ -124,6 +127,7 @@ export const useStore = create<State>((set, get) => ({
   membersMode: false,
   membersWorkspaceId: null,
   toasts: [],
+  authEmail: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -231,6 +235,8 @@ export const useStore = create<State>((set, get) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   activeWorkspace: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId) },
   isViewer: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.role === 'viewer' },
+  setAuthEmail: (authEmail) => set({ authEmail }),
+  activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [] }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null }),
 }))

@@ -222,4 +222,16 @@ describe('store sharing state', () => {
     useStore.getState().setMembersMode(true)
     expect(useStore.getState().membersMode).toBe(true)
   })
+  it('setAuthEmail stores the signed-in email (or null)', () => {
+    useStore.getState().setAuthEmail('me@x.com')
+    expect(useStore.getState().authEmail).toBe('me@x.com')
+    useStore.getState().setAuthEmail(null)
+    expect(useStore.getState().authEmail).toBeNull()
+  })
+  it('activeSynced reflects the active workspace synced flag', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'A', role: 'owner', synced: true }, { id: 'w2', name: 'B' }], 'w1')
+    expect(useStore.getState().activeSynced()).toBe(true)
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'A', role: 'owner', synced: true }, { id: 'w2', name: 'B' }], 'w2')
+    expect(useStore.getState().activeSynced()).toBe(false)
+  })
 })

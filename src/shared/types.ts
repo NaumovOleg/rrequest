@@ -100,7 +100,7 @@ export type Collection = { id: string; name: string; workspaceId: string; reques
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
 
-export type Workspace = { id: string; name: string; role?: WorkspaceRole }
+export type Workspace = { id: string; name: string; role?: WorkspaceRole; synced?: boolean }
 
 // A deleted thing kept for restore. `data` is the full snapshot (collections and
 // folders keep their children); `path` records ancestors so a folder/request can
@@ -178,6 +178,10 @@ export type WebviewMessage =
   | { type: 'loadMembers'; workspaceId: string }
   | { type: 'addMember'; workspaceId: string; email: string; role: 'editor' | 'viewer' }
   | { type: 'removeMember'; workspaceId: string; memberId: string }
+  | { type: 'signIn' }
+  | { type: 'signOut' }
+  | { type: 'enableSync'; workspaceId: string }
+  | { type: 'syncNow'; workspaceId: string }
 
 // host -> webview
 export type HostMessage =
@@ -202,6 +206,7 @@ export type HostMessage =
   | { type: 'toast'; level: 'error' | 'info'; message: string }
   | { type: 'showMembers'; workspaceId: string }
   | { type: 'members'; members: Member[] }
+  | { type: 'authState'; email: string | null }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

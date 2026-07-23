@@ -48,6 +48,7 @@ export function SidebarApp() {
       else if (m.type === "history") setHistory(m.entries);
       else if (m.type === "trash") setTrash(m.entries);
       else if (m.type === "toast") pushToast(m.level, m.message);
+      else if (m.type === "authState") useStore.getState().setAuthEmail(m.email);
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadWorkspaces" });

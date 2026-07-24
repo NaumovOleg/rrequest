@@ -1,0 +1,120 @@
+import type { WorkspaceStore, MembershipStore, UserStore, User, SyncedWorkspace } from "../stores/types.js";
+import type { DriveClient } from "../domain/drive-client.js";
+import type { WorkspaceRole } from "../domain/authz.js";
+import { folderNameForUser } from "../domain/drive-factory.js";
+import { stripSnapshotSecrets } from "../domain/snapshot.js";
+
+export type WorkspaceServiceDeps = {
+  workspaces: WorkspaceStore;
+  memberships: MembershipStore;
+  users: UserStore;
+  driveFor: (user: User) => DriveClient;
+};
+
+export type EnableResult = { driveFileId: string; revision: string } | { status: 403 };
+export type PullResult =
+  | { snapshot: string; revision: string; role: WorkspaceRole }
+  | { status: 403 | 404 | 500 };
+export type PushResult =
+  | { revision: string }
+  | { status: 400 | 403 | 404 }
+  | { status: 409; body: { snapshot: string; revision: string } }
+  | { status: 500 };
+
+export class WorkspaceService {
+  constructor(private deps: WorkspaceServiceDeps) {}
+
+  private async resolveRole(workspaceId: string, userId: string): Promise<WorkspaceRole | null> {
+    const ws = await this.deps.workspaces.get(workspaceId);
+    if (!ws) return null;
+    if (ws.ownerUserId === userId) return "owner";
+    return (await this.deps.memberships.roleForUser(workspaceId, userId)) ?? null;
+  }
+
+  private async ownerDriveFor(ws: SyncedWorkspace): Promise<DriveClient | undefined> {
+    const owner = await this.deps.users.getById(ws.ownerUserId);
+    return owner ? this.deps.driveFor(owner) : undefined;
+  }
+
+  async list(user: User): Promise<Array<SyncedWorkspace & { role: WorkspaceRole }>> {
+    const owned = (await this.deps.workspaces.listByOwner(user.id)).map((w) => ({ ...w, role: "owner" as const }));
+    const ownedIds = new Set(owned.map((w) => w.id));
+    const memberships = await this.deps.memberships.listByUser(user.id);
+    const shared: Array<SyncedWorkspace & { role: WorkspaceRole }> = [];
+    for (const m of memberships) {
+      if (ownedIds.has(m.workspaceId)) continue;
+      const w = await this.deps.workspaces.get(m.workspaceId);
+      if (w) shared.push({ ...w, role: m.role });
+    }
+    return [...owned, ...shared];
+  }
+
+  async enable(
+    user: User,
+    input: { workspaceId: string; name: string; snapshot: string },
+  ): Promise<EnableResult> {
+    const { workspaceId, name, snapshot } = input;
+    const existing = await this.deps.workspaces.get(workspaceId);
+    if (existing && existing.ownerUserId !== user.id) return { status: 403 };
+    const clean = stripSnapshotSecrets(snapshot);
+    const drive = this.deps.driveFor(user);
+    let fileId: string;
+    let hashFolderId: string;
+    let revision: string;
+    if (existing) {
+      const updated = await drive.updateFile(existing.driveFileId, clean);
+      fileId = existing.driveFileId;
+      hashFolderId = existing.hashFolderId;
+      revision = updated.revision;
+    } else {
+      hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
+      const created = await drive.createFile(hashFolderId, `${name}-${workspaceId}.json`, clean);
+      fileId = created.fileId;
+      revision = created.revision;
+    }
+    await this.deps.workspaces.upsert({
+      id: workspaceId,
+      name,
+      ownerUserId: user.id,
+      driveFileId: fileId,
+      hashFolderId,
+      revision,
+      updatedAt: Date.now(),
+    });
+    return { driveFileId: fileId, revision };
+  }
+
+  async pull(user: User, id: string): Promise<PullResult> {
+    const ws = await this.deps.workspaces.get(id);
+    if (!ws) return { status: 404 };
+    const role = await this.resolveRole(id, user.id);
+    if (!role) return { status: 403 };
+    const drive = await this.ownerDriveFor(ws);
+    if (!drive) return { status: 500 };
+    const snapshot = await drive.readFile(ws.driveFileId);
+    return { snapshot, revision: ws.revision, role };
+  }
+
+  async push(
+    user: User,
+    id: string,
+    input: { snapshot?: string; baseRevision?: string },
+  ): Promise<PushResult> {
+    const ws = await this.deps.workspaces.get(id);
+    if (!ws) return { status: 404 };
+    const role = await this.resolveRole(id, user.id);
+    if (role !== "owner" && role !== "editor") return { status: 403 };
+    const { snapshot, baseRevision } = input;
+    if (typeof snapshot !== "string" || typeof baseRevision !== "string") return { status: 400 };
+    const drive = await this.ownerDriveFor(ws);
+    if (!drive) return { status: 500 };
+    if (baseRevision !== ws.revision) {
+      const current = await drive.readFile(ws.driveFileId);
+      return { status: 409, body: { snapshot: current, revision: ws.revision } };
+    }
+    const clean = stripSnapshotSecrets(snapshot);
+    const { revision } = await drive.updateFile(ws.driveFileId, clean);
+    await this.deps.workspaces.setRevision(id, revision, Date.now());
+    return { revision };
+  }
+}

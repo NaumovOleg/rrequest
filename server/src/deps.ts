@@ -11,6 +11,7 @@ import { GoogleOAuth } from "./domain/google-oauth.js";
 import { AuthService } from "./services/auth-service.js";
 import { WorkspaceService } from "./services/workspace-service.js";
 import { MemberService } from "./services/member-service.js";
+import { PollService } from "./services/poll-service.js";
 import type { AuthzDeps } from "./services/authz.js";
 
 export const config = loadConfig();
@@ -57,3 +58,5 @@ export const authService = new AuthService({
 export const workspaceService = new WorkspaceService({ workspaces, memberships, users, driveFor });
 
 export const memberService = new MemberService(authzDeps);
+
+export const pollService = new PollService({ workspaces, users, driveFor });

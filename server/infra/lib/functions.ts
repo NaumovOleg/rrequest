@@ -102,7 +102,7 @@ export function pollFunction(scope: Construct, props: PollFunctionProps): Nodejs
   });
 
   tables.workspaces.grantReadWriteData(fn);
-  tables.users.grantReadWriteData(fn);
+  tables.users.grantReadData(fn); // pollFn only reads Users (owner lookup)
   secrets.googleClientSecret.grantRead(fn);
   secrets.tokenEncKey.grantRead(fn);
 

@@ -1,8 +1,8 @@
 import type { WorkspaceStore, MembershipStore, UserStore, User, SyncedWorkspace } from "../stores/types.js";
 import type { DriveClient } from "../domain/drive-client.js";
-import type { WorkspaceRole } from "../domain/authz.js";
 import { folderNameForUser } from "../domain/drive-factory.js";
 import { stripSnapshotSecrets } from "../domain/snapshot.js";
+import { resolveRole, ownerDriveFor, type WorkspaceRole } from "./authz.js";
 
 export type WorkspaceServiceDeps = {
   workspaces: WorkspaceStore;
@@ -23,18 +23,6 @@ export type PushResult =
 
 export class WorkspaceService {
   constructor(private deps: WorkspaceServiceDeps) {}
-
-  private async resolveRole(workspaceId: string, userId: string): Promise<WorkspaceRole | null> {
-    const ws = await this.deps.workspaces.get(workspaceId);
-    if (!ws) return null;
-    if (ws.ownerUserId === userId) return "owner";
-    return (await this.deps.memberships.roleForUser(workspaceId, userId)) ?? null;
-  }
-
-  private async ownerDriveFor(ws: SyncedWorkspace): Promise<DriveClient | undefined> {
-    const owner = await this.deps.users.getById(ws.ownerUserId);
-    return owner ? this.deps.driveFor(owner) : undefined;
-  }
 
   async list(user: User): Promise<Array<SyncedWorkspace & { role: WorkspaceRole }>> {
     const owned = (await this.deps.workspaces.listByOwner(user.id)).map((w) => ({ ...w, role: "owner" as const }));
@@ -87,9 +75,9 @@ export class WorkspaceService {
   async pull(user: User, id: string): Promise<PullResult> {
     const ws = await this.deps.workspaces.get(id);
     if (!ws) return { status: 404 };
-    const role = await this.resolveRole(id, user.id);
+    const role = await resolveRole(this.deps, id, user.id);
     if (!role) return { status: 403 };
-    const drive = await this.ownerDriveFor(ws);
+    const drive = await ownerDriveFor(this.deps, ws);
     if (!drive) return { status: 500 };
     const snapshot = await drive.readFile(ws.driveFileId);
     return { snapshot, revision: ws.revision, role };
@@ -102,11 +90,11 @@ export class WorkspaceService {
   ): Promise<PushResult> {
     const ws = await this.deps.workspaces.get(id);
     if (!ws) return { status: 404 };
-    const role = await this.resolveRole(id, user.id);
+    const role = await resolveRole(this.deps, id, user.id);
     if (role !== "owner" && role !== "editor") return { status: 403 };
     const { snapshot, baseRevision } = input;
     if (typeof snapshot !== "string" || typeof baseRevision !== "string") return { status: 400 };
-    const drive = await this.ownerDriveFor(ws);
+    const drive = await ownerDriveFor(this.deps, ws);
     if (!drive) return { status: 500 };
     if (baseRevision !== ws.revision) {
       const current = await drive.readFile(ws.driveFileId);

@@ -11,6 +11,7 @@ export interface DriveClient {
   stopChannel(opts: { channelId: string; resourceId: string }): Promise<void>;
   createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }>;
   deletePermission(fileId: string, permissionId: string): Promise<void>;
+  trashFile(fileId: string): Promise<void>;
 }
 
 const DRIVE = "https://www.googleapis.com/drive/v3";
@@ -191,6 +192,15 @@ export class GoogleDriveClient implements DriveClient {
     });
     if (!res.ok && res.status !== 404) throw new Error(`Drive permission delete failed: ${res.status}`);
   }
+
+  async trashFile(fileId: string): Promise<void> {
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}`, {
+      method: "PATCH",
+      headers: { ...(await this.auth()), "content-type": "application/json" },
+      body: JSON.stringify({ trashed: true }),
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`Drive trash failed: ${res.status}`);
+  }
 }
 
 // In-memory DriveClient for tests.
@@ -252,4 +262,12 @@ export class FakeDriveClient implements DriveClient {
   }
   // test helper
   permissions(fileId: string) { return this.perms.get(fileId) ?? []; }
+
+  private trashedIds = new Set<string>();
+  async trashFile(fileId: string): Promise<void> {
+    this.files.delete(fileId);
+    this.trashedIds.add(fileId);
+  }
+  // test helper
+  trashed(fileId: string): boolean { return this.trashedIds.has(fileId); }
 }

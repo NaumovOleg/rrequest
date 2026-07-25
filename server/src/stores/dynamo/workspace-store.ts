@@ -1,4 +1,5 @@
 import {
+  DeleteCommand,
   GetCommand,
   PutCommand,
   QueryCommand,
@@ -88,6 +89,10 @@ export class DynamoWorkspaceStore implements WorkspaceStore {
       ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
     return ids;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.doc.send(new DeleteCommand({ TableName: this.table, Key: { workspaceId: id } }));
   }
 
   private toItem(w: SyncedWorkspace): WorkspaceItem {

@@ -26,4 +26,8 @@ export class MemoryWorkspaceStore implements WorkspaceStore {
   async allIds(): Promise<string[]> {
     return [...this.byId.keys()];
   }
+
+  async delete(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
 }

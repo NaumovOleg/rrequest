@@ -38,6 +38,9 @@ class AuthFailDriveClient implements DriveClient {
   async deletePermission(): Promise<void> {
     throw new DriveAuthError();
   }
+  async trashFile(): Promise<void> {
+    throw new DriveAuthError();
+  }
 }
 
 function makeService() {

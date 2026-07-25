@@ -33,6 +33,7 @@ export interface WorkspaceStore {
   upsert(w: SyncedWorkspace): Promise<SyncedWorkspace>;
   setRevision(id: string, revision: string, updatedAt: number): Promise<void>;
   allIds(): Promise<string[]>;
+  delete(id: string): Promise<void>;
 }
 
 export interface MembershipStore {

@@ -20,6 +20,7 @@ export type PushResult =
   | { status: 400 | 401 | 403 | 404 }
   | { status: 409; body: { snapshot: string; revision: string } }
   | { status: 500 };
+export type DeleteSyncResult = { ok: true } | { status: 403 | 404 };
 
 export class WorkspaceService {
   constructor(private deps: WorkspaceServiceDeps) {}
@@ -120,5 +121,28 @@ export class WorkspaceService {
     }
     await this.deps.workspaces.setRevision(id, revision, Date.now());
     return { revision };
+  }
+
+  async deleteSync(user: User, id: string): Promise<DeleteSyncResult> {
+    const ws = await this.deps.workspaces.get(id);
+    if (!ws) return { status: 404 };
+    const role = await resolveRole(this.deps, id, user.id);
+    if (role !== "owner") return { status: 403 };
+    const drive = await ownerDriveFor(this.deps, ws);
+    if (drive) {
+      try {
+        await drive.trashFile(ws.driveFileId);
+      } catch {
+        // Best-effort: proceed with cleanup even if the Drive trash fails
+        // (e.g. auth revoked, file already gone). Members must still lose
+        // their sync rows and the row must still be reclaimed.
+      }
+    }
+    const memberships = await this.deps.memberships.listByWorkspace(id);
+    for (const m of memberships) {
+      await this.deps.memberships.remove(m.id);
+    }
+    await this.deps.workspaces.delete(id);
+    return { ok: true };
   }
 }

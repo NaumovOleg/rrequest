@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Params, Req } from "@heliosjs/core";
+import { Controller, Get, Post, Put, Delete, Body, Params, Req } from "@heliosjs/core";
 import type { Request } from "@heliosjs/core";
 import { workspaceService } from "../deps.js";
 import { requireUser } from "../auth-plugin.js";
@@ -38,6 +38,13 @@ export class WorkspacesController {
   ) {
     const user = requireUser(req);
     const result = await workspaceService.push(user, id, body ?? {});
+    return toHttpResult(result);
+  }
+
+  @Delete("/:id")
+  async remove(@Req() req: Request, @Params("id") id: string) {
+    const user = requireUser(req);
+    const result = await workspaceService.deleteSync(user, id);
     return toHttpResult(result);
   }
 }

@@ -74,4 +74,15 @@ describe("DynamoWorkspaceStore", () => {
     expect(ids).toContain("scan-a");
     expect(ids).toContain("scan-b");
   });
+
+  it("deletes a workspace row", async () => {
+    await store.upsert(w({ id: "del-ws" }));
+    expect(await store.get("del-ws")).toBeDefined();
+    await store.delete("del-ws");
+    expect(await store.get("del-ws")).toBeUndefined();
+  });
+
+  it("delete is a no-op for an unknown id", async () => {
+    await expect(store.delete("never-existed")).resolves.toBeUndefined();
+  });
 });

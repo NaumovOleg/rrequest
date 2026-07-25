@@ -1,11 +1,12 @@
 import type { User, Role } from "../stores/types.js";
+import { DriveAuthError } from "../domain/drive-factory.js";
 import { resolveRole, ownerDriveFor, type AuthzDeps } from "./authz.js";
 
 export type MemberDto = { id?: string; email: string; role: Role | "owner"; pending: boolean };
 
 export type ListResult = { members: MemberDto[] } | { status: 403 | 404 };
-export type AddResult = { member: MemberDto } | { status: 400 | 403 | 404 };
-export type RemoveResult = { ok: true } | { status: 403 | 404 };
+export type AddResult = { member: MemberDto } | { status: 400 | 401 | 403 | 404 };
+export type RemoveResult = { ok: true } | { status: 401 | 403 | 404 };
 
 const DRIVE_ROLE: Record<Role, "writer" | "reader"> = { editor: "writer", viewer: "reader" };
 
@@ -39,31 +40,37 @@ export class MemberService {
     const existing =
       (account ? await this.deps.memberships.findByWorkspaceUser(id, account.id) : undefined) ??
       (await this.deps.memberships.findByWorkspaceEmail(id, email));
-    if (existing) {
-      try {
-        await drive.deletePermission(ws.driveFileId, existing.permissionId);
-      } catch {
-        // best-effort
+    try {
+      if (existing) {
+        try {
+          await drive.deletePermission(ws.driveFileId, existing.permissionId);
+        } catch (e) {
+          if (e instanceof DriveAuthError) throw e;
+          // best-effort otherwise
+        }
+        const { permissionId } = await drive.createPermission(ws.driveFileId, {
+          email,
+          role: driveRole,
+          sendNotificationEmail: false,
+        });
+        await this.deps.memberships.update(existing.id, { role, permissionId });
+        return { member: { id: existing.id, email, role, pending: !existing.userId } };
       }
       const { permissionId } = await drive.createPermission(ws.driveFileId, {
         email,
         role: driveRole,
-        sendNotificationEmail: false,
+        sendNotificationEmail: true,
       });
-      await this.deps.memberships.update(existing.id, { role, permissionId });
-      return { member: { id: existing.id, email, role, pending: !existing.userId } };
+      const m = await this.deps.memberships.add(
+        account
+          ? { workspaceId: id, userId: account.id, role, permissionId }
+          : { workspaceId: id, pendingEmail: email, role, permissionId },
+      );
+      return { member: { id: m.id, email, role, pending: !account } };
+    } catch (e) {
+      if (e instanceof DriveAuthError) return { status: 401 };
+      throw e;
     }
-    const { permissionId } = await drive.createPermission(ws.driveFileId, {
-      email,
-      role: driveRole,
-      sendNotificationEmail: true,
-    });
-    const m = await this.deps.memberships.add(
-      account
-        ? { workspaceId: id, userId: account.id, role, permissionId }
-        : { workspaceId: id, pendingEmail: email, role, permissionId },
-    );
-    return { member: { id: m.id, email, role, pending: !account } };
   }
 
   async remove(user: User, id: string, memberId: string): Promise<RemoveResult> {
@@ -76,8 +83,9 @@ export class MemberService {
     if (drive) {
       try {
         await drive.deletePermission(ws.driveFileId, m.permissionId);
-      } catch {
-        // best-effort
+      } catch (e) {
+        if (e instanceof DriveAuthError) return { status: 401 };
+        // best-effort otherwise
       }
     }
     await this.deps.memberships.remove(memberId);

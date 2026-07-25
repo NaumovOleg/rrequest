@@ -1,6 +1,6 @@
 import type { WorkspaceStore, MembershipStore, UserStore, User, SyncedWorkspace } from "../stores/types.js";
 import type { DriveClient } from "../domain/drive-client.js";
-import { folderNameForUser } from "../domain/drive-factory.js";
+import { folderNameForUser, DriveAuthError } from "../domain/drive-factory.js";
 import { stripSnapshotSecrets } from "../domain/snapshot.js";
 import { resolveRole, ownerDriveFor, type WorkspaceRole } from "./authz.js";
 
@@ -11,13 +11,13 @@ export type WorkspaceServiceDeps = {
   driveFor: (user: User) => DriveClient;
 };
 
-export type EnableResult = { driveFileId: string; revision: string } | { status: 403 };
+export type EnableResult = { driveFileId: string; revision: string } | { status: 401 | 403 };
 export type PullResult =
   | { snapshot: string; revision: string; role: WorkspaceRole }
-  | { status: 403 | 404 | 500 };
+  | { status: 401 | 403 | 404 | 500 };
 export type PushResult =
   | { revision: string }
-  | { status: 400 | 403 | 404 }
+  | { status: 400 | 401 | 403 | 404 }
   | { status: 409; body: { snapshot: string; revision: string } }
   | { status: 500 };
 
@@ -49,16 +49,21 @@ export class WorkspaceService {
     let fileId: string;
     let hashFolderId: string;
     let revision: string;
-    if (existing) {
-      const updated = await drive.updateFile(existing.driveFileId, clean);
-      fileId = existing.driveFileId;
-      hashFolderId = existing.hashFolderId;
-      revision = updated.revision;
-    } else {
-      hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
-      const created = await drive.createFile(hashFolderId, `${name}-${workspaceId}.json`, clean);
-      fileId = created.fileId;
-      revision = created.revision;
+    try {
+      if (existing) {
+        const updated = await drive.updateFile(existing.driveFileId, clean);
+        fileId = existing.driveFileId;
+        hashFolderId = existing.hashFolderId;
+        revision = updated.revision;
+      } else {
+        hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
+        const created = await drive.createFile(hashFolderId, `${name}-${workspaceId}.json`, clean);
+        fileId = created.fileId;
+        revision = created.revision;
+      }
+    } catch (e) {
+      if (e instanceof DriveAuthError) return { status: 401 };
+      throw e;
     }
     await this.deps.workspaces.upsert({
       id: workspaceId,
@@ -79,8 +84,13 @@ export class WorkspaceService {
     if (!role) return { status: 403 };
     const drive = await ownerDriveFor(this.deps, ws);
     if (!drive) return { status: 500 };
-    const snapshot = await drive.readFile(ws.driveFileId);
-    return { snapshot, revision: ws.revision, role };
+    try {
+      const snapshot = await drive.readFile(ws.driveFileId);
+      return { snapshot, revision: ws.revision, role };
+    } catch (e) {
+      if (e instanceof DriveAuthError) return { status: 401 };
+      throw e;
+    }
   }
 
   async push(
@@ -96,12 +106,18 @@ export class WorkspaceService {
     if (typeof snapshot !== "string" || typeof baseRevision !== "string") return { status: 400 };
     const drive = await ownerDriveFor(this.deps, ws);
     if (!drive) return { status: 500 };
-    if (baseRevision !== ws.revision) {
-      const current = await drive.readFile(ws.driveFileId);
-      return { status: 409, body: { snapshot: current, revision: ws.revision } };
-    }
     const clean = stripSnapshotSecrets(snapshot);
-    const { revision } = await drive.updateFile(ws.driveFileId, clean);
+    let revision: string;
+    try {
+      if (baseRevision !== ws.revision) {
+        const current = await drive.readFile(ws.driveFileId);
+        return { status: 409, body: { snapshot: current, revision: ws.revision } };
+      }
+      ({ revision } = await drive.updateFile(ws.driveFileId, clean));
+    } catch (e) {
+      if (e instanceof DriveAuthError) return { status: 401 };
+      throw e;
+    }
     await this.deps.workspaces.setRevision(id, revision, Date.now());
     return { revision };
   }

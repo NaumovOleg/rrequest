@@ -81,13 +81,16 @@ export type PollFunctionProps = {
 };
 
 /**
- * The EventBridge-invoked sweep (`src/handlers/poll.ts`). `PollService` only
- * reads/writes Workspaces + Users (see `src/services/poll-service.ts`), and
- * only needs the Google client secret (Drive OAuth refresh, via
- * `makeDriveFactory`) + the token-encryption key (decrypting stored refresh
- * tokens in `DynamoUserStore`) -- not Memberships or the JWT secret. IAM is
- * scoped to that narrower footprint even though `deps.ts` eagerly
- * constructs the membership store too (unused by this handler's code path).
+ * The EventBridge-invoked sweep (`src/handlers/poll.ts`). `PollService`'s own
+ * code path only reads Workspaces(RW)+Users(R) and needs the Google client
+ * secret (Drive OAuth) + token-encryption key. BUT `deps.ts` eagerly
+ * constructs every service at import (incl. `AuthService`), and `loadConfig`
+ * requires `JWT_SECRET`; since `baseEnvironment` wires `JWT_SECRET_ARN` into
+ * this function too, `ensureSecretsLoaded` fetches it at cold start -- so the
+ * function MUST be granted read on the JWT secret, else cold start fails with
+ * AccessDenied. (A tighter footprint would require splitting deps so poll
+ * doesn't build AuthService -- tracked as a follow-up.) Memberships table is
+ * still correctly not granted (unused by any poll code path).
  */
 export function pollFunction(scope: Construct, props: PollFunctionProps): NodejsFunction {
   const { tables, secrets, config } = props;
@@ -104,6 +107,7 @@ export function pollFunction(scope: Construct, props: PollFunctionProps): Nodejs
   tables.workspaces.grantReadWriteData(fn);
   tables.users.grantReadData(fn); // pollFn only reads Users (owner lookup)
   secrets.googleClientSecret.grantRead(fn);
+  secrets.jwtSecret.grantRead(fn); // required: ensureSecretsLoaded fetches JWT_SECRET_ARN at cold start (deps.ts eagerly builds AuthService)
   secrets.tokenEncKey.grantRead(fn);
 
   return fn;

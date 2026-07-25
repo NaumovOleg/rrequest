@@ -17,7 +17,7 @@ import { WsManager, type WsFactory } from './ws-manager'
 import { SyncClient, SyncForbiddenError } from './sync/sync-client'
 import { SyncStateStore } from './sync/sync-state-store'
 import { SyncManager } from './sync/sync-manager'
-import { SyncSocket } from './sync/sync-socket'
+import { createPollLoop } from './sync/poll-loop'
 import { buildStoresPort } from './sync/wiring'
 import { createSyncRuntime, isMutating } from './sync/sync-runtime'
 import { signIn } from './sync/login'
@@ -207,16 +207,25 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     stores: buildStoresPort(collections, environments, workspaces),
     email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
   })
-  // SyncSocket's onChange references `runtime` before it is assigned; the arrow
-  // defers the read until a message arrives, by which point `runtime` is set.
-  let runtime: ReturnType<typeof createSyncRuntime>
-  const socket = new SyncSocket({ url: syncBaseUrl, token: () => cachedToken, onChange: (m) => { void runtime.onSocketChange(m) } })
-  runtime = createSyncRuntime({ manager, socket, state: syncState, onPulled: async () => { await hub.refresh() } })
+  const runtime = createSyncRuntime({ manager, state: syncState, onPulled: async () => { await hub.refresh() } })
   hub.setAfterDispatch((msg) => { if (isMutating(msg.type)) runtime.schedulePush(activeWsId()) })
-  runtime.start()
   syncRuntimeRef = runtime
   void runtime.refreshRoleCache()
   void manager.refreshRoles().then(() => runtime.refreshRoleCache())
+
+  // The serverless backend has no WebSocket push channel, so the extension
+  // polls listWorkspaces() periodically and pulls any workspace whose server
+  // revision has moved past what we last saw (only for workspaces we've
+  // enabled sync on locally).
+  const pollIntervalMs = vscode.workspace.getConfiguration('restman').get<number>('syncPollIntervalMs', 45000)
+  const pollLoop = createPollLoop({
+    listWorkspaces: () => syncClient.listWorkspaces(),
+    state: syncState,
+    pullIfNewer: (id, revision) => manager.pullIfNewer(id, revision),
+    onPulled: async () => { await runtime.refreshRoleCache(); await hub.refresh() },
+    intervalMs: pollIntervalMs,
+  })
+  pollLoop.start()
 
   const syncControlPort: SyncControlPort = {
     // Each control ends with runtime.refresh() (= hub.refresh, re-broadcast the

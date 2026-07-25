@@ -35,6 +35,11 @@
           "type": "string",
           "default": "http://localhost:8787",
           "description": "restman sync backend URL"
+        },
+        "restman.syncPollIntervalMs": {
+          "type": "number",
+          "default": 45000,
+          "description": "How often (in milliseconds) restman polls the sync backend for remote workspace changes"
         }
       }
     },

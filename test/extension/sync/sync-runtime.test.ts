@@ -15,8 +15,7 @@ describe('createSyncRuntime', () => {
   it('debounces schedulePush into a single manager.push', async () => {
     vi.useFakeTimers()
     const manager = { push: vi.fn(async () => {}), pull: vi.fn(async () => {}), pullIfNewer: vi.fn() } as any
-    const socket = { start: vi.fn(), stop: vi.fn() } as any
-    const rt = createSyncRuntime({ manager, socket, onPulled: async () => {}, debounceMs: 500 })
+    const rt = createSyncRuntime({ manager, onPulled: async () => {}, debounceMs: 500 })
     rt.schedulePush('w1'); rt.schedulePush('w1'); rt.schedulePush('w1')
     await vi.advanceTimersByTimeAsync(600)
     expect(manager.push).toHaveBeenCalledTimes(1)
@@ -24,30 +23,10 @@ describe('createSyncRuntime', () => {
     vi.useRealTimers()
   })
 
-  it('onSocketChange skips onPulled when pullIfNewer reports nothing changed (self-pull of our own push)', async () => {
-    const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(async () => false) } as any
-    const socket = { start: vi.fn(), stop: vi.fn() } as any
-    const onPulled = vi.fn(async () => {})
-    const rt = createSyncRuntime({ manager, socket, onPulled })
-    await rt.onSocketChange({ type: 'workspace-changed', workspaceId: 'w1', revision: '3', updatedBy: 'me' })
-    expect(manager.pullIfNewer).toHaveBeenCalledWith('w1', '3')
-    expect(onPulled).not.toHaveBeenCalled()
-  })
-
-  it('onSocketChange calls onPulled once when pullIfNewer actually pulled', async () => {
-    const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(async () => true) } as any
-    const socket = { start: vi.fn(), stop: vi.fn() } as any
-    const onPulled = vi.fn(async () => {})
-    const rt = createSyncRuntime({ manager, socket, onPulled })
-    await rt.onSocketChange({ type: 'workspace-changed', workspaceId: 'w1', revision: '4', updatedBy: 'other' })
-    expect(onPulled).toHaveBeenCalledTimes(1)
-  })
-
   it('exposes isReadOnly from the role cache (viewer = read-only)', async () => {
     const state = { all: async () => ({ w1: { role: 'viewer' }, w2: { role: 'editor' } }) } as any
     const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(), refreshRoles: vi.fn() } as any
-    const socket = { start: vi.fn(), stop: vi.fn() } as any
-    const rt = createSyncRuntime({ manager, socket, onPulled: async () => {}, state })
+    const rt = createSyncRuntime({ manager, onPulled: async () => {}, state })
     await rt.refreshRoleCache()
     expect(rt.isReadOnly('w1')).toBe(true)
     expect(rt.isReadOnly('w2')).toBe(false)
@@ -58,8 +37,7 @@ describe('createSyncRuntime', () => {
   it('syncedOf reflects the sync-state synced flag from the cache', async () => {
     const state = { all: async () => ({ w1: { role: 'owner', synced: true }, w2: { role: 'viewer', synced: false } }) } as any
     const manager = { push: vi.fn(), pull: vi.fn(), pullIfNewer: vi.fn(), refreshRoles: vi.fn() } as any
-    const socket = { start: vi.fn(), stop: vi.fn() } as any
-    const rt = createSyncRuntime({ manager, socket, onPulled: async () => {}, state })
+    const rt = createSyncRuntime({ manager, onPulled: async () => {}, state })
     await rt.refreshRoleCache()
     expect(rt.syncedOf('w1')).toBe(true)
     expect(rt.syncedOf('w2')).toBe(false)

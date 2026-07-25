@@ -16,20 +16,95 @@ export interface DriveClient {
 const DRIVE = "https://www.googleapis.com/drive/v3";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3";
 
+export type GoogleDriveClientOpts = {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+};
+
+const DEFAULT_MAX_RETRIES = 4;
+const DEFAULT_BASE_DELAY_MS = 250;
+const MAX_BACKOFF_DELAY_MS = 8000;
+
+function realSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class GoogleDriveClient implements DriveClient {
-  constructor(private getAccessToken: () => Promise<string>, private fetchImpl: typeof fetch = fetch) {}
+  private maxRetries: number;
+  private baseDelayMs: number;
+  private sleep: (ms: number) => Promise<void>;
+
+  constructor(
+    private getAccessToken: () => Promise<string>,
+    private fetchImpl: typeof fetch = fetch,
+    opts?: GoogleDriveClientOpts,
+  ) {
+    this.maxRetries = opts?.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.baseDelayMs = opts?.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
+    this.sleep = opts?.sleep ?? realSleep;
+  }
 
   private async auth(): Promise<Record<string, string>> {
     return { authorization: `Bearer ${await this.getAccessToken()}` };
   }
 
+  private backoffDelay(attempt: number, retryAfterSeconds: number | null): number {
+    if (retryAfterSeconds !== null && !Number.isNaN(retryAfterSeconds)) {
+      return Math.max(0, retryAfterSeconds * 1000);
+    }
+    const exp = Math.min(this.baseDelayMs * 2 ** attempt, MAX_BACKOFF_DELAY_MS);
+    const jitter = Math.random() * exp * 0.25;
+    return exp + jitter;
+  }
+
+  private parseRetryAfter(res: { headers?: { get(name: string): string | null } }): number | null {
+    const raw = res.headers?.get?.("retry-after");
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private async fetchWithRetry(url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> {
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let res: Response | undefined;
+      let thrown: unknown;
+      try {
+        res = await this.fetchImpl(url, init);
+      } catch (e) {
+        thrown = e;
+      }
+
+      const retryableStatus = res !== undefined && (res.status === 429 || res.status >= 500);
+      const attemptsRemain = attempt < this.maxRetries;
+
+      if (thrown !== undefined) {
+        if (!attemptsRemain) throw thrown;
+        await this.sleep(this.backoffDelay(attempt, null));
+        attempt++;
+        continue;
+      }
+
+      if (retryableStatus && attemptsRemain) {
+        const retryAfter = this.parseRetryAfter(res!);
+        await this.sleep(this.backoffDelay(attempt, retryAfter));
+        attempt++;
+        continue;
+      }
+
+      return res!;
+    }
+  }
+
   async ensureFolder(name: string): Promise<string> {
     const q = encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const listRes = await this.fetchImpl(`${DRIVE}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: await this.auth() });
+    const listRes = await this.fetchWithRetry(`${DRIVE}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: await this.auth() });
     if (!listRes.ok) throw new Error(`Drive list failed: ${listRes.status}`);
     const list = (await listRes.json()) as { files?: { id: string }[] };
     if (list.files && list.files[0]) return list.files[0].id;
-    const createRes = await this.fetchImpl(`${DRIVE}/files?fields=id`, {
+    const createRes = await this.fetchWithRetry(`${DRIVE}/files?fields=id`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": "application/json" },
       body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder" }),
@@ -44,7 +119,7 @@ export class GoogleDriveClient implements DriveClient {
     const body =
       `--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
       `--${boundary}\r\ncontent-type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-    const res = await this.fetchImpl(`${UPLOAD}/files?uploadType=multipart&fields=id,headRevisionId`, {
+    const res = await this.fetchWithRetry(`${UPLOAD}/files?uploadType=multipart&fields=id,headRevisionId`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": `multipart/related; boundary=${boundary}` },
       body,
@@ -55,7 +130,7 @@ export class GoogleDriveClient implements DriveClient {
   }
 
   async updateFile(fileId: string, content: string): Promise<{ revision: string }> {
-    const res = await this.fetchImpl(`${UPLOAD}/files/${fileId}?uploadType=media&fields=headRevisionId`, {
+    const res = await this.fetchWithRetry(`${UPLOAD}/files/${fileId}?uploadType=media&fields=headRevisionId`, {
       method: "PATCH",
       headers: { ...(await this.auth()), "content-type": "application/json" },
       body: content,
@@ -65,13 +140,13 @@ export class GoogleDriveClient implements DriveClient {
   }
 
   async readFile(fileId: string): Promise<string> {
-    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}?alt=media`, { headers: await this.auth() });
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}?alt=media`, { headers: await this.auth() });
     if (!res.ok) throw new Error(`Drive read failed: ${res.status}`);
     return await res.text();
   }
 
   async getHeadRevision(fileId: string): Promise<string> {
-    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}?fields=headRevisionId`, { headers: await this.auth() });
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}?fields=headRevisionId`, { headers: await this.auth() });
     if (!res.ok) throw new Error(`Drive head-revision failed: ${res.status}`);
     return ((await res.json()) as { headRevisionId?: string }).headRevisionId ?? "";
   }
@@ -79,7 +154,7 @@ export class GoogleDriveClient implements DriveClient {
   async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
     const body: Record<string, unknown> = { id: opts.channelId, type: "web_hook", address: opts.address, token: opts.token };
     if (opts.ttlSeconds) body.expiration = Date.now() + opts.ttlSeconds * 1000;
-    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/watch?fields=resourceId,expiration`, {
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}/watch?fields=resourceId,expiration`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -90,7 +165,7 @@ export class GoogleDriveClient implements DriveClient {
   }
 
   async stopChannel(opts: { channelId: string; resourceId: string }): Promise<void> {
-    const res = await this.fetchImpl(`${DRIVE}/channels/stop`, {
+    const res = await this.fetchWithRetry(`${DRIVE}/channels/stop`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": "application/json" },
       body: JSON.stringify({ id: opts.channelId, resourceId: opts.resourceId }),
@@ -100,7 +175,7 @@ export class GoogleDriveClient implements DriveClient {
 
   async createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }> {
     const q = `sendNotificationEmail=${opts.sendNotificationEmail ? "true" : "false"}&fields=id`;
-    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/permissions?${q}`, {
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}/permissions?${q}`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": "application/json" },
       body: JSON.stringify({ role: opts.role, type: "user", emailAddress: opts.email }),
@@ -110,7 +185,7 @@ export class GoogleDriveClient implements DriveClient {
   }
 
   async deletePermission(fileId: string, permissionId: string): Promise<void> {
-    const res = await this.fetchImpl(`${DRIVE}/files/${fileId}/permissions/${permissionId}`, {
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}/permissions/${permissionId}`, {
       method: "DELETE",
       headers: await this.auth(),
     });

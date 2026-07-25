@@ -1,0 +1,40 @@
+# The published .vsix must contain ONLY the client: the bundled extension +
+# webview assets + icons (+ the production node_modules vsce keeps for the
+# runtime-external deps like @grpc/grpc-js). Everything else — especially the
+# backend broker and any secrets — stays out. `vsce` ships every file NOT
+# matched here (it already drops devDependencies from node_modules on its own).
+
+# --- Backend broker: hosted separately by the operator; NEVER ships to users ---
+server/**
+
+# --- Any env / secret files, anywhere (keep the example) ---
+**/.env
+**/.env.*
+!**/.env.example
+
+# --- Source, tests, docs, tooling (only the built dist/ + media/ ship) ---
+src/**
+test/**
+docs/**
+.superpowers/**
+.vscode/**
+.github/**
+
+# --- Build/config + repo cruft ---
+esbuild.js
+vite.config.*
+vitest.config.*
+tsconfig*.json
+.eslintrc*
+.prettierrc*
+.git/**
+.gitignore
+.gitattributes
+.DS_Store
+*.log
+
+# NOTE: node_modules is intentionally NOT excluded — @grpc/grpc-js and
+# @grpc/proto-loader are marked `external` in esbuild.js and must ship at
+# runtime; vsce prunes devDependencies automatically.
+# Kept in the package: dist/**, media/**, resources/**, package.json,
+# README*/LICENSE*, and the production node_modules vsce decides to include.

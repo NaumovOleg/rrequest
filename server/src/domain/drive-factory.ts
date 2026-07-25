@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { OAuth2Client } from "google-auth-library";
 import { GoogleDriveClient, type DriveClient } from "./drive-client.js";
-import type { User } from "../user-store.js";
+import type { User } from "../stores/types.js";
 import type { Config } from "./config.js";
 
 export function folderNameForUser(userId: string): string {

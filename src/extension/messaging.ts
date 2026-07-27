@@ -36,6 +36,11 @@ export type RouterDeps = {
   isReadOnly?: (workspaceId: string) => boolean
   members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
   syncControl?: { signIn(): Promise<void>; signOut(): Promise<void>; enable(workspaceId: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }
+  // Best-effort hook fired when a workspace is deleted locally, so the host
+  // can also trash its Drive file + server rows if it was synced. Must never
+  // reject (the sync side already swallows its own errors) and never blocks
+  // the local delete below, which proceeds regardless.
+  onWorkspaceDeleted?: (workspaceId: string) => Promise<void>
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -237,6 +242,10 @@ export function createRouter(deps: RouterDeps) {
         deps.setActiveEnvId(null)
         return await wsSnapshot()
       case 'deleteWorkspace': {
+        // Trash the Drive file + server rows first if this workspace was
+        // synced (best-effort: a sync-side failure must never block the
+        // local, permanent delete below).
+        try { await deps.onWorkspaceDeleted?.(msg.id) } catch { /* best-effort */ }
         await deps.workspaces.delete(msg.id)
         // if the active workspace was deleted, pick/create a fallback and make it active
         if (deps.getActiveWorkspaceId() === msg.id) {

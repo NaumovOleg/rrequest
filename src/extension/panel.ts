@@ -14,9 +14,10 @@ import { TrashStore } from './trash-store'
 import { parseImport, serializeExport } from './import-export'
 import { Hub } from './hub'
 import { WsManager, type WsFactory } from './ws-manager'
-import { SyncClient, SyncForbiddenError } from './sync/sync-client'
+import { SyncClient, SyncForbiddenError, SyncGoneError } from './sync/sync-client'
 import { SyncStateStore } from './sync/sync-state-store'
 import { SyncManager } from './sync/sync-manager'
+import { makeToastThrottle } from './sync/toast-throttle'
 import { createPollLoop } from './sync/poll-loop'
 import { buildStoresPort } from './sync/wiring'
 import { createSyncRuntime, isMutating } from './sync/sync-runtime'
@@ -55,6 +56,10 @@ export function getSyncRuntime(): ReturnType<typeof createSyncRuntime> | undefin
 type SyncControlPort = { signIn(): Promise<void>; signOut(): Promise<void>; enable(workspaceId: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }
 let syncControlRef: SyncControlPort | undefined
 export function getSyncControl(): SyncControlPort | undefined { return syncControlRef }
+// Deferred like syncControlRef above: createRouter runs before the sync
+// runtime exists, so deleteWorkspace's sync hook is a closure over this ref,
+// assigned once the SyncManager + SyncStateStore are constructed below.
+let onWorkspaceDeletedRef: ((id: string) => Promise<void>) | undefined
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise
   bootstrapPromise = (async () => {
@@ -158,6 +163,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       enable: (id: string) => syncControlRef!.enable(id),
       syncNow: (id: string) => syncControlRef!.syncNow(id),
     },
+    // best-effort: trash the Drive file + server rows for a locally-synced
+    // workspace when it's deleted; never blocks the local delete (see below).
+    onWorkspaceDeleted: (id: string) => onWorkspaceDeletedRef?.(id) ?? Promise.resolve(),
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
@@ -201,17 +209,49 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // --- sync runtime (shares the router's stores + Hub; syncClient itself was
   // constructed earlier so the router's members port could be built over it) ---
   const syncState = new SyncStateStore(base)
+  // Shared by signOut and onAuthLost below: forgets the cached/stored token +
+  // remembered email. signOut is a user action (no toast); onAuthLost fires
+  // when the JWT/refresh token was invalidated server-side and additionally
+  // toasts so the user knows why they were signed out.
+  const clearSyncAuth = async (): Promise<void> => {
+    await context.secrets.delete('restman.syncToken')
+    cachedToken = undefined
+    await context.globalState.update('restman.syncEmail', undefined)
+  }
+  // At most one toast per distinct message per 15s, so a flurry of failed
+  // pushes/polls doesn't spam the user with a toast per workspace/attempt.
+  const throttledToast = makeToastThrottle((level, message) => hub.toast(level, message), 15000)
   const manager = new SyncManager({
     client: syncClient,
     state: syncState,
     stores: buildStoresPort(collections, environments, workspaces),
     email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
+    onAuthLost: async () => {
+      await clearSyncAuth()
+      hub.authState(null)
+      hub.toast('error', 'Sync sign-in expired — please sign in again.')
+    },
+    onSyncError: (_workspaceId, error) => {
+      if (error instanceof SyncGoneError) {
+        throttledToast('info', 'This workspace was deleted by its owner; your local copy was kept.')
+      } else {
+        throttledToast('error', 'Could not reach the sync server; will retry.')
+      }
+    },
   })
   const runtime = createSyncRuntime({ manager, state: syncState, onPulled: async () => { await hub.refresh() } })
   hub.setAfterDispatch((msg) => { if (isMutating(msg.type)) runtime.schedulePush(activeWsId()) })
   syncRuntimeRef = runtime
   void runtime.refreshRoleCache()
   void manager.refreshRoles().then(() => runtime.refreshRoleCache())
+  // Owner-delete: when a locally-synced workspace is deleted, also trash the
+  // Drive file + server rows (best-effort — deleteSync already swallows its
+  // own errors via onSyncError and never throws, so the local delete in
+  // messaging.ts's deleteWorkspace case is never blocked by this).
+  onWorkspaceDeletedRef = async (id: string) => {
+    const state = await syncState.get(id)
+    if (state?.synced) await manager.deleteSync(id)
+  }
 
   // The serverless backend has no WebSocket push channel, so the extension
   // polls listWorkspaces() periodically and pulls any workspace whose server
@@ -241,8 +281,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       await runtime.refresh()
     },
     signOut: async () => {
-      await context.secrets.delete('restman.syncToken'); cachedToken = undefined
-      await context.globalState.update('restman.syncEmail', undefined)
+      await clearSyncAuth()
       await runtime.refreshRoleCache()
       hub.authState(null)
       await runtime.refresh()

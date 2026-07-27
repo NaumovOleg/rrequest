@@ -10,7 +10,7 @@ consent screen if it's in "Testing" mode) to exercise sharing.
 
 Prerequisites: `server/README.md` completed through "Deploy" and "Set the 3
 secret values" — you have a deployed `ApiUrl`, the Google OAuth redirect URI
-matches `<ApiUrl>/api/auth/callback`, and all 3 Secrets Manager secrets hold
+matches `<ApiUrl>/api/auth/callback`, and all 3 SSM SecureString parameters hold
 real values.
 
 ## 0. Deploy sanity
@@ -144,11 +144,11 @@ npx cdk deploy --all
   govern the worst-case delay: `restman.syncPollIntervalMs` (extension →
   server) and the fixed 1-minute EventBridge rate (server-side Drive-edit
   detection, only relevant for edits made outside the extension).
-- `pollFn`'s cold start needs read access to the JWT secret even though its
+- `pollFn`'s cold start needs read access to the JWT secret param even though its
   own logic never uses it directly — `deps.ts` eagerly constructs
   `AuthService` on import (see the comment in
   `server/infra/lib/functions.ts`). If `pollFn` cold-starts fail with
-  `AccessDenied` on the JWT secret, that grant is the first place to check.
+  `AccessDenied` on the JWT secret param, that grant is the first place to check.
 - Both Lambdas cache secret values for the lifetime of the warm container
   (`ensureSecretsLoaded`'s `loaded` flag) — after rotating a secret value,
   changes only take effect for *new* (cold-started) execution environments.

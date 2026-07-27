@@ -16,18 +16,18 @@ describe("ensureSecretsLoaded", () => {
     expect(env.JWT_SECRET).toBe("local-jwt-secret");
   });
 
-  it("fetches and populates the plaintext env var when only the ARN is set", async () => {
-    const env: NodeJS.ProcessEnv = { JWT_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:123:secret:jwt" };
+  it("fetches and populates the plaintext env var when only the param name is set", async () => {
+    const env: NodeJS.ProcessEnv = { JWT_SECRET_PARAM: "/restman/JWT_SECRET" };
     const fetchSecret = vi.fn(async (arn: string) => `fetched-value-for:${arn}`);
 
     await ensureSecretsLoaded({ env, fetchSecret });
 
-    expect(fetchSecret).toHaveBeenCalledWith("arn:aws:secretsmanager:us-east-1:123:secret:jwt");
-    expect(env.JWT_SECRET).toBe("fetched-value-for:arn:aws:secretsmanager:us-east-1:123:secret:jwt");
+    expect(fetchSecret).toHaveBeenCalledWith("/restman/JWT_SECRET");
+    expect(env.JWT_SECRET).toBe("fetched-value-for:/restman/JWT_SECRET");
   });
 
   it("is idempotent: a second call in the same container does not re-fetch", async () => {
-    const env: NodeJS.ProcessEnv = { JWT_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:123:secret:jwt" };
+    const env: NodeJS.ProcessEnv = { JWT_SECRET_PARAM: "/restman/JWT_SECRET" };
     const fetchSecret = vi.fn(async (arn: string) => `fetched-value-for:${arn}`);
 
     await ensureSecretsLoaded({ env, fetchSecret });
@@ -36,19 +36,19 @@ describe("ensureSecretsLoaded", () => {
     expect(fetchSecret).toHaveBeenCalledTimes(1);
   });
 
-  it("fetches all three secrets by ARN when none of the plaintext vars are set", async () => {
+  it("fetches all three secrets by param name when none of the plaintext vars are set", async () => {
     const env: NodeJS.ProcessEnv = {
-      JWT_SECRET_ARN: "arn:jwt",
-      TOKEN_ENC_KEY_ARN: "arn:enc",
-      GOOGLE_CLIENT_SECRET_ARN: "arn:google",
+      JWT_SECRET_PARAM: "/restman/JWT_SECRET",
+      TOKEN_ENC_KEY_PARAM: "/restman/TOKEN_ENC_KEY",
+      GOOGLE_CLIENT_SECRET_PARAM: "/restman/GOOGLE_CLIENT_SECRET",
     };
     const fetchSecret = vi.fn(async (arn: string) => `value:${arn}`);
 
     await ensureSecretsLoaded({ env, fetchSecret });
 
-    expect(env.JWT_SECRET).toBe("value:arn:jwt");
-    expect(env.TOKEN_ENC_KEY).toBe("value:arn:enc");
-    expect(env.GOOGLE_CLIENT_SECRET).toBe("value:arn:google");
+    expect(env.JWT_SECRET).toBe("value:/restman/JWT_SECRET");
+    expect(env.TOKEN_ENC_KEY).toBe("value:/restman/TOKEN_ENC_KEY");
+    expect(env.GOOGLE_CLIENT_SECRET).toBe("value:/restman/GOOGLE_CLIENT_SECRET");
     expect(fetchSecret).toHaveBeenCalledTimes(3);
   });
 });

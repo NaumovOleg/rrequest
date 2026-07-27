@@ -17,9 +17,9 @@ function buildStacks() {
     memberships: dataStack.membershipsTable,
   };
   const secrets = {
-    googleClientSecret: dataStack.googleClientSecret,
-    jwtSecret: dataStack.jwtSecret,
-    tokenEncKey: dataStack.tokenEncKey,
+    googleClientSecret: dataStack.secretParamNames.googleClientSecret,
+    jwtSecret: dataStack.secretParamNames.jwtSecret,
+    tokenEncKey: dataStack.secretParamNames.tokenEncKey,
   };
   const config = { googleClientId: "test-client-id", googleRedirectUri: "https://example.com/callback" };
   const apiStack = new ApiStack(app, "TestApiStack", { env, tables, secrets, config });
@@ -94,8 +94,10 @@ describe("DataStack", () => {
     }
   });
 
-  it("provisions 3 Secrets Manager secrets", () => {
-    template.resourceCountIs("AWS::SecretsManager::Secret", 3);
+  it("provisions no Secrets Manager secrets (secrets are out-of-band SSM SecureString params)", () => {
+    template.resourceCountIs("AWS::SecretsManager::Secret", 0);
+    // CloudFormation can't create SecureString SSM params, so none here either.
+    template.resourceCountIs("AWS::SSM::Parameter", 0);
   });
 });
 
@@ -122,27 +124,31 @@ describe("ApiStack", () => {
     template.hasOutput("ApiUrl", {});
   });
 
-  it("scopes IAM policy to just the 3 tables + 3 secrets (least privilege)", () => {
+  it("scopes IAM policy to the 3 tables + the 3 SSM params (least privilege)", () => {
     const policies = template.findResources("AWS::IAM::Policy");
     const statements = Object.values(policies).flatMap(
-      (p) => (p as { Properties: { PolicyDocument: { Statement: Array<{ Action: unknown; Resource: unknown }> } } })
+      (p) => (p as { Properties: { PolicyDocument: { Statement: Array<{ Action: unknown; Resource: unknown; Condition?: unknown }> } } })
         .Properties.PolicyDocument.Statement,
     );
-    // Every statement must target either a DynamoDB table/index ARN or a
-    // Secrets Manager secret ARN -- never `Resource: "*"`.
+    const actionOf = (s: { Action: unknown }): string[] => (Array.isArray(s.Action) ? s.Action.map(String) : [String(s.Action)]);
+    // dynamodb: + ssm:GetParameter statements must be resource-scoped (never "*").
+    // The single kms:Decrypt statement is intentionally Resource:"*" but is
+    // constrained by a kms:ViaService condition to SSM in this region.
     for (const stmt of statements) {
-      expect(stmt.Resource).not.toBe("*");
+      const actions = actionOf(stmt);
+      const isKmsDecrypt = actions.some((a) => a.startsWith("kms:"));
+      if (isKmsDecrypt) {
+        expect(stmt.Condition).toBeDefined();
+      } else {
+        expect(stmt.Resource).not.toBe("*");
+      }
     }
-    const hasDynamoAction = statements.some((s) =>
-      Array.isArray(s.Action) ? s.Action.some((a) => String(a).startsWith("dynamodb:")) : String(s.Action).startsWith("dynamodb:"),
-    );
-    const hasSecretsAction = statements.some((s) =>
-      Array.isArray(s.Action)
-        ? s.Action.some((a) => String(a).startsWith("secretsmanager:"))
-        : String(s.Action).startsWith("secretsmanager:"),
-    );
+    const hasDynamoAction = statements.some((s) => actionOf(s).some((a) => a.startsWith("dynamodb:")));
+    const hasSsmAction = statements.some((s) => actionOf(s).includes("ssm:GetParameter"));
+    const hasKmsDecrypt = statements.some((s) => actionOf(s).includes("kms:Decrypt"));
     expect(hasDynamoAction).toBe(true);
-    expect(hasSecretsAction).toBe(true);
+    expect(hasSsmAction).toBe(true);
+    expect(hasKmsDecrypt).toBe(true);
   });
 });
 

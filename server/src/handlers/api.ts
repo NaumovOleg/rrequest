@@ -2,10 +2,10 @@
 //
 // `api-app.ts` (transitively, via `deps.ts`) calls `loadConfig()` at module
 // TOP LEVEL, which requires plaintext secret env vars (`JWT_SECRET`,
-// `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_SECRET`). The CDK infra only wires the
-// Secrets Manager ARNs (`*_SECRET_ARN`) into the Lambda environment -- so
-// `ensureSecretsLoaded()` must populate the plaintext vars from Secrets
-// Manager BEFORE `api-app.ts` is ever imported. A dynamic `import()` defers
+// `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_SECRET`). The CDK infra only wires the SSM
+// parameter names (`*_PARAM`) into the Lambda environment -- so
+// `ensureSecretsLoaded()` must populate the plaintext vars from Parameter
+// Store BEFORE `api-app.ts` is ever imported. A dynamic `import()` defers
 // that top-level `loadConfig()` call until after the env is populated (a
 // static `import` would be hoisted above it). The imported handler is
 // cached on `inner` so subsequent warm invocations skip the (already

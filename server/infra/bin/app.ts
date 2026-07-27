@@ -12,9 +12,10 @@ const env = {
 
 // GOOGLE_CLIENT_ID/GOOGLE_REDIRECT_URI are public OAuth app config (not
 // secret) -- they're read from the deploy-time environment and baked into
-// the Lambdas' env vars. GOOGLE_CLIENT_SECRET/JWT_SECRET/TOKEN_ENC_KEY come
-// from DataStack's Secrets Manager secrets instead (only ARNs + IAM grants
-// flow to the functions -- see functions.ts).
+// the Lambdas' env vars. GOOGLE_CLIENT_SECRET/JWT_SECRET/TOKEN_ENC_KEY are
+// SSM SecureString parameters (names from DataStack; created by the operator
+// post-deploy) -- only the param names + IAM ssm:GetParameter/kms:Decrypt
+// grants flow to the functions (see functions.ts).
 const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
@@ -29,9 +30,9 @@ const tables = {
 };
 
 const secrets = {
-  googleClientSecret: dataStack.googleClientSecret,
-  jwtSecret: dataStack.jwtSecret,
-  tokenEncKey: dataStack.tokenEncKey,
+  googleClientSecret: dataStack.secretParamNames.googleClientSecret,
+  jwtSecret: dataStack.secretParamNames.jwtSecret,
+  tokenEncKey: dataStack.secretParamNames.tokenEncKey,
 };
 
 new ApiStack(app, "RestmanApiStack", { env, tables, secrets, config });

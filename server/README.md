@@ -14,7 +14,7 @@ Extension ──HTTPS + JWT──► API Gateway HTTP API (v2) ──► apiFn (
                                               DynamoDB: Users, Workspaces, Memberships
                                                               ▲
 EventBridge (rate 1 min) ─────────────► pollFn (Lambda) ──────┘   (bumps workspace.revision on outside-Drive edits)
-Secrets Manager: GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY ─► injected as Lambda env
+SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY ─► fetched at Lambda cold start
 ```
 
 - **`apiFn`** (`server/src/handlers/api.ts` → `handlers/api-app.ts`) — a single
@@ -42,11 +42,15 @@ Secrets Manager: GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY ─► inject
   - `Users` (PK `userId`; GSIs `gsi_googleSub`, `gsi_email`)
   - `Workspaces` (PK `workspaceId`; GSI `gsi_owner`)
   - `Memberships` (PK `membershipId`; GSIs `gsi_ws`, `gsi_user`, `gsi_pendingEmail`)
-- **Secrets Manager** — 3 secrets created empty by `DataStack`
-  (`GoogleClientSecret`, `JwtSecret`, `TokenEncKey`); both Lambdas only get
-  the ARNs + IAM `grantRead` baked into their environment
-  (`GOOGLE_CLIENT_SECRET_ARN`, `JWT_SECRET_ARN`, `TOKEN_ENC_KEY_ARN`). On
-  cold start, `src/secrets.ts`'s `ensureSecretsLoaded()` fetches each value
+- **SSM Parameter Store** — 3 `SecureString` parameters
+  (`/restman/GOOGLE_CLIENT_SECRET`, `/restman/JWT_SECRET`,
+  `/restman/TOKEN_ENC_KEY`). CloudFormation can't create `SecureString`
+  params, so `DataStack` does NOT provision them — the operator creates them
+  post-deploy (see below). Both Lambdas get the param NAMES baked into their
+  environment (`GOOGLE_CLIENT_SECRET_PARAM`, `JWT_SECRET_PARAM`,
+  `TOKEN_ENC_KEY_PARAM`) plus IAM `ssm:GetParameter` (scoped to those param
+  ARNs) + `kms:Decrypt` (scoped via `kms:ViaService` to SSM). On cold start,
+  `src/secrets.ts`'s `ensureSecretsLoaded()` fetches each value (decrypted)
   and writes it into `process.env` under the plaintext name (`JWT_SECRET`,
   `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_SECRET`) that `domain/config.ts`'s
   `loadConfig()` requires — this must happen (and does, via a deferred
@@ -85,13 +89,13 @@ Secrets Manager: GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY ─► inject
       to.
 3. Note the client's **Client ID** (`GOOGLE_CLIENT_ID`, not secret — baked
    into the Lambda env directly) and **Client Secret** (secret — goes into
-   Secrets Manager after deploy, see below; never passed as a deploy-time
+   SSM Parameter Store after deploy, see below; never passed as a deploy-time
    env var).
 
 ### 2. AWS credentials
 
 Have AWS credentials (profile or env vars) with permission to create Lambda,
-API Gateway, DynamoDB, EventBridge, Secrets Manager, and IAM resources, and
+API Gateway, DynamoDB, EventBridge, and IAM resources, and
 know the target account/region.
 
 ## Deploy
@@ -111,8 +115,8 @@ export GOOGLE_REDIRECT_URI=<see step 1 above — placeholder on the first deploy
 npx cdk deploy --all
 ```
 
-This deploys 3 stacks (`bin/app.ts`): `RestmanDataStack` (tables + empty
-secrets), `RestmanApiStack` (the HTTP API + `apiFn`), `RestmanSchedulerStack`
+This deploys 3 stacks (`bin/app.ts`): `RestmanDataStack` (tables; the
+secrets are out-of-band SSM params), `RestmanApiStack` (the HTTP API + `apiFn`), `RestmanSchedulerStack`
 (the EventBridge rule + `pollFn`). `RestmanApiStack` prints a `ApiUrl`
 CfnOutput — that's the base URL from step 1b above.
 
@@ -120,21 +124,27 @@ After confirming/updating the Google redirect URI (step 1), re-run
 `npx cdk deploy --all` with the real `GOOGLE_REDIRECT_URI` so the deployed
 Lambda env matches.
 
-### Set the 3 secret values
+### Create the 3 secret parameters
 
-`cdk deploy` only *creates* the three Secrets Manager secrets — empty. Put
-the real values in after deploy (console, or CLI):
+CDK does NOT create these (CloudFormation can't make `SecureString` SSM
+parameters). Create them as `SecureString` after deploy, using the exact
+names the Lambdas read. `--type SecureString` with no `--key-id` uses the
+free AWS-managed `alias/aws/ssm` key (which the Lambdas' `kms:Decrypt` grant
+covers):
 
 ```sh
-aws secretsmanager put-secret-value --secret-id <GoogleClientSecret-arn-or-name> \
-  --secret-string '<the OAuth client secret from Google Cloud Console>'
+aws ssm put-parameter --name /restman/GOOGLE_CLIENT_SECRET --type SecureString --overwrite \
+  --value '<the OAuth client secret from Google Cloud Console>'
 
-aws secretsmanager put-secret-value --secret-id <JwtSecret-arn-or-name> \
-  --secret-string '<a long random string — HMAC key for session JWTs and the stateless OAuth state param>'
+aws ssm put-parameter --name /restman/JWT_SECRET --type SecureString --overwrite \
+  --value '<a long random string — HMAC key for session JWTs and the stateless OAuth state param>'
 
-aws secretsmanager put-secret-value --secret-id <TokenEncKey-arn-or-name> \
-  --secret-string '<a long random string — AES-256-GCM key encrypting stored Google refresh tokens at rest>'
+aws ssm put-parameter --name /restman/TOKEN_ENC_KEY --type SecureString --overwrite \
+  --value '<a long random string — AES-256-GCM key encrypting stored Google refresh tokens at rest>'
 ```
+
+(Rotating a value later: re-run `put-parameter --overwrite`, then the next
+Lambda cold start picks it up — a warm container caches the value.)
 
 Find the secret ARNs/names in the `RestmanDataStack` outputs or the Secrets
 Manager console (`GoogleClientSecret`, `JwtSecret`, `TokenEncKey` — CDK
@@ -191,8 +201,8 @@ the old Fastify entrypoint is gone). Everything runs as Lambda handlers.
   (or `poll.ts`) with plaintext env vars set (`JWT_SECRET`, `TOKEN_ENC_KEY`,
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and
   optionally `DYNAMO_ENDPOINT` pointed at a local dynalite/DynamoDB Local
-  instance) and no `*_SECRET_ARN` vars — `ensureSecretsLoaded` treats any
-  already-set plaintext var as "already loaded" and skips Secrets Manager
+  instance) and no `*_PARAM` vars — `ensureSecretsLoaded` treats any
+  already-set plaintext var as "already loaded" and skips Parameter Store
   entirely (see `server/src/secrets.ts`). There is no bundled local API
   Gateway emulator; for a full HTTP round-trip locally you'd invoke the
   handler with a hand-built `APIGatewayProxyEventV2` (see

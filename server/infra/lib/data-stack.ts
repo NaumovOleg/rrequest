@@ -1,7 +1,21 @@
 import { Stack, type StackProps, RemovalPolicy } from "aws-cdk-lib";
 import { AttributeType, BillingMode, ProjectionType, Table } from "aws-cdk-lib/aws-dynamodb";
-import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import type { Construct } from "constructs";
+
+// SSM Parameter Store parameter NAMES for the 3 backend secrets. NOTE:
+// CloudFormation cannot create `SecureString` SSM parameters (only String /
+// StringList), so these are NOT provisioned by CDK -- the operator creates
+// them post-deploy as SecureString via the AWS CLI/console (same step where
+// they'd previously have set the Secrets Manager secret values). The api/poll
+// Lambdas are granted `ssm:GetParameter` on these names + `kms:Decrypt`
+// (see infra/lib/functions.ts) and fetch the values at cold start
+// (src/secrets.ts). Parameter Store standard tier is free; Secrets Manager
+// charged per secret/month -- these are static config, not rotated creds.
+export const SSM_PARAM_NAMES = {
+  googleClientSecret: "/restman/GOOGLE_CLIENT_SECRET",
+  jwtSecret: "/restman/JWT_SECRET",
+  tokenEncKey: "/restman/TOKEN_ENC_KEY",
+} as const;
 
 /**
  * The 3 DynamoDB tables the stores under `src/stores/dynamo/*.ts` query, plus
@@ -22,9 +36,8 @@ export class DataStack extends Stack {
   public readonly workspacesTable: Table;
   public readonly membershipsTable: Table;
 
-  public readonly googleClientSecret: Secret;
-  public readonly jwtSecret: Secret;
-  public readonly tokenEncKey: Secret;
+  /** SSM SecureString parameter names for the 3 backend secrets (created out-of-band by the operator). */
+  public readonly secretParamNames = SSM_PARAM_NAMES;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -80,22 +93,9 @@ export class DataStack extends Stack {
       projectionType: ProjectionType.ALL,
     });
 
-    // Placeholder values only -- generated at deploy time, never baked into
-    // the CFN template. The operator sets the real values (Google OAuth
-    // client secret, a random JWT signing key, a random AES key for
-    // encrypting stored refresh tokens) via the Secrets Manager console/CLI
-    // after `cdk deploy` (see Task 14's deploy runbook). Lambdas only get
-    // the ARNs + IAM `grantRead` -- reading the value at runtime is a
-    // follow-up (this task wires the infra, not the handler's secret
-    // fetch).
-    this.googleClientSecret = new Secret(this, "GoogleClientSecret", {
-      description: "Google OAuth client secret (restman sync backend)",
-    });
-    this.jwtSecret = new Secret(this, "JwtSecret", {
-      description: "HMAC signing key for session JWTs + the stateless OAuth `state` param",
-    });
-    this.tokenEncKey = new Secret(this, "TokenEncKey", {
-      description: "AES key encrypting stored Google refresh tokens at rest",
-    });
+    // Secrets are SSM SecureString parameters, created by the operator
+    // post-deploy (CloudFormation can't create SecureString) -- see
+    // SSM_PARAM_NAMES above and the deploy runbook. The Lambdas are granted
+    // read + kms:Decrypt on these names in infra/lib/functions.ts.
   }
 }

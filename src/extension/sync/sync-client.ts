@@ -2,6 +2,14 @@ export class SyncForbiddenError extends Error {
   constructor(message = 'forbidden') { super(message); this.name = 'SyncForbiddenError' }
 }
 
+export class SyncAuthError extends Error {
+  constructor(message = 'unauthorized') { super(message); this.name = 'SyncAuthError' }
+}
+
+export class SyncGoneError extends Error {
+  constructor(message = 'gone') { super(message); this.name = 'SyncGoneError' }
+}
+
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
 
@@ -38,7 +46,9 @@ export class SyncClient {
       },
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     })
+    if (res.status === 401) throw new SyncAuthError()
     if (res.status === 403) throw new SyncForbiddenError()
+    if (res.status === 404) throw new SyncGoneError()
     if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
     return (await res.json()) as T
   }
@@ -62,7 +72,9 @@ export class SyncClient {
       const body = (await res.json()) as { snapshot: string; revision: string }
       return { ok: false, conflict: true, snapshot: body.snapshot, revision: body.revision }
     }
+    if (res.status === 401) throw new SyncAuthError()
     if (res.status === 403) throw new SyncForbiddenError()
+    if (res.status === 404) throw new SyncGoneError()
     if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
     const body = (await res.json()) as { revision: string }
     return { ok: true, revision: body.revision }
@@ -79,5 +91,8 @@ export class SyncClient {
   }
   async removeMember(id: string, memberId: string): Promise<void> {
     await this.call(`/workspaces/${id}/members/${memberId}`, { method: 'DELETE' })
+  }
+  async deleteWorkspace(id: string): Promise<void> {
+    await this.call(`/workspaces/${id}`, { method: 'DELETE' })
   }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { SyncClient, SyncForbiddenError } from '../../../src/extension/sync/sync-client'
+import { SyncClient, SyncForbiddenError, SyncAuthError, SyncGoneError } from '../../../src/extension/sync/sync-client'
 
 function fetchMock(handler: (url: string, init: any) => { status: number; body: any }) {
   return vi.fn(async (url: string, init: any) => {
@@ -86,5 +86,40 @@ describe('SyncClient members + 403', () => {
   it('a 403 on push throws SyncForbiddenError', async () => {
     const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
     await expect(client(f).push('w1', '{}', '1')).rejects.toBeInstanceOf(SyncForbiddenError)
+  })
+})
+
+describe('SyncClient 401/404 + deleteWorkspace', () => {
+  it('a 401 on pull throws SyncAuthError', async () => {
+    const f = fetchMock(() => ({ status: 401, body: { error: 'unauthorized' } }))
+    await expect(client(f).pull('w1')).rejects.toBeInstanceOf(SyncAuthError)
+  })
+  it('a 404 on pull throws SyncGoneError', async () => {
+    const f = fetchMock(() => ({ status: 404, body: { error: 'not found' } }))
+    await expect(client(f).pull('w1')).rejects.toBeInstanceOf(SyncGoneError)
+  })
+  it('a 401 on push throws SyncAuthError', async () => {
+    const f = fetchMock(() => ({ status: 401, body: { error: 'unauthorized' } }))
+    await expect(client(f).push('w1', '{}', '1')).rejects.toBeInstanceOf(SyncAuthError)
+  })
+  it('a 404 on push throws SyncGoneError', async () => {
+    const f = fetchMock(() => ({ status: 404, body: { error: 'not found' } }))
+    await expect(client(f).push('w1', '{}', '1')).rejects.toBeInstanceOf(SyncGoneError)
+  })
+  it('deleteWorkspace DELETEs /workspaces/:id', async () => {
+    const f = fetchMock((url, init) => {
+      expect(url).toBe('http://localhost:8787/workspaces/w1')
+      expect(init.method).toBe('DELETE')
+      return { status: 200, body: { ok: true } }
+    })
+    await client(f).deleteWorkspace('w1')
+  })
+  it('deleteWorkspace throws SyncForbiddenError on 403', async () => {
+    const f = fetchMock(() => ({ status: 403, body: { error: 'forbidden' } }))
+    await expect(client(f).deleteWorkspace('w1')).rejects.toBeInstanceOf(SyncForbiddenError)
+  })
+  it('deleteWorkspace throws SyncGoneError on 404', async () => {
+    const f = fetchMock(() => ({ status: 404, body: { error: 'not found' } }))
+    await expect(client(f).deleteWorkspace('w1')).rejects.toBeInstanceOf(SyncGoneError)
   })
 })

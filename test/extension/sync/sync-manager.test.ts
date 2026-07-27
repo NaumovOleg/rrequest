@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { SyncManager } from '../../../src/extension/sync/sync-manager'
 import { SyncStateStore } from '../../../src/extension/sync/sync-state-store'
-import { SyncForbiddenError } from '../../../src/extension/sync/sync-client'
+import { SyncForbiddenError, SyncGoneError, SyncAuthError } from '../../../src/extension/sync/sync-client'
 import type { Collection, Environment } from '../../../src/shared/types'
 
 let dir: string
@@ -138,5 +138,73 @@ describe('SyncManager', () => {
     await new SyncManager({ client, state, stores: port, email: () => 'me' }).pull('w1')
     expect((await state.get('w1'))?.synced).toBe(false)
     expect(applyPulled).not.toHaveBeenCalled()
+  })
+
+  it('push drops sync and reports onSyncError on a 404 (workspace gone server-side), keeping local data', async () => {
+    const applyPulled = vi.fn()
+    const onSyncError = vi.fn()
+    const client = { push: vi.fn(async () => { throw new SyncGoneError() }), enableSync: vi.fn(), pull: vi.fn() } as any
+    const { port } = stores({ collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [] })
+    port.applyPulled = applyPulled
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me', onSyncError }).push('w1')
+    expect((await state.get('w1'))?.synced).toBe(false)
+    expect((await state.get('w1'))?.driveFileId).toBe('f') // kept
+    expect(applyPulled).not.toHaveBeenCalled()
+    expect(onSyncError).toHaveBeenCalledWith('w1', expect.any(SyncGoneError))
+  })
+
+  it('push on a 401 calls onAuthLost, does NOT dropSync, and never touches local stores', async () => {
+    const applyPulled = vi.fn()
+    const onAuthLost = vi.fn()
+    const onSyncError = vi.fn()
+    const client = { push: vi.fn(async () => { throw new SyncAuthError() }), enableSync: vi.fn(), pull: vi.fn() } as any
+    const { port } = stores({ collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [] })
+    port.applyPulled = applyPulled
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me', onAuthLost, onSyncError }).push('w1')
+    expect(onAuthLost).toHaveBeenCalledTimes(1)
+    expect((await state.get('w1'))?.synced).toBe(true) // NOT dropped — account-wide auth loss, not per-workspace
+    expect(applyPulled).not.toHaveBeenCalled()
+    expect(onSyncError).not.toHaveBeenCalled()
+  })
+
+  it('push on a generic/network error reports onSyncError, does not rethrow, and does not touch local stores', async () => {
+    const applyPulled = vi.fn()
+    const onSyncError = vi.fn()
+    const boom = new Error('fetch failed')
+    const client = { push: vi.fn(async () => { throw boom }), enableSync: vi.fn(), pull: vi.fn() } as any
+    const { port } = stores({ collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [] })
+    port.applyPulled = applyPulled
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await expect(new SyncManager({ client, state, stores: port, email: () => 'me', onSyncError }).push('w1')).resolves.toBeUndefined()
+    expect((await state.get('w1'))?.synced).toBe(true) // untouched, will retry next tick
+    expect(applyPulled).not.toHaveBeenCalled()
+    expect(onSyncError).toHaveBeenCalledWith('w1', boom)
+  })
+
+  it('deleteSync calls client.deleteWorkspace then drops sync locally', async () => {
+    const deleteWorkspace = vi.fn(async () => {})
+    const client = { deleteWorkspace, push: vi.fn(), pull: vi.fn(), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).deleteSync('w1')
+    expect(deleteWorkspace).toHaveBeenCalledWith('w1')
+    expect((await state.get('w1'))?.synced).toBe(false)
+    expect((await state.get('w1'))?.driveFileId).toBe('f')
+  })
+
+  it('deleteSync tolerates a SyncGoneError (already gone) and still drops sync locally', async () => {
+    const deleteWorkspace = vi.fn(async () => { throw new SyncGoneError() })
+    const client = { deleteWorkspace, push: vi.fn(), pull: vi.fn(), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await new SyncManager({ client, state, stores: port, email: () => 'me' }).deleteSync('w1')
+    expect((await state.get('w1'))?.synced).toBe(false)
   })
 })

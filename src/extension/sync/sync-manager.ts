@@ -1,6 +1,6 @@
 import type { Collection, Environment } from '../../shared/types'
 import type { SyncClient } from './sync-client'
-import { SyncForbiddenError } from './sync-client'
+import { SyncForbiddenError, SyncGoneError, SyncAuthError } from './sync-client'
 import type { SyncStateStore } from './sync-state-store'
 import { buildSnapshot, mergeEnvironmentsPreservingSecrets, type WorkspaceSnapshot } from './snapshot'
 import { mergeSnapshots } from './merge'
@@ -13,7 +13,24 @@ export type StoresPort = {
 }
 
 export class SyncManager {
-  constructor(private deps: { client: SyncClient; state: SyncStateStore; stores: StoresPort; email: () => string }) {}
+  constructor(
+    private deps: {
+      client: SyncClient
+      state: SyncStateStore
+      stores: StoresPort
+      email: () => string
+      onAuthLost?: () => void | Promise<void>
+      onSyncError?: (workspaceId: string, error: unknown) => void
+    },
+  ) {}
+
+  /** Shared catch taxonomy for push/pull. Returns true if the error was handled (caller should return). */
+  private async handleSyncError(workspaceId: string, e: unknown): Promise<void> {
+    if (e instanceof SyncForbiddenError) { await this.dropSync(workspaceId); return }
+    if (e instanceof SyncGoneError) { await this.dropSync(workspaceId); this.deps.onSyncError?.(workspaceId, e); return }
+    if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); return }
+    this.deps.onSyncError?.(workspaceId, e)
+  }
 
   private async buildLocalSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
     const [name, collections, environments] = await Promise.all([
@@ -50,8 +67,7 @@ export class SyncManager {
       const retry = await this.deps.client.push(workspaceId, JSON.stringify(merged), first.revision)
       if (retry.ok) await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
     } catch (e) {
-      if (e instanceof SyncForbiddenError) { await this.dropSync(workspaceId); return }
-      throw e
+      await this.handleSyncError(workspaceId, e)
     }
   }
 
@@ -68,20 +84,36 @@ export class SyncManager {
       await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
       await this.deps.state.set(workspaceId, { ...state, lastRevision: revision, role: role ?? state.role })
     } catch (e) {
-      if (e instanceof SyncForbiddenError) { await this.dropSync(workspaceId); return }
-      throw e
+      await this.handleSyncError(workspaceId, e)
     }
   }
 
   async refreshRoles(): Promise<void> {
     let remote
-    try { remote = await this.deps.client.listWorkspaces() }
-    catch (e) { if (e instanceof SyncForbiddenError) return; throw e }
+    try {
+      remote = await this.deps.client.listWorkspaces()
+    } catch (e) {
+      if (e instanceof SyncForbiddenError) return
+      if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); return }
+      this.deps.onSyncError?.('*', e)
+      return
+    }
     for (const w of remote) {
       if (!w.role) continue
       const state = await this.deps.state.get(w.id)
       if (state?.synced) await this.deps.state.set(w.id, { ...state, role: w.role })
     }
+  }
+
+  async deleteSync(workspaceId: string): Promise<void> {
+    try {
+      await this.deps.client.deleteWorkspace(workspaceId)
+    } catch (e) {
+      if (e instanceof SyncGoneError) { await this.dropSync(workspaceId); return }
+      this.deps.onSyncError?.(workspaceId, e)
+      return
+    }
+    await this.dropSync(workspaceId)
   }
 
   async pullIfNewer(workspaceId: string, revision: string): Promise<boolean> {

@@ -30,7 +30,7 @@ new PipelineStack(app, "RrequestPipelineStack", {
   githubConnectionArn:
     app.node.tryGetContext("githubConnectionArn") ??
     process.env.GITHUB_CONNECTION_ARN ??
-    "arn:aws:codeconnections:eu-west-1:389151907894:connection/REPLACE-ME",
+    "arn:aws:codeconnections:eu-west-1:389151907894:connection/6b3db8aa-3ea8-4152-a027-939625f7d7ab",
   githubTokenSecret: "rrequest-github-token",
   vscePatSecret: "rrequest-vsce-pat",
   config: {

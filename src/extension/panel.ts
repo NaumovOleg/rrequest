@@ -128,7 +128,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         .getConfiguration("rrequest")
         .get<string>(
           "syncServerUrl",
-          "https://ol93ijtyib.execute-api.eu-west-1.amazonaws.com",
+          "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api",
         );
     let cachedToken: string | undefined;
     void context.secrets.get("rrequest.syncToken").then((t) => {

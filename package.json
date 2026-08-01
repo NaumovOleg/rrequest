@@ -33,7 +33,7 @@
       "properties": {
         "rrequest.syncServerUrl": {
           "type": "string",
-          "default": "http://localhost:8787",
+          "default": "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api",
           "description": "rrequest sync backend URL"
         },
         "rrequest.syncPollIntervalMs": {

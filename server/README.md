@@ -77,13 +77,13 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
    a. Do a first `cdk deploy` (see below) with a placeholder
       `GOOGLE_REDIRECT_URI` (e.g. `https://placeholder.example.com/api/auth/callback`).
    b. Read the `ApiUrl` CfnOutput from `RrequestStack` (e.g.
-      `https://abc123.lambda-url.eu-west-1.on.aws/`).
+      `https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/`).
    c. The real redirect URI is that URL **+ `/api/auth/callback`** (the
       `/api` prefix comes from `RootController`'s `prefix: "/api"`; the
       `AuthController`'s `@Get("/auth/callback")` is mounted under it — see
       `RootController`'s doc comment and `AUTH_PREFIX = "/api/auth"` in
       `auth-plugin.ts`). Example:
-      `https://abc123.lambda-url.eu-west-1.on.aws/api/auth/callback`
+      `https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api/auth/callback`
    d. Add that exact URL as an authorized redirect URI on the Google OAuth
       client.
    e. Re-deploy with `GOOGLE_REDIRECT_URI` set to the real value (step 3
@@ -159,7 +159,7 @@ Set the VS Code setting **`rrequest.syncServerUrl`** to the deployed API's
 `/api` base — i.e. the `ApiUrl` CfnOutput **with `/api` appended**:
 
 ```
-https://abc123.lambda-url.eu-west-1.on.aws/api
+https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api
 ```
 
 The extension's `SyncClient` (`src/extension/sync/sync-client.ts`) and the
@@ -304,7 +304,7 @@ deploy to their own AWS targets with their own credentials:
    | Variable | `AWS_REGION`            | `eu-west-1`                                        |
    | Variable | `AWS_ACCOUNT_ID`        | `389151907894` (dev may differ)                   |
    | Variable | `GOOGLE_CLIENT_ID`      | OAuth client id (per environment)                 |
-   | Variable | `GOOGLE_REDIRECT_URI`   | `https://<fnurl-id>.lambda-url.eu-west-1.on.aws/api/auth/callback` |
+   | Variable | `GOOGLE_REDIRECT_URI`   | `https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api/auth/callback` |
 
 5. **The 3 app secrets are NOT GitHub secrets** — they are the SSM
    `SecureString` params created out-of-band (see *Create the 3 secret

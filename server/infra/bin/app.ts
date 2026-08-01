@@ -21,7 +21,7 @@ const config = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
 };
 
-const dataStack = new DataStack(app, "RestmanDataStack", { env });
+const dataStack = new DataStack(app, "RrequestDataStack", { env });
 
 const tables = {
   users: dataStack.usersTable,
@@ -35,7 +35,7 @@ const secrets = {
   tokenEncKey: dataStack.secretParamNames.tokenEncKey,
 };
 
-new ApiStack(app, "RestmanApiStack", { env, tables, secrets, config });
-new SchedulerStack(app, "RestmanSchedulerStack", { env, tables, secrets, config });
+new ApiStack(app, "RrequestApiStack", { env, tables, secrets, config });
+new SchedulerStack(app, "RrequestSchedulerStack", { env, tables, secrets, config });
 
 app.synth();

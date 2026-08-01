@@ -1,11 +1,12 @@
 import { App } from "aws-cdk-lib";
-import { RrequestStack } from "../lib/rrequest-stack";
+
+import { PipelineStack } from "../lib/pipeline-stack";
 
 const app = new App();
 
 const env = {
-  account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION,
+  account: "389151907894",
+  region: "eu-west-1",
 };
 
 // GOOGLE_CLIENT_ID/GOOGLE_REDIRECT_URI are public OAuth app config (not
@@ -18,7 +19,20 @@ const config = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
 };
 
-// One stack: tables + HTTP API + apiFn + poll Lambda + EventBridge rule.
-new RrequestStack(app, "RrequestStack", { env, config });
+new PipelineStack(app, "RrequestPipelineStack", {
+  env,
+  githubRepo:
+    app.node.tryGetContext("githubRepo") ??
+    process.env.GITHUB_REPO ??
+    "OWNER/rrequest",
+  branch:
+    app.node.tryGetContext("branch") ?? process.env.GITHUB_BRANCH ?? "master",
+  githubTokenSecret: "rrequest/ci/github-token",
+  vscePatSecret: "rrequest/ci/vsce-pat",
+  config: {
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+    googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
+  },
+});
 
 app.synth();

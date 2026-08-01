@@ -249,36 +249,52 @@ cd server/infra && npx vitest run
 
 ## CI/CD (GitHub Actions)
 
-`.github/workflows/deploy.yml` runs on every push to `master` (and via manual
-`workflow_dispatch`). It has **2 jobs, sequential — AWS first, then the
-extension**:
+`.github/workflows/deploy.yml` runs on every push to `main` or `development`
+(and via manual `workflow_dispatch`). It has **2 jobs, sequential — AWS first,
+then the extension**:
 
 1. **`deploy-api`** — `cdk deploy RrequestStack` (the backend). Uses
-   `aws-actions/configure-aws-credentials` with the IAM access keys from
-   GitHub secrets, and bakes `GOOGLE_CLIENT_ID` / `GOOGLE_REDIRECT_URI` into
-   the Lambda env from GitHub variables.
+   `aws-actions/configure-aws-credentials` with the IAM access keys from the
+   environment's secrets, and bakes `GOOGLE_CLIENT_ID` / `GOOGLE_REDIRECT_URI`
+   into the Lambda env from the environment's variables.
 2. **`publish-extension`** (`needs: deploy-api`) — bumps the extension version
    from Conventional Commits (`conventional-recommended-bump -p angular`,
-   defaults to patch), runs `@vscode/vsce publish <bump>` to the VS Code
-   Marketplace, then pushes a `vX.Y.Z` git tag. The bump is `--no-git-tag-version`
-   (only the tag is pushed), so it never re-triggers the workflow.
+   defaults to patch), publishes to the VS Code Marketplace, then pushes a git
+   tag. The bump is `--no-git-tag-version` (only the tag is pushed), so it never
+   re-triggers the workflow.
+
+### Two environments (branch → environment → release channel)
+
+Secrets and variables live in **GitHub Environments**, not at repo level. The
+workflow picks the environment from the branch, so `main` and `development`
+deploy to their own AWS targets with their own credentials:
+
+| Branch        | Environment   | Marketplace release            | Tag                 |
+|---------------|---------------|--------------------------------|---------------------|
+| `main`        | `production`  | **stable** (`vsce publish`)    | `vX.Y.Z`            |
+| `development` | `development` | **pre-release** (`--pre-release`) | `vX.Y.Z-pre.<run#>` |
 
 ### One-time setup
 
-1. **IAM user** for CI: create one with programmatic access + a policy that can
-   `cdk deploy` this stack (create/update Lambda, DynamoDB, EventBridge, IAM
+1. **IAM user(s)** for CI: create one with programmatic access + a policy that
+   can `cdk deploy` this stack (create/update Lambda, DynamoDB, EventBridge, IAM
    roles, Lambda Function URLs, CloudFormation, and read/write the CDK asset S3
-   bucket). Save its access-key pair.
-2. **Bootstrap** the account/region once (asset bucket + roles CDK needs):
+   bucket). Use separate users/accounts per environment if prod and dev deploy
+   to different AWS accounts.
+2. **Bootstrap** each target account/region once (asset bucket + roles CDK needs):
    ```sh
    npx cdk bootstrap aws://389151907894/eu-west-1
    ```
 3. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
    a real registered VS Code Marketplace publisher. Create one at
    <https://marketplace.visualstudio.com/manage> and generate a **PAT**
-   (Azure DevOps, scope: *Marketplace → Manage*).
-4. **Add GitHub secrets and variables** (repo → *Settings → Secrets and
-   variables → Actions*):
+   (Azure DevOps, scope: *Marketplace → Manage*). (The publisher must have a
+   pre-release-capable extension — a single publisher handles both channels.)
+4. **Create the two environments** (repo → *Settings → Environments* → *New
+   environment*): `production` and `development`. On `production`, set
+   *Deployment branches* → *Selected branches* → `main` only; on `development`,
+   restrict to `development`. Then add these **in each environment** (repo →
+   *Settings → Environments → <env> → Secrets / Variables*):
 
    | Kind     | Name                    | Value                                             |
    |----------|-------------------------|---------------------------------------------------|
@@ -286,18 +302,18 @@ extension**:
    | Secret   | `AWS_SECRET_ACCESS_KEY` | CI IAM user secret access key                      |
    | Secret   | `VSCE_PAT`              | Marketplace publisher PAT                          |
    | Variable | `AWS_REGION`            | `eu-west-1`                                        |
-   | Variable | `AWS_ACCOUNT_ID`        | `389151907894`                                    |
-   | Variable | `GOOGLE_CLIENT_ID`      | OAuth client id                                    |
+   | Variable | `AWS_ACCOUNT_ID`        | `389151907894` (dev may differ)                   |
+   | Variable | `GOOGLE_CLIENT_ID`      | OAuth client id (per environment)                 |
    | Variable | `GOOGLE_REDIRECT_URI`   | `https://<fnurl-id>.lambda-url.eu-west-1.on.aws/api/auth/callback` |
 
 5. **The 3 app secrets are NOT GitHub secrets** — they are the SSM
    `SecureString` params created out-of-band (see *Create the 3 secret
-   parameters* above). GitHub only holds the deploy credentials + the OAuth
-   client id/redirect.
+   parameters* above), created per target AWS account. GitHub only holds the
+   deploy credentials + the OAuth client id/redirect.
 
 ### Notes
 
 - No GitHub PAT for the tag push — the workflow's built-in `GITHUB_TOKEN`
-  (`permissions: contents: write`) pushes the `vX.Y.Z` tag.
+  (`permissions: contents: write`) pushes the tag.
 - The backend deploy and the extension release run in sequence; a failed
   publish does not roll back a successful backend deploy.

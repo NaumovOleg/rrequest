@@ -24,10 +24,10 @@ new PipelineStack(app, "RrequestPipelineStack", {
   githubRepo:
     app.node.tryGetContext("githubRepo") ??
     process.env.GITHUB_REPO ??
-    "OWNER/rrequest",
+    "NaumovOleg/rrequest",
   branch:
     app.node.tryGetContext("branch") ?? process.env.GITHUB_BRANCH ?? "master",
-  githubTokenSecret: "rrequest/ci/github-token",
+  githubTokenSecret: "rrequest-github-token",
   vscePatSecret: "rrequest/ci/vsce-pat",
   config: {
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",

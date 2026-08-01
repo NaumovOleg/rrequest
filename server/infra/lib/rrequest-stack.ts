@@ -6,19 +6,11 @@ import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
 import type { Construct } from "constructs";
 import { apiFunction, pollFunction, type ApiFunctionConfig, type DataSecrets, type DataTables } from "./functions";
 
-// SSM SecureString parameter NAMES for the 3 backend secrets. CloudFormation
-// can't create SecureString params, so they are NOT provisioned here -- the
-// operator creates them post-deploy (see the deploy runbook). The Lambdas get
-// the names in env + IAM ssm:GetParameter/kms:Decrypt and fetch the values at
-// cold start (src/secrets.ts).
-export const SSM_PARAM_NAMES: DataSecrets = {
-  googleClientSecret: "/rrequest/GOOGLE_CLIENT_SECRET",
-  jwtSecret: "/rrequest/JWT_SECRET",
-  tokenEncKey: "/rrequest/TOKEN_ENC_KEY",
-};
-
 export type RrequestStackProps = StackProps & {
   config: ApiFunctionConfig;
+  // Plaintext secret VALUES, supplied at deploy time (see bin/app.ts). Baked
+  // into the Lambda environment -- no Parameter Store fetch at cold start.
+  secrets: DataSecrets;
 };
 
 /**
@@ -98,7 +90,7 @@ export class RrequestStack extends Stack {
     // Function URLs deliver payload-format-2.0 events (same shape API GW HTTP
     // API used), so the Helios handler routes on rawPath unchanged. Auth is
     // NONE at the URL layer; the app enforces JWT per-route.
-    const apiFn = apiFunction(this, { tables, secrets: SSM_PARAM_NAMES, config: props.config });
+    const apiFn = apiFunction(this, { tables, secrets: props.secrets, config: props.config });
     const fnUrl = apiFn.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
     new CfnOutput(this, "ApiUrl", {
       value: fnUrl.url,
@@ -106,7 +98,7 @@ export class RrequestStack extends Stack {
     });
 
     // --- EventBridge-scheduled poll Lambda (outside-Drive-edit revision bumps) ---
-    const pollFn = pollFunction(this, { tables, secrets: SSM_PARAM_NAMES, config: props.config });
+    const pollFn = pollFunction(this, { tables, secrets: props.secrets, config: props.config });
     new Rule(this, "PollRule", {
       schedule: Schedule.rate(Duration.minutes(1)),
       description: "Sweeps synced workspaces for outside-Drive-edit revision bumps",

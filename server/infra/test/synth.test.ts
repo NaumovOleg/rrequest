@@ -3,13 +3,14 @@ import { App } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { RrequestStack } from "../lib/rrequest-stack";
 
-// Mirrors bin/app.ts: one stack with tables + HTTP API + apiFn + poll Lambda
-// + EventBridge rule, so the synthesized template matches `cdk synth`.
+// Mirrors bin/app.ts: one stack with tables + Function URL + apiFn + poll
+// Lambda + EventBridge rule, so the synthesized template matches `cdk synth`.
 function buildTemplate(): Template {
   const app = new App();
   const env = { account: "000000000000", region: "us-east-1" };
   const config = { googleClientId: "test-client-id", googleRedirectUri: "https://example.com/callback" };
-  const stack = new RrequestStack(app, "TestRrequestStack", { env, config });
+  const secrets = { googleClientSecret: "test-google-secret", jwtSecret: "test-jwt", tokenEncKey: "test-enc-key" };
+  const stack = new RrequestStack(app, "TestRrequestStack", { env, config, secrets });
   return Template.fromStack(stack);
 }
 
@@ -63,9 +64,29 @@ describe("RrequestStack — DynamoDB", () => {
     }
   });
 
-  it("provisions no Secrets Manager secrets nor SSM params (secrets are out-of-band SecureString)", () => {
+  it("provisions no Secrets Manager secrets nor SSM params (secret values baked into Lambda env)", () => {
     template.resourceCountIs("AWS::SecretsManager::Secret", 0);
     template.resourceCountIs("AWS::SSM::Parameter", 0);
+  });
+});
+
+describe("RrequestStack — secrets baked into Lambda env", () => {
+  it("both Lambdas get the 3 secret VALUES + OAuth config in their environment", () => {
+    const fns = template.findResources("AWS::Lambda::Function");
+    const envs = Object.values(fns).map(
+      (f) => (f as { Properties: { Environment?: { Variables?: Record<string, unknown> } } }).Properties.Environment?.Variables ?? {},
+    );
+    expect(envs).toHaveLength(2);
+    for (const vars of envs) {
+      expect(vars.GOOGLE_CLIENT_SECRET).toBe("test-google-secret");
+      expect(vars.JWT_SECRET).toBe("test-jwt");
+      expect(vars.TOKEN_ENC_KEY).toBe("test-enc-key");
+      expect(vars.GOOGLE_CLIENT_ID).toBe("test-client-id");
+      // the old param-name indirection is gone
+      expect(vars.GOOGLE_CLIENT_SECRET_PARAM).toBeUndefined();
+      expect(vars.JWT_SECRET_PARAM).toBeUndefined();
+      expect(vars.TOKEN_ENC_KEY_PARAM).toBeUndefined();
+    }
   });
 });
 
@@ -99,7 +120,7 @@ describe("RrequestStack — Scheduler", () => {
 });
 
 describe("RrequestStack — IAM least privilege", () => {
-  it("scopes dynamodb + ssm:GetParameter to resources; kms:Decrypt is condition-constrained", () => {
+  it("scopes dynamodb actions to table resources (never \"*\") and grants no ssm/kms (secrets are in env now)", () => {
     const policies = template.findResources("AWS::IAM::Policy");
     const statements = Object.values(policies).flatMap(
       (p) => (p as { Properties: { PolicyDocument: { Statement: Array<{ Action: unknown; Resource: unknown; Condition?: unknown }> } } })
@@ -108,14 +129,13 @@ describe("RrequestStack — IAM least privilege", () => {
     const actionOf = (s: { Action: unknown }): string[] => (Array.isArray(s.Action) ? s.Action.map(String) : [String(s.Action)]);
     for (const stmt of statements) {
       const actions = actionOf(stmt);
-      if (actions.some((a) => a.startsWith("kms:"))) {
-        expect(stmt.Condition).toBeDefined(); // kms:Decrypt Resource:"*" is ok only with a ViaService condition
-      } else if (actions.some((a) => a.startsWith("dynamodb:") || a === "ssm:GetParameter")) {
+      if (actions.some((a) => a.startsWith("dynamodb:"))) {
         expect(stmt.Resource).not.toBe("*");
       }
     }
     expect(statements.some((s) => actionOf(s).some((a) => a.startsWith("dynamodb:")))).toBe(true);
-    expect(statements.some((s) => actionOf(s).includes("ssm:GetParameter"))).toBe(true);
-    expect(statements.some((s) => actionOf(s).includes("kms:Decrypt"))).toBe(true);
+    // secrets moved to Lambda env -> no Parameter Store / KMS grants remain
+    expect(statements.some((s) => actionOf(s).includes("ssm:GetParameter"))).toBe(false);
+    expect(statements.some((s) => actionOf(s).some((a) => a.startsWith("kms:")))).toBe(false);
   });
 });

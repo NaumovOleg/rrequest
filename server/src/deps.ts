@@ -1,5 +1,5 @@
 // Module singletons: Dynamo-backed stores + drive factory + services, wired
-// from environment/config. Imported once by handlers/api.ts (and reused
+// from environment/config. Imported once by handlers/api-app.ts (and reused
 // across warm Lambda invocations).
 import { loadConfig } from "./domain/config.js";
 import { makeDocClient } from "./stores/dynamo/ddb-client.js";

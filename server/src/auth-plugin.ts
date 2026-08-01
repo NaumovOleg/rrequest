@@ -56,7 +56,7 @@ export type AuthPluginDeps = {
  * side effect (`loadConfig()` throws when required env vars are unset),
  * which would otherwise force every test importing this file (including the
  * pure `authorize()` unit tests) to first stub a full set of env vars.
- * `handlers/api.ts` wires the real `deps.ts` singletons in.
+ * `handlers/api-app.ts` wires the real `deps.ts` singletons in.
  */
 export function makeAuthPlugin(deps: AuthPluginDeps): Plugin {
   return {

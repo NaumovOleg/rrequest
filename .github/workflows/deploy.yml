@@ -34,6 +34,10 @@ jobs:
       CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
       GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
+      # Secret VALUES baked into the Lambda env at deploy (from env secrets).
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
     steps:
       - uses: actions/checkout@v4
 

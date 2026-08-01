@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 
-// `handlers/api.ts` transitively imports `deps.ts`, which calls `loadConfig()`
+// `handlers/api-app.ts` transitively imports `deps.ts`, which calls `loadConfig()`
 // at module-load time (throws if required env vars are missing) and
 // constructs a DynamoDB document client + Google OAuth2Client. Those
 // constructions are lazy (no network I/O happens until a command/token
@@ -18,7 +18,7 @@ beforeAll(async () => {
   process.env.GOOGLE_CLIENT_ID = "smoke-client-id";
   process.env.GOOGLE_CLIENT_SECRET = "smoke-client-secret";
   process.env.GOOGLE_REDIRECT_URI = "http://localhost:8787/api/auth/callback";
-  const mod = await import("./api.js");
+  const mod = await import("./api-app.js");
   handler = mod.handler as typeof handler;
 });
 

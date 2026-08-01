@@ -14,7 +14,7 @@ Extension ──HTTPS + JWT──► Lambda Function URL ──► apiFn (Lambda
                                               DynamoDB: Users, Workspaces, Memberships
                                                               ▲
 EventBridge (rate 1 min) ─────────────► pollFn (Lambda) ──────┘   (bumps workspace.revision on outside-Drive edits)
-SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY ─► fetched at Lambda cold start
+Secret VALUES (GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY) ─► baked into the Lambda env at deploy (from GitHub environment secrets)
 ```
 
 - **`apiFn`** (`server/src/handlers/api.ts` → `handlers/api-app.ts`) — a single
@@ -44,22 +44,18 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
   - `Users` (PK `userId`; GSIs `gsi_googleSub`, `gsi_email`)
   - `Workspaces` (PK `workspaceId`; GSI `gsi_owner`)
   - `Memberships` (PK `membershipId`; GSIs `gsi_ws`, `gsi_user`, `gsi_pendingEmail`)
-- **SSM Parameter Store** — 3 `SecureString` parameters
-  (`/rrequest/GOOGLE_CLIENT_SECRET`, `/rrequest/JWT_SECRET`,
-  `/rrequest/TOKEN_ENC_KEY`). CloudFormation can't create `SecureString`
-  params, so `RrequestStack` does NOT provision them — the operator creates them
-  post-deploy (see below). Both Lambdas get the param NAMES baked into their
-  environment (`GOOGLE_CLIENT_SECRET_PARAM`, `JWT_SECRET_PARAM`,
-  `TOKEN_ENC_KEY_PARAM`) plus IAM `ssm:GetParameter` (scoped to those param
-  ARNs) + `kms:Decrypt` (scoped via `kms:ViaService` to SSM). On cold start,
-  `src/secrets.ts`'s `ensureSecretsLoaded()` fetches each value (decrypted)
-  and writes it into `process.env` under the plaintext name (`JWT_SECRET`,
-  `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_SECRET`) that `domain/config.ts`'s
-  `loadConfig()` requires — this must happen (and does, via a deferred
-  dynamic `import()` in `handlers/api.ts` / `handlers/poll.ts`) *before*
-  `deps.ts` is imported, since `deps.ts` calls `loadConfig()` at module top
-  level and throws if a required var is missing. Warm invocations skip the
-  fetch (idempotent per container).
+- **Secrets — plaintext Lambda env vars.** The 3 backend secrets
+  (`GOOGLE_CLIENT_SECRET`, `JWT_SECRET`, `TOKEN_ENC_KEY`) are supplied as
+  VALUES at deploy time (from the deploy environment / GitHub environment
+  secrets, via `bin/app.ts`) and baked directly into both Lambdas'
+  environment. `deps.ts` calls `domain/config.ts`'s `loadConfig()` at module
+  top level, which reads them straight from `process.env` on cold start — no
+  Parameter Store fetch, no cold-start indirection.
+  ⚠️ **Security trade-off:** env-var values land in plaintext in the
+  CloudFormation template (stored in the CDK asset S3 bucket) and are readable
+  by anyone with `lambda:GetFunctionConfiguration` or console access. This is
+  weaker at rest than the previous SSM `SecureString` + KMS setup. Restrict
+  who can read the function config / CFN stack accordingly.
 - **No WebSocket / realtime.** The extension polls
   `GET /api/workspaces` (`rrequest.syncPollIntervalMs`, default 45s) and
   compares each workspace's `revision`; `pollFn`'s 1-minute sweep is what
@@ -89,10 +85,10 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
    e. Re-deploy with `GOOGLE_REDIRECT_URI` set to the real value (step 3
       below) so the Lambda's env matches what Google will actually redirect
       to.
-3. Note the client's **Client ID** (`GOOGLE_CLIENT_ID`, not secret — baked
-   into the Lambda env directly) and **Client Secret** (secret — goes into
-   SSM Parameter Store after deploy, see below; never passed as a deploy-time
-   env var).
+3. Note the client's **Client ID** (`GOOGLE_CLIENT_ID`) and **Client Secret**
+   (`GOOGLE_CLIENT_SECRET`). Both are passed as deploy-time env vars and baked
+   into the Lambda env (the client secret via a GitHub environment secret in
+   CI, or `GOOGLE_CLIENT_SECRET=...` for a local `cdk deploy`).
 
 ### 2. AWS credentials
 
@@ -112,6 +108,10 @@ export CDK_DEFAULT_ACCOUNT=<your-account-id>
 export CDK_DEFAULT_REGION=<your-region>          # e.g. us-east-1
 export GOOGLE_CLIENT_ID=<oauth-client-id>
 export GOOGLE_REDIRECT_URI=<see step 1 above — placeholder on the first deploy>
+# The 3 secret VALUES (baked into the Lambda env; bin/app.ts requires them):
+export GOOGLE_CLIENT_SECRET=<the OAuth client secret from Google Cloud Console>
+export JWT_SECRET=$(openssl rand -hex 32)        # HMAC key: session JWTs + OAuth state
+export TOKEN_ENC_KEY=$(openssl rand -hex 32)     # AES-256-GCM key: refresh tokens at rest
 
 npx cdk deploy --all
 ```
@@ -121,37 +121,21 @@ tables, the Lambda Function URL + `apiFn`, and the EventBridge rule + `pollFn`. 
 prints an `ApiUrl` CfnOutput — that's the base URL from step 1b above.
 (`--all` is harmless with a single stack; `npx cdk deploy` works too.)
 
+`bin/app.ts` reads the 3 secret VALUES from the deploy environment and bakes
+them into the Lambda env — `cdk deploy` fails fast with `Missing required
+deploy env var: <NAME>` if any is unset. In CI these come from GitHub
+environment secrets (see the CI/CD section); values are `keyOf`-hashed
+(sha256 → 32-byte key) so any long random string works for `JWT_SECRET` /
+`TOKEN_ENC_KEY`.
+
+⚠️ Rotating `TOKEN_ENC_KEY` makes every stored refresh token undecryptable
+(all users must re-log in); rotating `JWT_SECRET` invalidates live sessions.
+A rotation = re-deploy with the new value; it takes effect on the next
+Lambda cold start.
+
 After confirming/updating the Google redirect URI (step 1), re-run
 `npx cdk deploy --all` with the real `GOOGLE_REDIRECT_URI` so the deployed
 Lambda env matches.
-
-### Create the 3 secret parameters
-
-CDK does NOT create these (CloudFormation can't make `SecureString` SSM
-parameters). Create them as `SecureString` after deploy, using the exact
-names the Lambdas read. `--type SecureString` with no `--key-id` uses the
-free AWS-managed `alias/aws/ssm` key (which the Lambdas' `kms:Decrypt` grant
-covers):
-
-```sh
-aws ssm put-parameter --name /rrequest/GOOGLE_CLIENT_SECRET --type SecureString --overwrite \
-  --value '<the OAuth client secret from Google Cloud Console>'
-
-aws ssm put-parameter --name /rrequest/JWT_SECRET --type SecureString --overwrite \
-  --value '<a long random string — HMAC key for session JWTs and the stateless OAuth state param>'
-
-aws ssm put-parameter --name /rrequest/TOKEN_ENC_KEY --type SecureString --overwrite \
-  --value '<a long random string — AES-256-GCM key encrypting stored Google refresh tokens at rest>'
-```
-
-(Rotating a value later: re-run `put-parameter --overwrite`, then the next
-Lambda cold start picks it up — a warm container caches the value.)
-
-The parameter names are fixed (`/rrequest/GOOGLE_CLIENT_SECRET`,
-`/rrequest/JWT_SECRET`, `/rrequest/TOKEN_ENC_KEY`) — nothing to look up. Both
-Lambdas read them lazily at cold start (`ensureSecretsLoaded` in
-`src/secrets.ts`); a warm container never re-fetches, so updating a value
-takes effect on the *next* cold start, not instantly.
 
 ## Point the extension at the deployed backend
 
@@ -187,23 +171,21 @@ the old Fastify entrypoint is gone). Everything runs as Lambda handlers.
   Dynamo-backed store tests spin up an in-process `dynalite` instance
   (`server/src/test-support/dynalite.ts`) for a real (embedded) DynamoDB
   wire protocol; the API-handler smoke test
-  (`src/handlers/api.smoke.test.ts`) sets plaintext env vars directly
+  (`src/handlers/api.smoke.test.ts`) sets the env vars directly
   (`JWT_SECRET`, `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-  `GOOGLE_REDIRECT_URI`) before importing the handler, so
-  `ensureSecretsLoaded()` sees them already set and never touches Secrets
-  Manager.
+  `GOOGLE_REDIRECT_URI`) before importing the handler, so `loadConfig()` finds
+  them in `process.env`.
 - **CDK synth check** (no deploy, no AWS account):
   ```sh
   cd server/infra
   npx vitest run   # test/synth.test.ts
   ```
-- **Running a handler locally by hand**: import `server/src/handlers/api.ts`
-  (or `poll.ts`) with plaintext env vars set (`JWT_SECRET`, `TOKEN_ENC_KEY`,
+- **Running a handler locally by hand**: import `server/src/handlers/api-app.ts`
+  (or `poll-app.ts`) with env vars set (`JWT_SECRET`, `TOKEN_ENC_KEY`,
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and
   optionally `DYNAMO_ENDPOINT` pointed at a local dynalite/DynamoDB Local
-  instance) and no `*_PARAM` vars — `ensureSecretsLoaded` treats any
-  already-set plaintext var as "already loaded" and skips Parameter Store
-  entirely (see `server/src/secrets.ts`). There is no bundled local API
+  instance) — `deps.ts`'s `loadConfig()` reads them straight from
+  `process.env` at import. There is no bundled local API
   Gateway emulator; for a full HTTP round-trip locally you'd invoke the
   handler with a hand-built `APIGatewayProxyEventV2` (see
   `api.smoke.test.ts` for the event shape) or use a third-party tool like
@@ -301,15 +283,20 @@ deploy to their own AWS targets with their own credentials:
    | Secret   | `AWS_ACCESS_KEY_ID`     | CI IAM user access key id                          |
    | Secret   | `AWS_SECRET_ACCESS_KEY` | CI IAM user secret access key                      |
    | Secret   | `VSCE_PAT`              | Marketplace publisher PAT                          |
+   | Secret   | `GOOGLE_CLIENT_SECRET`  | OAuth client secret                               |
+   | Secret   | `JWT_SECRET`            | long random string (`openssl rand -hex 32`)       |
+   | Secret   | `TOKEN_ENC_KEY`         | long random string (`openssl rand -hex 32`)       |
    | Variable | `AWS_REGION`            | `eu-west-1`                                        |
    | Variable | `AWS_ACCOUNT_ID`        | `389151907894` (dev may differ)                   |
    | Variable | `GOOGLE_CLIENT_ID`      | OAuth client id (per environment)                 |
    | Variable | `GOOGLE_REDIRECT_URI`   | `https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api/auth/callback` |
 
-5. **The 3 app secrets are NOT GitHub secrets** — they are the SSM
-   `SecureString` params created out-of-band (see *Create the 3 secret
-   parameters* above), created per target AWS account. GitHub only holds the
-   deploy credentials + the OAuth client id/redirect.
+5. **The 3 app secrets (`GOOGLE_CLIENT_SECRET`, `JWT_SECRET`, `TOKEN_ENC_KEY`)
+   are now GitHub environment secrets** — `deploy-api` passes them as env to
+   `cdk deploy`, which bakes them into the Lambda env. Use distinct
+   `JWT_SECRET` / `TOKEN_ENC_KEY` values per environment so a leaked dev key
+   can't decrypt prod data. (No more SSM Parameter Store — see the security
+   trade-off in the Architecture section.)
 
 ### Notes
 

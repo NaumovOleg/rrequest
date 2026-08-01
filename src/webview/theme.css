@@ -356,12 +356,6 @@ body {
 .rm-sbtab.is-active { color: var(--rm-fg); border-bottom-color: var(--rm-accent); }
 
 /* combo input (input + dropdown list w/ per-item actions) */
-.rm-combo { position: relative; display: inline-block; }
-.rm-combo-input { width: 100%; }
-.rm-combo-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; margin-top: 2px; max-height: 240px; overflow-y: auto; background: var(--rm-panel-bg); border: 1px solid var(--rm-border); border-radius: var(--rm-radius); box-shadow: 0 2px 8px rgba(0,0,0,.3); padding: 2px; }
-.rm-combo-item { display: flex; align-items: center; gap: var(--rm-sp-1); border-radius: var(--rm-radius); }
-.rm-combo-item:hover { background: var(--rm-hover); }
-.rm-combo-label { flex: 1; min-width: 0; text-align: left; background: transparent; border: none; color: var(--rm-fg); padding: 4px 8px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* toasts */
 .rm-toaster { position: fixed; right: var(--rm-sp-3); bottom: var(--rm-sp-3); display: flex; flex-direction: column; gap: var(--rm-sp-1); z-index: 1000; max-width: 320px; }

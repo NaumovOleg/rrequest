@@ -245,3 +245,46 @@ All paths below are relative to the deployed API's `/api` base.
 cd server && npm test
 cd server/infra && npx vitest run
 ```
+
+## CI/CD (AWS CodePipeline via CDK)
+
+An optional self-mutating pipeline (`server/infra/lib/pipeline-stack.ts`,
+entrypoint `bin/pipeline.ts`) that, on every push to the branch, **(1)**
+re-synths and updates itself, **(2)** deploys `RrequestStack` (the backend),
+and **(3)** bumps the extension version from Conventional Commits, packages
+the `.vsix`, publishes it to the VS Code Marketplace, and pushes a `vX.Y.Z`
+git tag. The default `cdk.json` app is `bin/app.ts` (direct manual deploy);
+the pipeline is a separate app you deploy once.
+
+### One-time setup
+
+1. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
+   a real registered VS Code Marketplace publisher. Create one at
+   <https://marketplace.visualstudio.com/manage> and generate a **PAT**
+   (Azure DevOps, scope: *Marketplace → Manage*).
+2. **GitHub token**: a PAT with `repo` scope (source access + tag push).
+3. **Store both as Secrets Manager secrets** (plaintext value = the token):
+   ```sh
+   aws secretsmanager create-secret --name rrequest/ci/github-token --secret-string '<github PAT>'
+   aws secretsmanager create-secret --name rrequest/ci/vsce-pat      --secret-string '<marketplace PAT>'
+   ```
+4. **Deploy the pipeline once** (it maintains itself afterward):
+   ```sh
+   cd server/infra
+   export CDK_DEFAULT_ACCOUNT=<acct> CDK_DEFAULT_REGION=<region>
+   export GITHUB_REPO=<owner>/<repo> GOOGLE_CLIENT_ID=<id> GOOGLE_REDIRECT_URI=<uri>
+   npx cdk --app 'npx tsx bin/pipeline.ts' deploy RrequestPipelineStack
+   ```
+   (Or pass `-c githubRepo=<owner>/<repo>` instead of the env var.)
+
+### Behaviour
+
+- **Version bump** uses Conventional Commits (`feat:`→minor, `fix:`→patch,
+  `BREAKING CHANGE`→major; defaults to patch). Commit messages drive it, so
+  keep them conventional.
+- The version bump is a **git tag only** (not a branch commit), so it never
+  re-triggers the branch pipeline (no loop).
+- Both CI tokens are fetched from Secrets Manager **in the build script**
+  (not baked into the CodeBuild env config).
+- The backend deploy and the extension release run in sequence; a failed
+  publish does not roll back a successful backend deploy.

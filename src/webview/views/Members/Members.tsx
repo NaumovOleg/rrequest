@@ -7,7 +7,6 @@ export function Members() {
   const members = useStore((s) => s.members)
   const workspaceId = useStore((s) => s.membersWorkspaceId)
   const isOwner = useStore((s) => s.activeWorkspace()?.role === 'owner')
-  const pushToast = useStore((s) => s.pushToast)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
 
@@ -22,17 +21,11 @@ export function Members() {
     setEmail('')
   }
   const remove = (memberId: string) => { if (workspaceId) postToHost({ type: 'removeMember', workspaceId, memberId }) }
-  const copyLink = () => {
-    if (!workspaceId) return
-    void navigator.clipboard.writeText(`restman://invite/${workspaceId}`)
-    pushToast('info', 'Invite link copied')
-  }
 
   return (
     <div className="rm-members">
       <div className="rm-members-head">
         <span className="rm-members-title">{isOwner ? 'Invite to Workspace' : 'Members'}</span>
-        <IconButton icon="close" label="close" />
       </div>
 
       {isOwner && (
@@ -58,7 +51,6 @@ export function Members() {
             </select>
           </div>
           <div className="rm-invite-actions">
-            <button className="rm-btn rm-btn--tertiary" onClick={copyLink}>Copy Invite Link</button>
             <button className="rm-btn rm-btn--primary" disabled={!valid} onClick={invite}>Send Invite</button>
           </div>
         </div>

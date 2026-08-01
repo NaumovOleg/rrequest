@@ -380,7 +380,7 @@ body {
 .rm-invite-form { display: flex; gap: var(--rm-sp-2); }
 .rm-invite-form .rm-input { flex: 1; min-width: 0; }
 .rm-invite-form .rm-select { width: 110px; flex: none; }
-.rm-invite-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--rm-sp-2); }
+.rm-invite-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--rm-sp-2); }
 .rm-btn--tertiary { background: transparent; border-color: transparent; color: var(--rm-accent); padding: 3px 2px; }
 .rm-btn--tertiary:hover { background: transparent; text-decoration: underline; }
 .rm-members-list-head { margin-top: var(--rm-sp-1); }

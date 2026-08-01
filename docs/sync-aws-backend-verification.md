@@ -20,8 +20,7 @@ cd server/infra
 npx cdk deploy --all
 ```
 
-- [ ] All 3 stacks (`RrequestStack`, `RrequestStack`,
-      `RrequestStack`) deploy with no errors.
+- [ ] The `RrequestStack` deploys with no errors.
 - [ ] `RrequestStack`'s `ApiUrl` output is a
       `https://<id>.execute-api.<region>.amazonaws.com` URL — copy it.
 - [ ] `curl -i <ApiUrl>/api/auth/start?cb=http://localhost:1` returns

@@ -115,10 +115,10 @@ export GOOGLE_REDIRECT_URI=<see step 1 above — placeholder on the first deploy
 npx cdk deploy --all
 ```
 
-This deploys 3 stacks (`bin/app.ts`): `RrequestStack` (tables; the
-secrets are out-of-band SSM params), `RrequestStack` (the HTTP API + `apiFn`), `RrequestStack`
-(the EventBridge rule + `pollFn`). `RrequestStack` prints a `ApiUrl`
-CfnOutput — that's the base URL from step 1b above.
+This deploys one stack (`bin/app.ts`): `RrequestStack` — the 3 DynamoDB
+tables, the HTTP API + `apiFn`, and the EventBridge rule + `pollFn`. It
+prints an `ApiUrl` CfnOutput — that's the base URL from step 1b above.
+(`--all` is harmless with a single stack; `npx cdk deploy` works too.)
 
 After confirming/updating the Google redirect URI (step 1), re-run
 `npx cdk deploy --all` with the real `GOOGLE_REDIRECT_URI` so the deployed
@@ -146,12 +146,11 @@ aws ssm put-parameter --name /rrequest/TOKEN_ENC_KEY --type SecureString --overw
 (Rotating a value later: re-run `put-parameter --overwrite`, then the next
 Lambda cold start picks it up — a warm container caches the value.)
 
-Find the secret ARNs/names in the `RrequestStack` outputs or the Secrets
-Manager console (`GoogleClientSecret`, `JwtSecret`, `TokenEncKey` — CDK
-appends a suffix to each logical ID). Both Lambdas read these lazily at cold
-start (`ensureSecretsLoaded` in `src/secrets.ts`); a warm container never
-re-fetches, so updating a secret's value takes effect on the *next* cold
-start, not instantly.
+The parameter names are fixed (`/rrequest/GOOGLE_CLIENT_SECRET`,
+`/rrequest/JWT_SECRET`, `/rrequest/TOKEN_ENC_KEY`) — nothing to look up. Both
+Lambdas read them lazily at cold start (`ensureSecretsLoaded` in
+`src/secrets.ts`); a warm container never re-fetches, so updating a value
+takes effect on the *next* cold start, not instantly.
 
 ## Point the extension at the deployed backend
 

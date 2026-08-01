@@ -19,6 +19,11 @@ describe('SyncClient', () => {
     expect(seen.url).toBe('http://localhost:8787/me')
     expect(seen.init.headers.authorization).toBe('Bearer jwt-1')
   })
+  it('unwraps the Helios {success,data} envelope (Function URL backend)', async () => {
+    const f = fetchMock(() => ({ status: 200, body: { success: true, data: { id: 'u9', email: 'z@x.com' }, timestamp: 't' } }))
+    const me = await client(f).me()
+    expect(me).toEqual({ id: 'u9', email: 'z@x.com' })
+  })
   it('enableSync POSTs the snapshot and returns driveFileId + revision', async () => {
     const f = fetchMock((url, init) => {
       expect(url).toBe('http://localhost:8787/workspaces')

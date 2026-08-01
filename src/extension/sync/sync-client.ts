@@ -27,6 +27,24 @@ export type PushResult =
   | { ok: true; revision: string }
   | { ok: false; conflict: true; snapshot: string; revision: string }
 
+// The Helios (@heliosjs/aws) backend wraps Function-URL responses in an
+// envelope `{ success, data, timestamp }`, so the real payload is nested under
+// `data`. The old Fastify server (and the unit-test fetch mocks) return the
+// payload raw. Unwrap only when the envelope is actually present, so both
+// shapes work.
+function unwrapEnvelope(json: unknown): unknown {
+  if (
+    typeof json === 'object' &&
+    json !== null &&
+    'success' in json &&
+    'data' in json &&
+    typeof (json as { success: unknown }).success === 'boolean'
+  ) {
+    return (json as { data: unknown }).data
+  }
+  return json
+}
+
 export class SyncClient {
   private baseUrl: string
   private getToken: () => string | undefined
@@ -50,7 +68,7 @@ export class SyncClient {
     if (res.status === 403) throw new SyncForbiddenError()
     if (res.status === 404) throw new SyncGoneError()
     if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
-    return (await res.json()) as T
+    return unwrapEnvelope(await res.json()) as T
   }
 
   me(): Promise<{ id: string; email: string }> {
@@ -69,14 +87,14 @@ export class SyncClient {
       body: JSON.stringify({ snapshot, baseRevision }),
     })
     if (res.status === 409) {
-      const body = (await res.json()) as { snapshot: string; revision: string }
+      const body = unwrapEnvelope(await res.json()) as { snapshot: string; revision: string }
       return { ok: false, conflict: true, snapshot: body.snapshot, revision: body.revision }
     }
     if (res.status === 401) throw new SyncAuthError()
     if (res.status === 403) throw new SyncForbiddenError()
     if (res.status === 404) throw new SyncGoneError()
     if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
-    const body = (await res.json()) as { revision: string }
+    const body = unwrapEnvelope(await res.json()) as { revision: string }
     return { ok: true, revision: body.revision }
   }
   pull(id: string): Promise<{ snapshot: string; revision: string; role?: WorkspaceRole }> {

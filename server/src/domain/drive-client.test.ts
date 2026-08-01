@@ -4,13 +4,13 @@ import { FakeDriveClient } from "./drive-client";
 describe("FakeDriveClient", () => {
   it("ensures a folder idempotently (same id for the same name)", async () => {
     const d = new FakeDriveClient();
-    const a = await d.ensureFolder("h-restman");
-    const b = await d.ensureFolder("h-restman");
+    const a = await d.ensureFolder("h-rrequest");
+    const b = await d.ensureFolder("h-rrequest");
     expect(a).toBe(b);
   });
   it("creates, reads, and updates a file, bumping the revision", async () => {
     const d = new FakeDriveClient();
-    const folder = await d.ensureFolder("h-restman");
+    const folder = await d.ensureFolder("h-rrequest");
     const created = await d.createFile(folder, "w.json", "v1");
     expect(await d.readFile(created.fileId)).toBe("v1");
     const updated = await d.updateFile(created.fileId, "v2");

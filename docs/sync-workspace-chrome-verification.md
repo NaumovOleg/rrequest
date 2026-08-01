@@ -3,7 +3,7 @@
 Prereq: backend running; a Google account.
 
 ## A. Sign in / out (visible)
-1. Open the restman sidebar. Signed out → the top account strip shows **Sign in with Google**.
+1. Open the rrequest sidebar. Signed out → the top account strip shows **Sign in with Google**.
 2. Click it → the loopback OAuth flow opens the browser; after consent, the strip shows your **email + Sign out**.
 3. Click **Sign out** → back to the Sign-in button; synced workspaces lose their sync status/role in the UI.
 
@@ -16,4 +16,4 @@ Prereq: backend running; a Google account.
 1. A workspace shared to you as Editor/Viewer shows **synced · Editor/Viewer**; a Viewer sees the read-only affordances (DS-Phase 5b-ui) and no Enable-Sync/Members controls beyond viewing.
 
 ## D. Command palette still works
-1. `restman: Sign in to Sync` / `Enable Workspace Sync` / `Sync Now` still work and now drive the same state the UI shows.
+1. `rrequest: Sign in to Sync` / `Enable Workspace Sync` / `Sync Now` still work and now drive the same state the UI shows.

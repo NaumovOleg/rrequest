@@ -20,8 +20,8 @@ export class ApiStack extends Stack {
 
     this.apiFn = apiFunction(this, { tables: props.tables, secrets: props.secrets, config: props.config });
 
-    this.httpApi = new HttpApi(this, "RestmanHttpApi", {
-      apiName: "restman-sync-api",
+    this.httpApi = new HttpApi(this, "RrequestHttpApi", {
+      apiName: "rrequest-sync-api",
     });
 
     const integration = new HttpLambdaIntegration("ApiIntegration", this.apiFn);
@@ -37,7 +37,7 @@ export class ApiStack extends Stack {
 
     new CfnOutput(this, "ApiUrl", {
       value: this.httpApi.apiEndpoint,
-      description: "Base URL of the restman sync HTTP API",
+      description: "Base URL of the rrequest sync HTTP API",
     });
   }
 }

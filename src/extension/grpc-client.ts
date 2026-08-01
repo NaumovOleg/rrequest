@@ -27,7 +27,7 @@ function resolvePath(root: unknown, dotted: string): any {
 export async function grpcInvoke(p: GrpcParams): Promise<GrpcResult> {
   const started = Date.now()
   const elapsed = () => Date.now() - started
-  const tmp = path.join(os.tmpdir(), `restman-${crypto.randomBytes(6).toString('hex')}.proto`)
+  const tmp = path.join(os.tmpdir(), `rrequest-${crypto.randomBytes(6).toString('hex')}.proto`)
   try {
     await fs.writeFile(tmp, p.proto, 'utf8')
     const pkgDef = protoLoader.loadSync(tmp, { keepCase: true, longs: String, enums: String, defaults: true, oneofs: true })

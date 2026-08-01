@@ -1,13 +1,13 @@
 # Drive Sync DS-Phase 5b-core — manual verification (extension role enforcement)
 
-Prereq: backend running (DS-Phase 5a) with two Google accounts (OWNER, MEMBER); OWNER has enabled sync on `w1` and shared it with MEMBER; both signed into restman.
+Prereq: backend running (DS-Phase 5a) with two Google accounts (OWNER, MEMBER); OWNER has enabled sync on `w1` and shared it with MEMBER; both signed into rrequest.
 
 ## A. Role recorded
 1. As MEMBER, open/sync `w1`. Confirm the local `sync-state.json` for `w1` shows `role: "editor"` (or `"viewer"`) matching the share, and it updates if OWNER changes the role (after a pull / refreshRoles).
 
 ## B. Viewer is read-only in the extension (no round-trip)
 1. OWNER shares `w1` with MEMBER as **viewer**; MEMBER pulls so `sync-state.role` = `viewer`.
-2. In MEMBER's restman, with `w1` active, attempt any edit (new collection/request/folder, rename, delete, save request, edit environment). The change is blocked and a read-only toast/error is surfaced; the local tree is unchanged (no mutation applied).
+2. In MEMBER's rrequest, with `w1` active, attempt any edit (new collection/request/folder, rename, delete, save request, edit environment). The change is blocked and a read-only toast/error is surfaced; the local tree is unchanged (no mutation applied).
 3. Non-mutating actions still work: opening a request, sending a request, viewing history/environments.
 
 ## C. Removed member drops sync, keeps local

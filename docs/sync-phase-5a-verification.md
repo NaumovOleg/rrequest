@@ -13,7 +13,7 @@ Prereq: backend running with a real Google OAuth client + Drive API; two Google 
 2. Viewer `GET /workspaces/w1` → 200 (can read); viewer `PUT /workspaces/w1` → **403**.
 
 ## C. Pending invite (no account yet)
-1. As OWNER, add `role: "editor"` for an email with no restman account → 201 `{ pending: true }`.
+1. As OWNER, add `role: "editor"` for an email with no rrequest account → 201 `{ pending: true }`.
 2. That person signs in with the same email (`/auth/start` → consent → `/auth/callback`). Afterwards their `GET /workspaces` includes `w1` (the pending membership resolved to their new user id).
 
 ## D. Remove a member

@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import { writeJsonAtomic, readJsonSafe } from '../../src/extension/atomic-write'
 
 let dir: string
-beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-')) })
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-')) })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 describe('atomic-write', () => {

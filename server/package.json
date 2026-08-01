@@ -1,5 +1,5 @@
 {
-  "name": "restman-sync-server",
+  "name": "rrequest-sync-server",
   "private": true,
   "version": "0.1.0",
   "type": "module",

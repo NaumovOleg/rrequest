@@ -42,7 +42,7 @@ export function GrpcPanel() {
   const [proto, setProto] = useState(SAMPLE_PROTO);
   const [service, setService] = useState("helloworld.Greeter");
   const [method, setMethod] = useState("SayHello");
-  const [message, setMessage] = useState('{\n  "name": "restman"\n}');
+  const [message, setMessage] = useState('{\n  "name": "rrequest"\n}');
   const [metadata, setMetadata] = useState("");
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<Result | null>(null);

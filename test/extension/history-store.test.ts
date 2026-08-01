@@ -6,7 +6,7 @@ import { HistoryStore } from '../../src/extension/history-store'
 import { newId, type RestRequest } from '../../src/shared/types'
 
 let dir: string
-beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-hs-')) })
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-hs-')) })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 function req(): RestRequest {

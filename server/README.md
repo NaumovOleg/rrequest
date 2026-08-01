@@ -1,4 +1,4 @@
-# restman sync server (serverless)
+# rrequest sync server (serverless)
 
 Backend for Google Drive workspace sync: Google OAuth login + app-session JWT
 + per-workspace Drive-file sync + sharing (owner/editor/viewer). Runs entirely
@@ -43,8 +43,8 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
   - `Workspaces` (PK `workspaceId`; GSI `gsi_owner`)
   - `Memberships` (PK `membershipId`; GSIs `gsi_ws`, `gsi_user`, `gsi_pendingEmail`)
 - **SSM Parameter Store** — 3 `SecureString` parameters
-  (`/restman/GOOGLE_CLIENT_SECRET`, `/restman/JWT_SECRET`,
-  `/restman/TOKEN_ENC_KEY`). CloudFormation can't create `SecureString`
+  (`/rrequest/GOOGLE_CLIENT_SECRET`, `/rrequest/JWT_SECRET`,
+  `/rrequest/TOKEN_ENC_KEY`). CloudFormation can't create `SecureString`
   params, so `DataStack` does NOT provision them — the operator creates them
   post-deploy (see below). Both Lambdas get the param NAMES baked into their
   environment (`GOOGLE_CLIENT_SECRET_PARAM`, `JWT_SECRET_PARAM`,
@@ -59,7 +59,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
   level and throws if a required var is missing. Warm invocations skip the
   fetch (idempotent per container).
 - **No WebSocket / realtime.** The extension polls
-  `GET /api/workspaces` (`restman.syncPollIntervalMs`, default 45s) and
+  `GET /api/workspaces` (`rrequest.syncPollIntervalMs`, default 45s) and
   compares each workspace's `revision`; `pollFn`'s 1-minute sweep is what
   makes an out-of-band Drive edit show up as a revision bump for the client
   to notice.
@@ -74,7 +74,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
    after the first deploy** (API Gateway assigns it). So:
    a. Do a first `cdk deploy` (see below) with a placeholder
       `GOOGLE_REDIRECT_URI` (e.g. `https://placeholder.example.com/api/auth/callback`).
-   b. Read the `ApiUrl` CfnOutput from `RestmanApiStack` (e.g.
+   b. Read the `ApiUrl` CfnOutput from `RrequestApiStack` (e.g.
       `https://abc123xyz.execute-api.us-east-1.amazonaws.com`).
    c. The real redirect URI is that URL **+ `/api/auth/callback`** (the
       `/api` prefix comes from `RootController`'s `prefix: "/api"`; the
@@ -115,9 +115,9 @@ export GOOGLE_REDIRECT_URI=<see step 1 above — placeholder on the first deploy
 npx cdk deploy --all
 ```
 
-This deploys 3 stacks (`bin/app.ts`): `RestmanDataStack` (tables; the
-secrets are out-of-band SSM params), `RestmanApiStack` (the HTTP API + `apiFn`), `RestmanSchedulerStack`
-(the EventBridge rule + `pollFn`). `RestmanApiStack` prints a `ApiUrl`
+This deploys 3 stacks (`bin/app.ts`): `RrequestDataStack` (tables; the
+secrets are out-of-band SSM params), `RrequestApiStack` (the HTTP API + `apiFn`), `RrequestSchedulerStack`
+(the EventBridge rule + `pollFn`). `RrequestApiStack` prints a `ApiUrl`
 CfnOutput — that's the base URL from step 1b above.
 
 After confirming/updating the Google redirect URI (step 1), re-run
@@ -133,20 +133,20 @@ free AWS-managed `alias/aws/ssm` key (which the Lambdas' `kms:Decrypt` grant
 covers):
 
 ```sh
-aws ssm put-parameter --name /restman/GOOGLE_CLIENT_SECRET --type SecureString --overwrite \
+aws ssm put-parameter --name /rrequest/GOOGLE_CLIENT_SECRET --type SecureString --overwrite \
   --value '<the OAuth client secret from Google Cloud Console>'
 
-aws ssm put-parameter --name /restman/JWT_SECRET --type SecureString --overwrite \
+aws ssm put-parameter --name /rrequest/JWT_SECRET --type SecureString --overwrite \
   --value '<a long random string — HMAC key for session JWTs and the stateless OAuth state param>'
 
-aws ssm put-parameter --name /restman/TOKEN_ENC_KEY --type SecureString --overwrite \
+aws ssm put-parameter --name /rrequest/TOKEN_ENC_KEY --type SecureString --overwrite \
   --value '<a long random string — AES-256-GCM key encrypting stored Google refresh tokens at rest>'
 ```
 
 (Rotating a value later: re-run `put-parameter --overwrite`, then the next
 Lambda cold start picks it up — a warm container caches the value.)
 
-Find the secret ARNs/names in the `RestmanDataStack` outputs or the Secrets
+Find the secret ARNs/names in the `RrequestDataStack` outputs or the Secrets
 Manager console (`GoogleClientSecret`, `JwtSecret`, `TokenEncKey` — CDK
 appends a suffix to each logical ID). Both Lambdas read these lazily at cold
 start (`ensureSecretsLoaded` in `src/secrets.ts`); a warm container never
@@ -155,7 +155,7 @@ start, not instantly.
 
 ## Point the extension at the deployed backend
 
-Set the VS Code setting **`restman.syncServerUrl`** to the deployed API's
+Set the VS Code setting **`rrequest.syncServerUrl`** to the deployed API's
 `/api` base — i.e. the `ApiUrl` CfnOutput **with `/api` appended**:
 
 ```
@@ -169,7 +169,7 @@ this base directly with unprefixed paths (`/me`, `/workspaces`,
 the client does not add it. With the base above, the effective routes are
 `/api/auth/start`, `/api/auth/callback`, `/api/me`, `/api/workspaces`, etc.
 
-(The `restman.syncServerUrl` setting's packaged default,
+(The `rrequest.syncServerUrl` setting's packaged default,
 `http://localhost:8787`, is a holdover from the old local Fastify server and
 does **not** work against this backend — there is no local long-running dev
 server anymore. Always point it at a deployed API Gateway URL + `/api`.)
@@ -221,7 +221,7 @@ All paths below are relative to the deployed API's `/api` base.
   shared), each with a `role` (`owner`/`editor`/`viewer`) and `revision`.
 - `POST /workspaces` (Bearer JWT) `{ workspaceId, name, snapshot }` → creates
   (or, if the caller already owns that workspace, updates) the Drive file
-  under `<hash>-restman/`, stores a row, returns `{ driveFileId, revision }`.
+  under `<hash>-rrequest/`, stores a row, returns `{ driveFileId, revision }`.
   403 if the workspace ID already exists and is owned by someone else.
 - `GET /workspaces/:id` (Bearer JWT, any role) → pulls, returns
   `{ snapshot, revision, role }`. 403 if the caller has no role on the
@@ -235,7 +235,7 @@ All paths below are relative to the deployed API's `/api` base.
   ever signed in has `pending: true`).
 - `POST /workspaces/:id/members` (Bearer JWT, owner only) `{ email, role }`
   (`role` is `editor` or `viewer`) → creates a Drive permission + membership
-  row (pending if the email has no restman account yet), returns
+  row (pending if the email has no rrequest account yet), returns
   `{ member }`.
 - `DELETE /workspaces/:id/members/:memberId` (Bearer JWT, owner only) →
   removes the Drive permission + membership row, returns `{ ok: true }`.

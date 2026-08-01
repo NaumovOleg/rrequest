@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import { TrashStore } from '../../src/extension/trash-store'
 
 let dir: string
-beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-tr-')) })
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-tr-')) })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 const entry = (over: any = {}) => ({ workspaceId: 'w1', kind: 'request' as const, data: { id: 'r1', name: 'R' } as any, ...over })

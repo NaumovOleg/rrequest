@@ -19,7 +19,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
   return {
     port: Number(env.PORT ?? 8787),
-    dbPath: env.DB_PATH ?? "restman.db",
+    dbPath: env.DB_PATH ?? "rrequest.db",
     jwtSecret: req("JWT_SECRET"),
     tokenEncKey: req("TOKEN_ENC_KEY"),
     googleClientId: req("GOOGLE_CLIENT_ID"),

@@ -11,7 +11,7 @@ describe("loadConfig", () => {
   it("parses required values and applies defaults", () => {
     const c = loadConfig(base as any);
     expect(c.port).toBe(8787);
-    expect(c.dbPath).toBe("restman.db");
+    expect(c.dbPath).toBe("rrequest.db");
     expect(c.jwtSecret).toBe("j");
     expect(c.googleClientId).toBe("cid");
   });

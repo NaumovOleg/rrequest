@@ -1,6 +1,6 @@
 # UI v2 Round 2 Smoke Checklist
 
-Press F5 → open restman.
+Press F5 → open rrequest.
 
 - [ ] Reopen the extension → the last-selected workspace is active in the switcher.
 - [ ] A text "Environments" button sits by the workspace; clicking it opens the Environments manager in the editor.

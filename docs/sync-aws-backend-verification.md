@@ -20,9 +20,9 @@ cd server/infra
 npx cdk deploy --all
 ```
 
-- [ ] All 3 stacks (`RestmanDataStack`, `RestmanApiStack`,
-      `RestmanSchedulerStack`) deploy with no errors.
-- [ ] `RestmanApiStack`'s `ApiUrl` output is a
+- [ ] All 3 stacks (`RrequestDataStack`, `RrequestApiStack`,
+      `RrequestSchedulerStack`) deploy with no errors.
+- [ ] `RrequestApiStack`'s `ApiUrl` output is a
       `https://<id>.execute-api.<region>.amazonaws.com` URL — copy it.
 - [ ] `curl -i <ApiUrl>/api/auth/start?cb=http://localhost:1` returns
       `302` with a `location` header pointing at `accounts.google.com`
@@ -31,7 +31,7 @@ npx cdk deploy --all
 
 ## 1. Point the extension at the deployment
 
-- [ ] In VS Code settings, set `restman.syncServerUrl` to `<ApiUrl>/api`
+- [ ] In VS Code settings, set `rrequest.syncServerUrl` to `<ApiUrl>/api`
       (the `/api` suffix is required — see `server/README.md`'s "Point the
       extension" section for why).
 - [ ] Reload the window (or restart the Extension Development Host) so the
@@ -39,8 +39,8 @@ npx cdk deploy --all
 
 ## 2. Sign in (loopback OAuth → Google → JWT)
 
-- [ ] Open the restman sidebar; find the account row / "Sign in to sync"
-      entry (command `restman.signInToSync`).
+- [ ] Open the rrequest sidebar; find the account row / "Sign in to sync"
+      entry (command `rrequest.signInToSync`).
 - [ ] Trigger sign-in. A browser tab opens to the Google consent screen
       (via `GET /api/auth/start?cb=http://localhost:<ephemeral-port>`).
 - [ ] Approve consent (first account, e.g. Account A). The tab redirects to
@@ -56,9 +56,9 @@ npx cdk deploy --all
 
 ## 3. Enable sync on a workspace
 
-- [ ] With a workspace open, run "restman: Enable sync for active
+- [ ] With a workspace open, run "rrequest: Enable sync for active
       workspace".
-- [ ] In Google Drive (Account A), a folder named `<8-hex-hash>-restman`
+- [ ] In Google Drive (Account A), a folder named `<8-hex-hash>-rrequest`
       appears at the Drive root, containing a `<workspace-name>-<id>.json`
       file — confirms `folderNameForUser` + `ensureFolder`/`createFile` ran
       against the real Drive API.
@@ -68,11 +68,11 @@ npx cdk deploy --all
 
 - [ ] Open a second VS Code window (or Extension Development Host instance)
       signed in as the **same** Account A, with the same
-      `restman.syncServerUrl`.
+      `rrequest.syncServerUrl`.
 - [ ] In window 1, edit something in the synced workspace (add/rename a
-      request) and let it push (automatic on change, or run "restman: Sync
+      request) and let it push (automatic on change, or run "rrequest: Sync
       now").
-- [ ] In window 2, wait up to `restman.syncPollIntervalMs` (default 45s) —
+- [ ] In window 2, wait up to `rrequest.syncPollIntervalMs` (default 45s) —
       the change should appear without any manual action, once the client's
       poll loop calls `GET /api/workspaces`, notices the `revision` changed,
       and pulls.
@@ -85,7 +85,7 @@ npx cdk deploy --all
       workspace's JSON file and edit it (e.g. Drive's "Open with Text
       Editor" or download-edit-reupload — any change that creates a new
       Drive revision of that file).
-- [ ] Wait up to 1 minute (the `RestmanSchedulerStack` EventBridge rule
+- [ ] Wait up to 1 minute (the `RrequestSchedulerStack` EventBridge rule
       invokes `pollFn` on a 1-minute rate) — check CloudWatch Logs for the
       `PollFunction` Lambda to confirm it ran and bumped a revision
       (`PollService.pollAll`'s return count > 0, or just observe the
@@ -141,7 +141,7 @@ npx cdk deploy --all
 
 - There is no realtime push — every cross-window / cross-account update is
   discovered on the *next* poll, not instantly. Two client-side variables
-  govern the worst-case delay: `restman.syncPollIntervalMs` (extension →
+  govern the worst-case delay: `rrequest.syncPollIntervalMs` (extension →
   server) and the fixed 1-minute EventBridge rate (server-side Drive-edit
   detection, only relevant for edits made outside the extension).
 - `pollFn`'s cold start needs read access to the JWT secret param even though its

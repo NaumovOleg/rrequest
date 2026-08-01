@@ -8,7 +8,7 @@ import { newId, type RestRequest } from '../../src/shared/types'
 let dir: string
 let store: CollectionStore
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-cs-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-cs-'))
   store = new CollectionStore(dir)
 })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })

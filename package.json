@@ -1,9 +1,9 @@
 {
-  "name": "restman",
-  "displayName": "restman",
+  "name": "rrequest",
+  "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
   "version": "0.0.1",
-  "publisher": "restman",
+  "publisher": "rrequest",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -12,51 +12,51 @@
   "contributes": {
     "commands": [
       {
-        "command": "restman.open",
-        "title": "restman: Open"
+        "command": "rrequest.open",
+        "title": "RREQUEST: Open"
       },
       {
-        "command": "restman.signInToSync",
-        "title": "restman: Sign in to sync (Google)"
+        "command": "rrequest.signInToSync",
+        "title": "RREQUEST: Sign in to sync (Google)"
       },
       {
-        "command": "restman.enableWorkspaceSync",
-        "title": "restman: Enable sync for active workspace"
+        "command": "rrequest.enableWorkspaceSync",
+        "title": "RREQUEST: Enable sync for active workspace"
       },
       {
-        "command": "restman.syncNow",
-        "title": "restman: Sync now"
+        "command": "rrequest.syncNow",
+        "title": "RREQUEST: Sync now"
       }
     ],
     "configuration": {
-      "title": "restman",
+      "title": "RREQUEST",
       "properties": {
-        "restman.syncServerUrl": {
+        "rrequest.syncServerUrl": {
           "type": "string",
           "default": "http://localhost:8787",
-          "description": "restman sync backend URL"
+          "description": "rrequest sync backend URL"
         },
-        "restman.syncPollIntervalMs": {
+        "rrequest.syncPollIntervalMs": {
           "type": "number",
           "default": 45000,
-          "description": "How often (in milliseconds) restman polls the sync backend for remote workspace changes"
+          "description": "How often (in milliseconds) rrequest polls the sync backend for remote workspace changes"
         }
       }
     },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "restman",
-          "title": "restman",
-          "icon": "resources/restman.svg"
+          "id": "rrequest",
+          "title": "RREQUEST",
+          "icon": "resources/rrequest.svg"
         }
       ]
     },
     "views": {
-      "restman": [
+      "rrequest": [
         {
-          "id": "restman.sidebar",
-          "name": "restman",
+          "id": "rrequest.sidebar",
+          "name": "RREQUEST",
           "type": "webview"
         }
       ]

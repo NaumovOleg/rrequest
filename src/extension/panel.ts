@@ -73,8 +73,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // ensure a Default workspace + active id
   let list = await workspaces.list()
   if (list.length === 0) { const def = await workspaces.create('Default'); list = [def] }
-  if (!context.globalState.get<string>('restman.activeWorkspaceId')) {
-    await context.globalState.update('restman.activeWorkspaceId', list[0].id)
+  if (!context.globalState.get<string>('rrequest.activeWorkspaceId')) {
+    await context.globalState.update('rrequest.activeWorkspaceId', list[0].id)
   }
 
   // createRouter runs before the Hub exists, so the WsManager's emit (and the
@@ -87,12 +87,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // syncClient is constructed early (it has no Hub dependency) so the router's
   // members port can be built over it below; the rest of the sync runtime
   // (which does need the Hub) is wired up after the Hub is constructed.
-  const syncBaseUrl = (): string => vscode.workspace.getConfiguration('restman').get<string>('syncServerUrl', 'http://localhost:8787')
+  const syncBaseUrl = (): string => vscode.workspace.getConfiguration('rrequest').get<string>('syncServerUrl', 'http://localhost:8787')
   let cachedToken: string | undefined
-  void context.secrets.get('restman.syncToken').then((t) => { cachedToken = t ?? undefined })
-  context.secrets.onDidChange(async (e) => { if (e.key === 'restman.syncToken') cachedToken = (await context.secrets.get('restman.syncToken')) ?? undefined })
-  const currentAuthEmail = (): string | null => cachedToken ? (context.globalState.get<string>('restman.syncEmail') ?? null) : null
-  const activeWsId = (): string => context.globalState.get<string>('restman.activeWorkspaceId', '')
+  void context.secrets.get('rrequest.syncToken').then((t) => { cachedToken = t ?? undefined })
+  context.secrets.onDidChange(async (e) => { if (e.key === 'rrequest.syncToken') cachedToken = (await context.secrets.get('rrequest.syncToken')) ?? undefined })
+  const currentAuthEmail = (): string | null => cachedToken ? (context.globalState.get<string>('rrequest.syncEmail') ?? null) : null
+  const activeWsId = (): string => context.globalState.get<string>('rrequest.activeWorkspaceId', '')
 
   const syncClient = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => cachedToken })
   const membersPort = {
@@ -112,11 +112,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     collections,
     history,
     environments,
-    getActiveEnvId: () => context.globalState.get<string | null>('restman.activeEnvId', null),
-    setActiveEnvId: (id) => { void context.globalState.update('restman.activeEnvId', id) },
+    getActiveEnvId: () => context.globalState.get<string | null>('rrequest.activeEnvId', null),
+    setActiveEnvId: (id) => { void context.globalState.update('rrequest.activeEnvId', id) },
     workspaces,
-    getActiveWorkspaceId: () => context.globalState.get<string>('restman.activeWorkspaceId', ''),
-    setActiveWorkspaceId: (id) => { void context.globalState.update('restman.activeWorkspaceId', id) },
+    getActiveWorkspaceId: () => context.globalState.get<string>('rrequest.activeWorkspaceId', ''),
+    setActiveWorkspaceId: (id) => { void context.globalState.update('rrequest.activeWorkspaceId', id) },
     runPreScript,
     runTestScript,
     openImport: async () => {
@@ -126,7 +126,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         const text = await fs.readFile(picked[0].fsPath, 'utf8')
         return parseImport(text)
       } catch (e: any) {
-        void vscode.window.showErrorMessage(`restman import failed: ${e?.message ?? e}`)
+        void vscode.window.showErrorMessage(`rrequest import failed: ${e?.message ?? e}`)
         return null
       }
     },
@@ -136,7 +136,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       try {
         await fs.writeFile(target.fsPath, serializeExport(c, format), 'utf8')
       } catch (e: any) {
-        void vscode.window.showErrorMessage(`restman export failed: ${e?.message ?? e}`)
+        void vscode.window.showErrorMessage(`rrequest export failed: ${e?.message ?? e}`)
       }
     },
     pickFile: async () => {
@@ -169,14 +169,14 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   })
 
   const snapshot = async (): Promise<HostMessage[]> => {
-    const ws = context.globalState.get<string>('restman.activeWorkspaceId', '')
+    const ws = context.globalState.get<string>('rrequest.activeWorkspaceId', '')
     const cols = (await collections.list()).filter((c) => (c.workspaceId || ws) === ws)
     const envs = (await environments.list()).filter((e) => (e.workspaceId || ws) === ws)
     const hist = (await history.list()).filter((e) => (e.workspaceId || ws) === ws)
     const trashed = (await trash.list()).filter((e) => (e.workspaceId || ws) === ws)
     return [
       { type: 'tree', collections: cols },
-      { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('restman.activeEnvId', null) },
+      { type: 'environments', environments: envs, activeId: context.globalState.get<string | null>('rrequest.activeEnvId', null) },
       { type: 'workspaces', workspaces: (await workspaces.list()).map((w) => ({ ...w, role: cachedToken ? syncRuntimeRef?.roleOf(w.id) : undefined, synced: cachedToken ? syncRuntimeRef?.syncedOf(w.id) : undefined })), activeId: ws },
       { type: 'history', entries: hist },
       { type: 'trash', entries: trashed },
@@ -190,19 +190,19 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // by request id so re-opening focuses the existing tab; env/ws are singletons.
   hub.setOpen((m) => {
     if (m.type === 'openInEditor') {
-      RestmanPanel.openOrReveal(context, `req:${m.request.id}`, `${m.request.method} ${m.request.name}`, m)
+      RrequestPanel.openOrReveal(context, `req:${m.request.id}`, `${m.request.method} ${m.request.name}`, m)
     } else if (m.type === 'openGrpcRequest') {
-      RestmanPanel.openOrReveal(context, `grpc:${m.request.id}`, `gRPC ${m.request.name}`, m)
+      RrequestPanel.openOrReveal(context, `grpc:${m.request.id}`, `gRPC ${m.request.name}`, m)
     } else if (m.type === 'openWsRequest') {
-      RestmanPanel.openOrReveal(context, `ws:${m.request.id}`, `WS ${m.request.name}`, m)
+      RrequestPanel.openOrReveal(context, `ws:${m.request.id}`, `WS ${m.request.name}`, m)
     } else if (m.type === 'showEnvironments') {
-      RestmanPanel.openOrReveal(context, 'env', 'Environments', m)
+      RrequestPanel.openOrReveal(context, 'env', 'Environments', m)
     } else if (m.type === 'showWebSocket') {
-      RestmanPanel.openOrReveal(context, 'ws', 'WebSocket', m)
+      RrequestPanel.openOrReveal(context, 'ws', 'WebSocket', m)
     } else if (m.type === 'showGrpc') {
-      RestmanPanel.openOrReveal(context, 'grpc', 'gRPC', m)
+      RrequestPanel.openOrReveal(context, 'grpc', 'gRPC', m)
     } else if (m.type === 'showMembers') {
-      RestmanPanel.openOrReveal(context, 'members', 'Members', m)
+      RrequestPanel.openOrReveal(context, 'members', 'Members', m)
     }
   })
 
@@ -214,9 +214,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // when the JWT/refresh token was invalidated server-side and additionally
   // toasts so the user knows why they were signed out.
   const clearSyncAuth = async (): Promise<void> => {
-    await context.secrets.delete('restman.syncToken')
+    await context.secrets.delete('rrequest.syncToken')
     cachedToken = undefined
-    await context.globalState.update('restman.syncEmail', undefined)
+    await context.globalState.update('rrequest.syncEmail', undefined)
   }
   // At most one toast per distinct message per 15s, so a flurry of failed
   // pushes/polls doesn't spam the user with a toast per workspace/attempt.
@@ -225,7 +225,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     client: syncClient,
     state: syncState,
     stores: buildStoresPort(collections, environments, workspaces),
-    email: () => context.globalState.get<string>('restman.syncEmail', 'me'),
+    email: () => context.globalState.get<string>('rrequest.syncEmail', 'me'),
     onAuthLost: async () => {
       await clearSyncAuth()
       hub.authState(null)
@@ -257,7 +257,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   // polls listWorkspaces() periodically and pulls any workspace whose server
   // revision has moved past what we last saw (only for workspaces we've
   // enabled sync on locally).
-  const pollIntervalMs = vscode.workspace.getConfiguration('restman').get<number>('syncPollIntervalMs', 45000)
+  const pollIntervalMs = vscode.workspace.getConfiguration('rrequest').get<number>('syncPollIntervalMs', 45000)
   const pollLoop = createPollLoop({
     listWorkspaces: () => syncClient.listWorkspaces(),
     state: syncState,
@@ -275,8 +275,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     signIn: async () => {
       const token = await signIn({ baseUrl: syncBaseUrl(), openExternal: (u) => void vscode.env.openExternal(vscode.Uri.parse(u)) })
       cachedToken = token
-      await context.secrets.store('restman.syncToken', token)
-      try { const me = await syncClient.me(); await context.globalState.update('restman.syncEmail', me.email); hub.authState(me.email) }
+      await context.secrets.store('rrequest.syncToken', token)
+      try { const me = await syncClient.me(); await context.globalState.update('rrequest.syncEmail', me.email); hub.authState(me.email) }
       catch { hub.authState(null) }
       await runtime.refresh()
     },
@@ -316,8 +316,8 @@ function blankRequest(): RestRequest {
  * sent the request. A per-panel pending queue holds the initial message until
  * the webview's sink registers (fixing the first-open race).
  */
-export class RestmanPanel {
-  private static panels = new Map<string, RestmanPanel>()
+export class RrequestPanel {
+  private static panels = new Map<string, RrequestPanel>()
 
   private readonly pending: HostMessage[] = []
   private registered = false
@@ -327,11 +327,11 @@ export class RestmanPanel {
   // Command entry point: open a fresh blank request in its own tab.
   static createOrShow(context: vscode.ExtensionContext) {
     const req = blankRequest()
-    RestmanPanel.openOrReveal(context, `req:${req.id}`, `${req.method} ${req.name}`, { type: 'openInEditor', request: req })
+    RrequestPanel.openOrReveal(context, `req:${req.id}`, `${req.method} ${req.name}`, { type: 'openInEditor', request: req })
   }
 
   static openOrReveal(context: vscode.ExtensionContext, key: string, title: string, initial?: HostMessage) {
-    const existing = RestmanPanel.panels.get(key)
+    const existing = RrequestPanel.panels.get(key)
     if (existing) {
       existing.panel.title = title
       existing.panel.reveal()
@@ -339,13 +339,13 @@ export class RestmanPanel {
       return
     }
     const panel = vscode.window.createWebviewPanel(
-      'restman', title, vscode.ViewColumn.Active,
+      'rrequest', title, vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] },
     )
-    const rp = new RestmanPanel(panel, context, key)
+    const rp = new RrequestPanel(panel, context, key)
     if (initial) rp.pending.push(initial)
-    RestmanPanel.panels.set(key, rp)
+    RrequestPanel.panels.set(key, rp)
   }
 
   private deliver(m: HostMessage) {
@@ -387,7 +387,7 @@ export class RestmanPanel {
     panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
       // Reflect the request's method + name (and per-method icon) on the tab.
       if (msg.type === 'setTitle') {
-        panel.title = msg.title || 'restman'
+        panel.title = msg.title || 'RREQUEST'
         if (msg.icon) panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', `icon-${msg.icon}.svg`)
         return
       }
@@ -398,7 +398,7 @@ export class RestmanPanel {
     panel.onDidDispose(() => {
       this.disposed = true
       this.unregister?.()
-      RestmanPanel.panels.delete(key)
+      RrequestPanel.panels.delete(key)
     })
   }
 }

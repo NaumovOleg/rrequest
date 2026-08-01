@@ -6,13 +6,13 @@ import type { Config } from "./config.js";
 
 export function folderNameForUser(userId: string): string {
   const hash = createHash("sha256").update(userId).digest("hex").slice(0, 8);
-  return `${hash}-restman`;
+  return `${hash}-rrequest`;
 }
 
 export type DriveFactory = (user: User) => DriveClient;
 
 // Thrown when Google refuses to mint a fresh access token for a user's
-// stored refresh token -- almost always because the user revoked restman's
+// stored refresh token -- almost always because the user revoked rrequest's
 // Drive access or the refresh token otherwise expired. Callers (services)
 // catch this and surface a 401 so the client knows to prompt re-auth,
 // instead of a generic 500.

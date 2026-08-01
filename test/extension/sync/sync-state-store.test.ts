@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import { SyncStateStore } from '../../../src/extension/sync/sync-state-store'
 
 let dir: string
-beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-ss-')) })
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-ss-')) })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 const st = (over = {}) => ({ driveFileId: 'f1', ownerEmail: 'a@x.com', role: 'owner' as const, lastRevision: 'r1', synced: true, ...over })

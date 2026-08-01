@@ -12,9 +12,9 @@ import type { Construct } from "constructs";
 // (src/secrets.ts). Parameter Store standard tier is free; Secrets Manager
 // charged per secret/month -- these are static config, not rotated creds.
 export const SSM_PARAM_NAMES = {
-  googleClientSecret: "/restman/GOOGLE_CLIENT_SECRET",
-  jwtSecret: "/restman/JWT_SECRET",
-  tokenEncKey: "/restman/TOKEN_ENC_KEY",
+  googleClientSecret: "/rrequest/GOOGLE_CLIENT_SECRET",
+  jwtSecret: "/rrequest/JWT_SECRET",
+  tokenEncKey: "/rrequest/TOKEN_ENC_KEY",
 } as const;
 
 /**

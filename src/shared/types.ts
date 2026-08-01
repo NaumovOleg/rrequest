@@ -67,7 +67,7 @@ export function itemKind(i: CollectionItem): 'http' | 'grpc' | 'ws' {
 export function defaultHeaders(): KeyValue[] {
   return [
     { key: 'Accept', value: '*/*', enabled: true },
-    { key: 'User-Agent', value: 'restman', enabled: true },
+    { key: 'User-Agent', value: 'rrequest', enabled: true },
     { key: 'Cache-Control', value: 'no-cache', enabled: true },
   ]
 }

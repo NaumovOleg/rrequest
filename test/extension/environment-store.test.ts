@@ -7,7 +7,7 @@ import { EnvironmentStore } from '../../src/extension/environment-store'
 let dir: string
 let store: EnvironmentStore
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-env-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-env-'))
   store = new EnvironmentStore(dir)
 })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })

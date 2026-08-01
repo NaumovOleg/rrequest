@@ -4,7 +4,7 @@ Prereq: the serverless backend deployed (or running locally) with a real Google 
 
 ## A. Token revoked → re-auth prompt
 1. Sign in and enable sync on a workspace. Confirm the sidebar account row shows your email.
-2. Revoke restman's access from your Google account security page (or wait for the 30-day app JWT to expire, or delete `restman.syncToken` from SecretStorage to simulate).
+2. Revoke rrequest's access from your Google account security page (or wait for the 30-day app JWT to expire, or delete `rrequest.syncToken` from SecretStorage to simulate).
 3. On the next auto-push / poll tick, the backend's Google refresh fails → returns **401**. Expected in the extension:
    - an error toast: *"Sync sign-in expired — please sign in again."*
    - the account row returns to **"Sign in with Google"** (the stored token + email are cleared).
@@ -13,14 +13,14 @@ Prereq: the serverless backend deployed (or running locally) with a real Google 
 
 ## B. Sync server down / offline → local-first + throttled toast + auto-retry
 1. Stop the backend (or disconnect the network).
-2. Edit collections/requests in restman. Edits **apply locally immediately** (local-first) — nothing is lost or blocked.
+2. Edit collections/requests in rrequest. Edits **apply locally immediately** (local-first) — nothing is lost or blocked.
 3. Within ~15s of a failed push/poll a single throttled toast appears: *"Could not reach the sync server; will retry."* A flurry of failures shows **at most one** such toast per 15s (not one per workspace/attempt).
 4. Restart the backend. On the next poll tick / next edit's debounced push, the pending local changes sync up automatically (no manual action, no data lost). No re-auth needed (the JWT is still valid).
 
 ## C. Owner deletes a shared workspace → members keep a local copy
-1. OWNER shares a synced workspace with MEMBER (editor or viewer); confirm it appears synced in MEMBER's restman.
-2. OWNER deletes that workspace in restman. Expected on the OWNER side: the Drive file is trashed, the workspace + its memberships are removed server-side, and the local workspace is permanently deleted (as before).
-3. On MEMBER's next poll/push, the server returns **404** (`SyncGoneError`). Expected in MEMBER's restman:
+1. OWNER shares a synced workspace with MEMBER (editor or viewer); confirm it appears synced in MEMBER's rrequest.
+2. OWNER deletes that workspace in rrequest. Expected on the OWNER side: the Drive file is trashed, the workspace + its memberships are removed server-side, and the local workspace is permanently deleted (as before).
+3. On MEMBER's next poll/push, the server returns **404** (`SyncGoneError`). Expected in MEMBER's rrequest:
    - an info toast: *"This workspace was deleted by its owner; your local copy was kept."*
    - the workspace is **dropped from sync** (`synced: false`) but the local collections/environments **remain intact and editable** locally.
 4. (If MEMBER is a non-owner and somehow triggers a delete: the backend returns 403 → the local delete still proceeds, the sync-delete is a no-op.)

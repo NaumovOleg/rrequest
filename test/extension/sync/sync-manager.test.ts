@@ -8,7 +8,7 @@ import { SyncForbiddenError, SyncGoneError, SyncAuthError } from '../../../src/e
 import type { Collection, Environment } from '../../../src/shared/types'
 
 let dir: string
-beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'restman-sm-')) })
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-sm-')) })
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }) })
 
 const col = (): Collection => ({ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] })

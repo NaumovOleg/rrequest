@@ -1,6 +1,6 @@
 # Drive Sync DS-Phase 5b-ui — manual verification (sharing UX)
 
-Prereq: DS-Phase 5a + 5b-core running; two Google accounts; both in restman.
+Prereq: DS-Phase 5a + 5b-core running; two Google accounts; both in rrequest.
 
 ## A. Members panel (owner)
 1. As OWNER, open the active synced workspace's **Members** entry → the Members panel opens.

@@ -20,6 +20,6 @@ describe('signIn', () => {
     }
     const token = await signIn({ baseUrl: 'http://localhost:8787', openExternal, timeoutMs: 3000 })
     expect(token).toBe('captured-jwt')
-    expect(openedUrl).toContain('http://localhost:8787/auth/start?cb=http%3A%2F%2Flocalhost%3A')
+    expect(openedUrl).toContain('http://localhost:8787/auth/start?cb=http%3A%2F%2F127.0.0.1%3A')
   })
 })

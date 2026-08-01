@@ -26,7 +26,10 @@ export function signIn(opts: {
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address()
       const port = typeof addr === 'object' && addr ? addr.port : 0
-      const cb = `http://localhost:${port}`
+      // Use 127.0.0.1, not "localhost": the server listens on IPv4 (127.0.0.1),
+      // but "localhost" can resolve to IPv6 (::1) first in the browser, so the
+      // OAuth redirect back would hit a dead IPv6 socket -> connection refused.
+      const cb = `http://127.0.0.1:${port}`
       const base = opts.baseUrl.replace(/\/$/, '')
       opts.openExternal(`${base}/auth/start?cb=${encodeURIComponent(cb)}`)
     })

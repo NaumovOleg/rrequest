@@ -30,14 +30,14 @@ describe("PipelineStack", () => {
     expect(Object.keys(projects).length).toBeGreaterThanOrEqual(3);
   });
 
-  it("the release step's role can read Secrets Manager", () => {
+  it("the release step role can read the SSM token params", () => {
     const policies = template.findResources("AWS::IAM::Policy");
     const statements = Object.values(policies).flatMap(
       (p) => (p as { Properties: { PolicyDocument: { Statement: Array<{ Action: unknown }> } } }).Properties.PolicyDocument.Statement,
     );
-    const hasSecretsRead = statements.some((s) =>
-      (Array.isArray(s.Action) ? s.Action.map(String) : [String(s.Action)]).includes("secretsmanager:GetSecretValue"),
+    const hasSsmRead = statements.some((s) =>
+      (Array.isArray(s.Action) ? s.Action.map(String) : [String(s.Action)]).includes("ssm:GetParameter"),
     );
-    expect(hasSecretsRead).toBe(true);
+    expect(hasSsmRead).toBe(true);
   });
 });

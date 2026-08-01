@@ -10,9 +10,9 @@ export type PipelineStackProps = StackProps & {
   githubRepo: string;
   /** Branch that triggers a deploy + release. */
   branch: string;
-  /** Secrets Manager secret holding a GitHub token (repo + workflow scope) for the source + release tag push. */
+  /** SSM SecureString parameter name holding a GitHub token (repo scope) for the source + release tag push. */
   githubTokenSecret: string;
-  /** Secrets Manager secret holding the VS Code Marketplace PAT (`vsce publish`). */
+  /** SSM SecureString parameter name holding the VS Code Marketplace PAT (`vsce publish`). */
   vscePatSecret: string;
   /** Backend runtime config baked into the deployed Lambdas. */
   config: ApiFunctionConfig;
@@ -27,17 +27,18 @@ export type PipelineStackProps = StackProps & {
  *   3. bumps the extension version from Conventional Commits, packages the
  *      .vsix, publishes to the VS Code Marketplace, and pushes a git tag.
  *
- * Deploy ONCE by hand (`cdk --app 'npx tsx bin/pipeline.ts' deploy
- * RrequestPipelineStack`); thereafter it maintains itself. Requires two
- * Secrets Manager secrets (GitHub token, VSCE PAT) created by the operator —
- * see the CI/CD section of server/README.md.
+ * Deploy ONCE by hand (`cdk deploy RrequestPipelineStack`); thereafter it
+ * maintains itself. Requires two SSM SecureString parameters (GitHub token,
+ * VSCE PAT) created by the operator — see the CI/CD section of
+ * server/README.md.
  */
 export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props: PipelineStackProps) {
     super(scope, id, props);
 
+    // GitHub source auth token from an SSM SecureString parameter.
     const source = CodePipelineSource.gitHub(props.githubRepo, props.branch, {
-      authentication: SecretValue.secretsManager(props.githubTokenSecret),
+      authentication: SecretValue.ssmSecure(props.githubTokenSecret),
     });
 
     // The CDK app lives in server/infra (it resolves aws-cdk-lib etc. from
@@ -67,13 +68,16 @@ export class PipelineStack extends Stack {
     //
     // CodePipeline's GitHub source is a code ZIP with no .git history, and
     // conventional-recommended-bump + tagging both need real history, so this
-    // step does a fresh authenticated clone. Secrets are fetched in-script (not
-    // baked into the CodeBuild env config) via the granted GetSecretValue.
+    // step does a fresh authenticated clone. Tokens are fetched in-script from
+    // SSM Parameter Store (SecureString) via the granted ssm:GetParameter, not
+    // baked into the CodeBuild env config.
+    const paramArn = (name: string) =>
+      Stack.of(this).formatArn({ service: "ssm", resource: "parameter", resourceName: name.replace(/^\//, "") });
     const release = new CodeBuildStep("ReleaseExtension", {
       input: source,
       commands: [
-        `export GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id ${props.githubTokenSecret} --query SecretString --output text)`,
-        `export VSCE_PAT=$(aws secretsmanager get-secret-value --secret-id ${props.vscePatSecret} --query SecretString --output text)`,
+        `export GITHUB_TOKEN=$(aws ssm get-parameter --name ${props.githubTokenSecret} --with-decryption --query Parameter.Value --output text)`,
+        `export VSCE_PAT=$(aws ssm get-parameter --name ${props.vscePatSecret} --with-decryption --query Parameter.Value --output text)`,
         `git clone --quiet "https://x-access-token:$GITHUB_TOKEN@github.com/${props.githubRepo}.git" repo`,
         `cd repo && git checkout ${props.branch}`,
         "git config user.email ci@rrequest.dev && git config user.name 'rrequest ci'",
@@ -88,7 +92,15 @@ export class PipelineStack extends Stack {
         'git tag "v$NEW" && git push origin "v$NEW"',
       ],
       rolePolicyStatements: [
-        new PolicyStatement({ actions: ["secretsmanager:GetSecretValue"], resources: ["*"] }),
+        new PolicyStatement({
+          actions: ["ssm:GetParameter"],
+          resources: [paramArn(props.githubTokenSecret), paramArn(props.vscePatSecret)],
+        }),
+        new PolicyStatement({
+          actions: ["kms:Decrypt"],
+          resources: ["*"],
+          conditions: { StringEquals: { "kms:ViaService": `ssm.${Stack.of(this).region}.amazonaws.com` } },
+        }),
       ],
     });
 

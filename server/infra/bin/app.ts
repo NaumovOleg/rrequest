@@ -28,7 +28,7 @@ new PipelineStack(app, "RrequestPipelineStack", {
   branch:
     app.node.tryGetContext("branch") ?? process.env.GITHUB_BRANCH ?? "master",
   githubTokenSecret: "rrequest-github-token",
-  vscePatSecret: "rrequest/ci/vsce-pat",
+  vscePatSecret: "rrequest-vsce-pat",
   config: {
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",

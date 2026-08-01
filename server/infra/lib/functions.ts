@@ -13,7 +13,7 @@ export type DataTables = {
 };
 
 // SSM SecureString parameter NAMES for the 3 backend secrets (created
-// out-of-band by the operator -- see DataStack). The Lambdas fetch these at
+// out-of-band by the operator -- see RrequestStack). The Lambdas fetch these at
 // cold start (src/secrets.ts) and are granted ssm:GetParameter + kms:Decrypt.
 export type DataSecrets = {
   googleClientSecret: string;

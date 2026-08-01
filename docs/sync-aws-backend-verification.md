@@ -20,9 +20,9 @@ cd server/infra
 npx cdk deploy --all
 ```
 
-- [ ] All 3 stacks (`RrequestDataStack`, `RrequestApiStack`,
-      `RrequestSchedulerStack`) deploy with no errors.
-- [ ] `RrequestApiStack`'s `ApiUrl` output is a
+- [ ] All 3 stacks (`RrequestStack`, `RrequestStack`,
+      `RrequestStack`) deploy with no errors.
+- [ ] `RrequestStack`'s `ApiUrl` output is a
       `https://<id>.execute-api.<region>.amazonaws.com` URL — copy it.
 - [ ] `curl -i <ApiUrl>/api/auth/start?cb=http://localhost:1` returns
       `302` with a `location` header pointing at `accounts.google.com`
@@ -85,7 +85,7 @@ npx cdk deploy --all
       workspace's JSON file and edit it (e.g. Drive's "Open with Text
       Editor" or download-edit-reupload — any change that creates a new
       Drive revision of that file).
-- [ ] Wait up to 1 minute (the `RrequestSchedulerStack` EventBridge rule
+- [ ] Wait up to 1 minute (the `RrequestStack` EventBridge rule
       invokes `pollFn` on a 1-minute rate) — check CloudWatch Logs for the
       `PollFunction` Lambda to confirm it ran and bumped a revision
       (`PollService.pollAll`'s return count > 0, or just observe the

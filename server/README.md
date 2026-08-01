@@ -74,7 +74,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
    after the first deploy** (API Gateway assigns it). So:
    a. Do a first `cdk deploy` (see below) with a placeholder
       `GOOGLE_REDIRECT_URI` (e.g. `https://placeholder.example.com/api/auth/callback`).
-   b. Read the `ApiUrl` CfnOutput from `RrequestApiStack` (e.g.
+   b. Read the `ApiUrl` CfnOutput from `RrequestStack` (e.g.
       `https://abc123xyz.execute-api.us-east-1.amazonaws.com`).
    c. The real redirect URI is that URL **+ `/api/auth/callback`** (the
       `/api` prefix comes from `RootController`'s `prefix: "/api"`; the
@@ -115,9 +115,9 @@ export GOOGLE_REDIRECT_URI=<see step 1 above — placeholder on the first deploy
 npx cdk deploy --all
 ```
 
-This deploys 3 stacks (`bin/app.ts`): `RrequestDataStack` (tables; the
-secrets are out-of-band SSM params), `RrequestApiStack` (the HTTP API + `apiFn`), `RrequestSchedulerStack`
-(the EventBridge rule + `pollFn`). `RrequestApiStack` prints a `ApiUrl`
+This deploys 3 stacks (`bin/app.ts`): `RrequestStack` (tables; the
+secrets are out-of-band SSM params), `RrequestStack` (the HTTP API + `apiFn`), `RrequestStack`
+(the EventBridge rule + `pollFn`). `RrequestStack` prints a `ApiUrl`
 CfnOutput — that's the base URL from step 1b above.
 
 After confirming/updating the Google redirect URI (step 1), re-run
@@ -146,7 +146,7 @@ aws ssm put-parameter --name /rrequest/TOKEN_ENC_KEY --type SecureString --overw
 (Rotating a value later: re-run `put-parameter --overwrite`, then the next
 Lambda cold start picks it up — a warm container caches the value.)
 
-Find the secret ARNs/names in the `RrequestDataStack` outputs or the Secrets
+Find the secret ARNs/names in the `RrequestStack` outputs or the Secrets
 Manager console (`GoogleClientSecret`, `JwtSecret`, `TokenEncKey` — CDK
 appends a suffix to each logical ID). Both Lambdas read these lazily at cold
 start (`ensureSecretsLoaded` in `src/secrets.ts`); a warm container never

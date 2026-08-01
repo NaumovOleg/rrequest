@@ -74,7 +74,7 @@ export type ApiFunctionProps = {
   config: ApiFunctionConfig;
 };
 
-/** The Helios HTTP handler (`src/handlers/api.ts`) behind the HttpApi. Touches all 3 tables (auth/workspace/member services) and all 3 secrets. */
+/** The Helios HTTP handler (`src/handlers/api.ts`) behind a Lambda Function URL. Touches all 3 tables (auth/workspace/member services) and all 3 secrets. */
 export function apiFunction(scope: Construct, props: ApiFunctionProps): NodejsFunction {
   const { tables, secrets, config } = props;
   const fn = new NodejsFunction(scope, "ApiFunction", {

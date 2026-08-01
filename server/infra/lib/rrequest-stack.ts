@@ -1,7 +1,6 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import { AttributeType, BillingMode, ProjectionType, Table } from "aws-cdk-lib/aws-dynamodb";
-import { HttpApi, HttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
-import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
 import { Rule, Schedule } from "aws-cdk-lib/aws-events";
 import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
 import type { Construct } from "constructs";
@@ -24,16 +23,15 @@ export type RrequestStackProps = StackProps & {
 
 /**
  * The entire rrequest sync backend in ONE stack: the 3 DynamoDB tables the
- * stores query, the Helios HTTP API Lambda behind an API Gateway HTTP API
- * (`ANY /{proxy+}`), and the EventBridge-scheduled poll Lambda. A single
- * env/deployment, so one stack keeps deploy/rollback atomic and the wiring in
- * one place. Table/GSI names below match `src/stores/dynamo/*.ts` exactly.
+ * stores query, the Helios HTTP handler Lambda exposed via a **Lambda Function
+ * URL** (no API Gateway — Helios speaks the same payload-format-2.0 event that
+ * Function URLs deliver), and the EventBridge-scheduled poll Lambda. Table/GSI
+ * names below match `src/stores/dynamo/*.ts` exactly.
  */
 export class RrequestStack extends Stack {
   public readonly usersTable: Table;
   public readonly workspacesTable: Table;
   public readonly membershipsTable: Table;
-  public readonly httpApi: HttpApi;
 
   constructor(scope: Construct, id: string, props: RrequestStackProps) {
     super(scope, id, props);
@@ -96,17 +94,15 @@ export class RrequestStack extends Stack {
       memberships: this.membershipsTable,
     };
 
-    // --- HTTP API + Helios Lambda (one catch-all proxy route; Helios routes internally) ---
+    // --- Helios Lambda exposed via a Function URL (no API Gateway) ---
+    // Function URLs deliver payload-format-2.0 events (same shape API GW HTTP
+    // API used), so the Helios handler routes on rawPath unchanged. Auth is
+    // NONE at the URL layer; the app enforces JWT per-route.
     const apiFn = apiFunction(this, { tables, secrets: SSM_PARAM_NAMES, config: props.config });
-    this.httpApi = new HttpApi(this, "RrequestHttpApi", { apiName: "rrequest-sync-api" });
-    this.httpApi.addRoutes({
-      path: "/{proxy+}",
-      methods: [HttpMethod.ANY],
-      integration: new HttpLambdaIntegration("ApiIntegration", apiFn),
-    });
+    const fnUrl = apiFn.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
     new CfnOutput(this, "ApiUrl", {
-      value: this.httpApi.apiEndpoint,
-      description: "Base URL of the rrequest sync HTTP API (extension syncServerUrl = <this>/api)",
+      value: fnUrl.url,
+      description: "Lambda Function URL base. Set the extension syncServerUrl to <this>api (e.g. https://xxx.lambda-url.eu-west-1.on.aws/api); OAuth redirect = <this>api/auth/callback",
     });
 
     // --- EventBridge-scheduled poll Lambda (outside-Drive-edit revision bumps) ---

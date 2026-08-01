@@ -69,14 +69,14 @@ describe("RrequestStack — DynamoDB", () => {
   });
 });
 
-describe("RrequestStack — HTTP API", () => {
-  it("creates an HttpApi", () => {
-    template.hasResourceProperties("AWS::ApiGatewayV2::Api", { ProtocolType: "HTTP" });
+describe("RrequestStack — Function URL (no API Gateway)", () => {
+  it("exposes the api Lambda via a public Function URL", () => {
+    template.resourceCountIs("AWS::Lambda::Url", 1);
+    template.hasResourceProperties("AWS::Lambda::Url", { AuthType: "NONE" });
   });
 
-  it("wires a Lambda integration on ANY /{proxy+}", () => {
-    template.hasResourceProperties("AWS::ApiGatewayV2::Integration", { IntegrationType: "AWS_PROXY" });
-    template.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: "ANY /{proxy+}" });
+  it("provisions NO API Gateway", () => {
+    template.resourceCountIs("AWS::ApiGatewayV2::Api", 0);
   });
 
   it("outputs the API URL", () => {

@@ -2,13 +2,13 @@
 
 Backend for Google Drive workspace sync: Google OAuth login + app-session JWT
 + per-workspace Drive-file sync + sharing (owner/editor/viewer). Runs entirely
-on AWS Lambda behind API Gateway — no long-running process, no WebSocket. The
+on AWS Lambda via a Lambda Function URL — no long-running process, no WebSocket. The
 extension discovers remote changes by polling.
 
 ## Architecture
 
 ```
-Extension ──HTTPS + JWT──► API Gateway HTTP API (v2) ──► apiFn (Lambda: Helios RootController + authPlugin)
+Extension ──HTTPS + JWT──► Lambda Function URL ──► apiFn (Lambda: Helios RootController + authPlugin)
                                                               │
                                                               ▼
                                               DynamoDB: Users, Workspaces, Memberships
@@ -18,9 +18,11 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
 ```
 
 - **`apiFn`** (`server/src/handlers/api.ts` → `handlers/api-app.ts`) — a single
-  Lambda running the Helios (`@heliosjs/core` + `@heliosjs/aws`) app. API
-  Gateway forwards every request (`ANY /{proxy+}`) to it; Helios's own router
-  dispatches by method/path inside the function. `RootController` (prefix
+  Lambda running the Helios (`@heliosjs/core` + `@heliosjs/aws`) app. It is
+  fronted by a **Lambda Function URL** (no API Gateway) — the URL delivers a
+  payload-format-2.0 event (the same shape API Gateway HTTP API used), and
+  Helios's own router dispatches by method/path inside the function.
+  `RootController` (prefix
   `/api`) composes `AuthController` (mounted at `/`, so `/auth/start`,
   `/auth/callback`, `/me` land at `/api/auth/*` and `/api/me`),
   `WorkspacesController` (prefix `/workspaces` → `/api/workspaces*`), and
@@ -71,17 +73,17 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
 1. In Google Cloud Console: create **one** OAuth 2.0 **Web application**
    client and enable the **Google Drive API** for the project.
 2. You will need to add the exact redirect URI, but **the URL is only known
-   after the first deploy** (API Gateway assigns it). So:
+   after the first deploy** (the Function URL is assigned then). So:
    a. Do a first `cdk deploy` (see below) with a placeholder
       `GOOGLE_REDIRECT_URI` (e.g. `https://placeholder.example.com/api/auth/callback`).
    b. Read the `ApiUrl` CfnOutput from `RrequestStack` (e.g.
-      `https://abc123xyz.execute-api.us-east-1.amazonaws.com`).
+      `https://abc123.lambda-url.eu-west-1.on.aws/`).
    c. The real redirect URI is that URL **+ `/api/auth/callback`** (the
       `/api` prefix comes from `RootController`'s `prefix: "/api"`; the
       `AuthController`'s `@Get("/auth/callback")` is mounted under it — see
       `RootController`'s doc comment and `AUTH_PREFIX = "/api/auth"` in
       `auth-plugin.ts`). Example:
-      `https://abc123xyz.execute-api.us-east-1.amazonaws.com/api/auth/callback`
+      `https://abc123.lambda-url.eu-west-1.on.aws/api/auth/callback`
    d. Add that exact URL as an authorized redirect URI on the Google OAuth
       client.
    e. Re-deploy with `GOOGLE_REDIRECT_URI` set to the real value (step 3
@@ -95,8 +97,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
 ### 2. AWS credentials
 
 Have AWS credentials (profile or env vars) with permission to create Lambda,
-API Gateway, DynamoDB, EventBridge, and IAM resources, and
-know the target account/region.
+DynamoDB, EventBridge, and IAM resources, and know the target account/region.
 
 ## Deploy
 
@@ -116,7 +117,7 @@ npx cdk deploy --all
 ```
 
 This deploys one stack (`bin/app.ts`): `RrequestStack` — the 3 DynamoDB
-tables, the HTTP API + `apiFn`, and the EventBridge rule + `pollFn`. It
+tables, the Lambda Function URL + `apiFn`, and the EventBridge rule + `pollFn`. It
 prints an `ApiUrl` CfnOutput — that's the base URL from step 1b above.
 (`--all` is harmless with a single stack; `npx cdk deploy` works too.)
 
@@ -158,7 +159,7 @@ Set the VS Code setting **`rrequest.syncServerUrl`** to the deployed API's
 `/api` base — i.e. the `ApiUrl` CfnOutput **with `/api` appended**:
 
 ```
-https://abc123xyz.execute-api.us-east-1.amazonaws.com/api
+https://abc123.lambda-url.eu-west-1.on.aws/api
 ```
 
 The extension's `SyncClient` (`src/extension/sync/sync-client.ts`) and the
@@ -171,7 +172,7 @@ the client does not add it. With the base above, the effective routes are
 (The `rrequest.syncServerUrl` setting's packaged default,
 `http://localhost:8787`, is a holdover from the old local Fastify server and
 does **not** work against this backend — there is no local long-running dev
-server anymore. Always point it at a deployed API Gateway URL + `/api`.)
+server anymore. Always point it at the deployed Function URL + `api`.)
 
 ## Local dev / testing
 
@@ -246,60 +247,57 @@ cd server && npm test
 cd server/infra && npx vitest run
 ```
 
-## CI/CD (AWS CodePipeline via CDK)
+## CI/CD (GitHub Actions)
 
-The default CDK app (`bin/app.ts`) IS the self-mutating pipeline
-(`server/infra/lib/pipeline-stack.ts`). On every push to the branch it
-**(1)** re-synths and updates itself, **(2)** deploys `RrequestStack` (the
-backend, as `RrequestPipelineStack/Prod/RrequestStack`), and **(3)** bumps
-the extension version from Conventional Commits, packages the `.vsix`,
-publishes it to the VS Code Marketplace, and pushes a `vX.Y.Z` git tag.
+`.github/workflows/deploy.yml` runs on every push to `master` (and via manual
+`workflow_dispatch`). It has **2 jobs, sequential — AWS first, then the
+extension**:
+
+1. **`deploy-api`** — `cdk deploy RrequestStack` (the backend). Uses
+   `aws-actions/configure-aws-credentials` with the IAM access keys from
+   GitHub secrets, and bakes `GOOGLE_CLIENT_ID` / `GOOGLE_REDIRECT_URI` into
+   the Lambda env from GitHub variables.
+2. **`publish-extension`** (`needs: deploy-api`) — bumps the extension version
+   from Conventional Commits (`conventional-recommended-bump -p angular`,
+   defaults to patch), runs `@vscode/vsce publish <bump>` to the VS Code
+   Marketplace, then pushes a `vX.Y.Z` git tag. The bump is `--no-git-tag-version`
+   (only the tag is pushed), so it never re-triggers the workflow.
 
 ### One-time setup
 
-0. **Bootstrap** the account/region with a modern CDK bootstrap (CDK Pipelines
-   needs bootstrap ≥ v21):
+1. **IAM user** for CI: create one with programmatic access + a policy that can
+   `cdk deploy` this stack (create/update Lambda, DynamoDB, EventBridge, IAM
+   roles, Lambda Function URLs, CloudFormation, and read/write the CDK asset S3
+   bucket). Save its access-key pair.
+2. **Bootstrap** the account/region once (asset bucket + roles CDK needs):
    ```sh
    npx cdk bootstrap aws://389151907894/eu-west-1
    ```
-1. **GitHub source connection** (CodeStar/CodeConnections): in the AWS console
-   → *Developer Tools → Settings → Connections* → create a **GitHub**
-   connection, authorize it to the repo, and copy its **ARN**. (CloudFormation
-   does not allow an SSM/secret reference for a pipeline source token, so the
-   source uses a connection instead of a token — no source token needed.) Set
-   the ARN in `bin/app.ts` (`githubConnectionArn`) or via
-   `GITHUB_CONNECTION_ARN` / `-c githubConnectionArn=...`.
-2. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
+3. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
    a real registered VS Code Marketplace publisher. Create one at
    <https://marketplace.visualstudio.com/manage> and generate a **PAT**
    (Azure DevOps, scope: *Marketplace → Manage*).
-3. **GitHub token** for the release **tag push**: a PAT with `repo` scope.
-4. **Store both tokens as SSM `SecureString` parameters** (value = the token).
-   Names must match `bin/app.ts` (`rrequest-github-token`, `rrequest-vsce-pat`):
-   ```sh
-   aws ssm put-parameter --name rrequest-github-token --type SecureString --overwrite --value '<github PAT>'
-   aws ssm put-parameter --name rrequest-vsce-pat      --type SecureString --overwrite --value '<marketplace PAT>'
-   ```
-5. **Deploy the pipeline once** (it maintains itself afterward). Account,
-   region, repo, and connection ARN are set in `bin/app.ts`; export the OAuth
-   config, then:
-   ```sh
-   cd server/infra
-   export GOOGLE_CLIENT_ID=<id> GOOGLE_REDIRECT_URI=<uri>
-   npx cdk deploy RrequestPipelineStack
-   ```
+4. **Add GitHub secrets and variables** (repo → *Settings → Secrets and
+   variables → Actions*):
 
-### Behaviour
+   | Kind     | Name                    | Value                                             |
+   |----------|-------------------------|---------------------------------------------------|
+   | Secret   | `AWS_ACCESS_KEY_ID`     | CI IAM user access key id                          |
+   | Secret   | `AWS_SECRET_ACCESS_KEY` | CI IAM user secret access key                      |
+   | Secret   | `VSCE_PAT`              | Marketplace publisher PAT                          |
+   | Variable | `AWS_REGION`            | `eu-west-1`                                        |
+   | Variable | `AWS_ACCOUNT_ID`        | `389151907894`                                    |
+   | Variable | `GOOGLE_CLIENT_ID`      | OAuth client id                                    |
+   | Variable | `GOOGLE_REDIRECT_URI`   | `https://<fnurl-id>.lambda-url.eu-west-1.on.aws/api/auth/callback` |
 
-- **Version bump** uses Conventional Commits (`feat:`→minor, `fix:`→patch,
-  `BREAKING CHANGE`→major; defaults to patch). Commit messages drive it, so
-  keep them conventional.
-- The version bump is a **git tag only** (not a branch commit), so it never
-  re-triggers the branch pipeline (no loop).
-- The GitHub **source** uses a CodeStar connection (no token). The two actual
-  secrets live in **SSM Parameter Store** (SecureString): the release step
-  fetches them with `ssm:GetParameter --with-decryption` **in the build
-  script** (not baked into the CodeBuild env config) — the git PAT for the tag
-  push, the VSCE PAT for `vsce publish`.
+5. **The 3 app secrets are NOT GitHub secrets** — they are the SSM
+   `SecureString` params created out-of-band (see *Create the 3 secret
+   parameters* above). GitHub only holds the deploy credentials + the OAuth
+   client id/redirect.
+
+### Notes
+
+- No GitHub PAT for the tag push — the workflow's built-in `GITHUB_TOKEN`
+  (`permissions: contents: write`) pushes the `vX.Y.Z` tag.
 - The backend deploy and the extension release run in sequence; a failed
   publish does not roll back a successful backend deploy.

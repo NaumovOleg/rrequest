@@ -27,6 +27,10 @@ new PipelineStack(app, "RrequestPipelineStack", {
     "NaumovOleg/rrequest",
   branch:
     app.node.tryGetContext("branch") ?? process.env.GITHUB_BRANCH ?? "master",
+  githubConnectionArn:
+    app.node.tryGetContext("githubConnectionArn") ??
+    process.env.GITHUB_CONNECTION_ARN ??
+    "arn:aws:codeconnections:eu-west-1:389151907894:connection/REPLACE-ME",
   githubTokenSecret: "rrequest-github-token",
   vscePatSecret: "rrequest-vsce-pat",
   config: {

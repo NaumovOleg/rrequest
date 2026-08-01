@@ -8,6 +8,7 @@ function buildTemplate(): Template {
   const stack = new PipelineStack(app, "TestPipelineStack", {
     env: { account: "000000000000", region: "us-east-1" },
     githubRepo: "owner/rrequest",
+    githubConnectionArn: "arn:aws:codeconnections:us-east-1:000000000000:connection/test",
     branch: "master",
     githubTokenSecret: "rrequest/ci/github-token",
     vscePatSecret: "rrequest/ci/vsce-pat",

@@ -257,19 +257,32 @@ publishes it to the VS Code Marketplace, and pushes a `vX.Y.Z` git tag.
 
 ### One-time setup
 
-1. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
+0. **Bootstrap** the account/region with a modern CDK bootstrap (CDK Pipelines
+   needs bootstrap ≥ v21):
+   ```sh
+   npx cdk bootstrap aws://389151907894/eu-west-1
+   ```
+1. **GitHub source connection** (CodeStar/CodeConnections): in the AWS console
+   → *Developer Tools → Settings → Connections* → create a **GitHub**
+   connection, authorize it to the repo, and copy its **ARN**. (CloudFormation
+   does not allow an SSM/secret reference for a pipeline source token, so the
+   source uses a connection instead of a token — no source token needed.) Set
+   the ARN in `bin/app.ts` (`githubConnectionArn`) or via
+   `GITHUB_CONNECTION_ARN` / `-c githubConnectionArn=...`.
+2. **Marketplace publisher**: `package.json`'s `publisher` (`rrequest`) must be
    a real registered VS Code Marketplace publisher. Create one at
    <https://marketplace.visualstudio.com/manage> and generate a **PAT**
    (Azure DevOps, scope: *Marketplace → Manage*).
-2. **GitHub token**: a PAT with `repo` scope (source access + tag push).
-3. **Store both as SSM `SecureString` parameters** (value = the token). The
-   names must match `bin/app.ts` (`rrequest-github-token`, `rrequest-vsce-pat`):
+3. **GitHub token** for the release **tag push**: a PAT with `repo` scope.
+4. **Store both tokens as SSM `SecureString` parameters** (value = the token).
+   Names must match `bin/app.ts` (`rrequest-github-token`, `rrequest-vsce-pat`):
    ```sh
    aws ssm put-parameter --name rrequest-github-token --type SecureString --overwrite --value '<github PAT>'
    aws ssm put-parameter --name rrequest-vsce-pat      --type SecureString --overwrite --value '<marketplace PAT>'
    ```
-4. **Deploy the pipeline once** (it maintains itself afterward). Account,
-   region, and repo are set in `bin/app.ts`; export the OAuth config, then:
+5. **Deploy the pipeline once** (it maintains itself afterward). Account,
+   region, repo, and connection ARN are set in `bin/app.ts`; export the OAuth
+   config, then:
    ```sh
    cd server/infra
    export GOOGLE_CLIENT_ID=<id> GOOGLE_REDIRECT_URI=<uri>
@@ -283,8 +296,10 @@ publishes it to the VS Code Marketplace, and pushes a `vX.Y.Z` git tag.
   keep them conventional.
 - The version bump is a **git tag only** (not a branch commit), so it never
   re-triggers the branch pipeline (no loop).
-- Both CI tokens live in SSM Parameter Store: the GitHub source token is read
-  via `SecretValue.ssmSecure`, and both are fetched with `ssm:GetParameter`
-  **in the build script** (not baked into the CodeBuild env config).
+- The GitHub **source** uses a CodeStar connection (no token). The two actual
+  secrets live in **SSM Parameter Store** (SecureString): the release step
+  fetches them with `ssm:GetParameter --with-decryption` **in the build
+  script** (not baked into the CodeBuild env config) — the git PAT for the tag
+  push, the VSCE PAT for `vsce publish`.
 - The backend deploy and the extension release run in sequence; a failed
   publish does not roll back a successful backend deploy.

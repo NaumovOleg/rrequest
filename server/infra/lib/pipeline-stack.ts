@@ -1,4 +1,4 @@
-import { SecretValue, Stack, type StackProps } from "aws-cdk-lib";
+import { Stack, type StackProps } from "aws-cdk-lib";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { CodeBuildStep, CodePipeline, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import type { Construct } from "constructs";
@@ -10,7 +10,14 @@ export type PipelineStackProps = StackProps & {
   githubRepo: string;
   /** Branch that triggers a deploy + release. */
   branch: string;
-  /** SSM SecureString parameter name holding a GitHub token (repo scope) for the source + release tag push. */
+  /**
+   * CodeStar/CodeConnections connection ARN for the GitHub source. Created
+   * once in the console (Developer Tools → Connections) and authorized to the
+   * repo. Used instead of an OAuth token because CloudFormation does NOT
+   * support an SSM-secure reference for the pipeline source token.
+   */
+  githubConnectionArn: string;
+  /** SSM SecureString parameter name holding a GitHub token (repo scope) for the release tag push. */
   githubTokenSecret: string;
   /** SSM SecureString parameter name holding the VS Code Marketplace PAT (`vsce publish`). */
   vscePatSecret: string;
@@ -28,17 +35,18 @@ export type PipelineStackProps = StackProps & {
  *      .vsix, publishes to the VS Code Marketplace, and pushes a git tag.
  *
  * Deploy ONCE by hand (`cdk deploy RrequestPipelineStack`); thereafter it
- * maintains itself. Requires two SSM SecureString parameters (GitHub token,
- * VSCE PAT) created by the operator — see the CI/CD section of
- * server/README.md.
+ * maintains itself. Requires a GitHub CodeStar connection (source) + two SSM
+ * SecureString parameters (release git token, VSCE PAT), all created by the
+ * operator — see the CI/CD section of server/README.md.
  */
 export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props: PipelineStackProps) {
     super(scope, id, props);
 
-    // GitHub source auth token from an SSM SecureString parameter.
-    const source = CodePipelineSource.gitHub(props.githubRepo, props.branch, {
-      authentication: SecretValue.ssmSecure(props.githubTokenSecret),
+    // GitHub source via a CodeStar connection (no token in the template —
+    // CloudFormation doesn't allow an ssm-secure ref for the source token).
+    const source = CodePipelineSource.connection(props.githubRepo, props.branch, {
+      connectionArn: props.githubConnectionArn,
     });
 
     // The CDK app lives in server/infra (it resolves aws-cdk-lib etc. from

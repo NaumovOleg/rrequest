@@ -32,7 +32,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
   short-circuit the request under Helios).
 - **`pollFn`** (`server/src/handlers/poll.ts` → `handlers/poll-app.ts`) — a
   plain (non-Helios) Lambda invoked by an EventBridge rule every 1 minute
-  (`server/infra/lib/scheduler-stack.ts`). For every workspace it reads the
+  (`server/infra/lib/rrequest-stack.ts`). For every workspace it reads the
   Drive file's current head revision (using the *owner's* stored refresh
   token) and, if it has moved since the last stored value, calls
   `setRevision` — this is how edits made directly in Google Drive (outside
@@ -45,7 +45,7 @@ SSM Parameter Store (SecureString): GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_EN
 - **SSM Parameter Store** — 3 `SecureString` parameters
   (`/rrequest/GOOGLE_CLIENT_SECRET`, `/rrequest/JWT_SECRET`,
   `/rrequest/TOKEN_ENC_KEY`). CloudFormation can't create `SecureString`
-  params, so `DataStack` does NOT provision them — the operator creates them
+  params, so `RrequestStack` does NOT provision them — the operator creates them
   post-deploy (see below). Both Lambdas get the param NAMES baked into their
   environment (`GOOGLE_CLIENT_SECRET_PARAM`, `JWT_SECRET_PARAM`,
   `TOKEN_ENC_KEY_PARAM`) plus IAM `ssm:GetParameter` (scoped to those param

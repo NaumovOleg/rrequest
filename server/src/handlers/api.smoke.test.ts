@@ -98,4 +98,36 @@ describe("apiFn handler smoke", () => {
     const res = await handler(event, context);
     expect(res.statusCode).toBe(401);
   });
+
+  // Regression: a real Lambda Function URL event has NO requestContext.apiId
+  // and a domainName containing "lambda-url". Helios's Function-URL normalizer
+  // sets req.url to the full URL, so without the api-app.ts coercion the router
+  // 404s every route. This event shape must still route to /api/auth/start.
+  it("routes a Lambda Function URL event (apiId undefined, lambda-url host)", async () => {
+    const host = "slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws";
+    const event = makeEvent({
+      headers: { host },
+      requestContext: {
+        accountId: "anonymous",
+        domainName: host,
+        domainPrefix: "slgvpoiwdpzymrlg6iu4zbowea0yneyw",
+        http: {
+          method: "GET",
+          path: "/api/auth/start",
+          protocol: "HTTP/1.1",
+          sourceIp: "127.0.0.1",
+          userAgent: "vitest",
+        },
+        requestId: "req-3",
+        routeKey: "$default",
+        stage: "$default",
+        time: "01/Aug/2026:00:00:00 +0000",
+        timeEpoch: Date.now(),
+        // note: NO apiId — the discriminator for a Function URL event
+      } as unknown as APIGatewayProxyEventV2["requestContext"],
+    });
+    const res = await handler(event, context);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers?.location).toContain("accounts.google.com");
+  });
 });

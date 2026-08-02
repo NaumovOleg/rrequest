@@ -139,13 +139,15 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // syncClient is constructed early (it has no Hub dependency) so the router's
     // members port can be built over it below; the rest of the sync runtime
     // (which does need the Hub) is wired up after the Hub is constructed.
+    // Precedence: the user's `rrequest.syncServerUrl` setting (if they set one),
+    // then the URL baked into the build (`process.env.SYNC_SERVER_URL`, injected
+    // by esbuild from SYNC_SERVER_URL — dev/prod per build), then the prod URL.
     const syncBaseUrl = (): string =>
       vscode.workspace
         .getConfiguration("rrequest")
-        .get<string>(
-          "syncServerUrl",
-          "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api",
-        );
+        .get<string>("syncServerUrl") ||
+      process.env.SYNC_SERVER_URL ||
+      "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api";
     // AWAIT the token load (don't fire-and-forget): startup kicks off authed
     // calls (manager.refreshRoles, the poll loop) right below, and if the token
     // weren't loaded yet they'd send an empty `Bearer`, 401, and onAuthLost
@@ -483,14 +485,26 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           if (res.adopted.length) {
             // Switch to a just-adopted workspace so its collections are visible
             // immediately instead of the empty local Default.
-            await context.globalState.update("rrequest.activeWorkspaceId", res.adopted[0]);
-            hub.toast("info", `Pulled ${res.adopted.length} workspace(s) from your account.`);
+            await context.globalState.update(
+              "rrequest.activeWorkspaceId",
+              res.adopted[0],
+            );
+            hub.toast(
+              "info",
+              `Pulled ${res.adopted.length} workspace(s) from your account.`,
+            );
           } else if (res.error) {
             hub.toast("error", `Couldn't fetch your workspaces: ${res.error}`);
           } else if (res.failed > 0) {
-            hub.toast("error", `Found ${res.failed} workspace(s) on the server but couldn't read their Drive files.`);
+            hub.toast(
+              "error",
+              `Found ${res.failed} workspace(s) on the server but couldn't read their Drive files.`,
+            );
           } else {
-            hub.toast("info", "No synced workspaces found on the server for this account.");
+            hub.toast(
+              "info",
+              "No synced workspaces found on the server for this account.",
+            );
           }
         } catch {
           hub.authState(null);

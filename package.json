@@ -33,8 +33,8 @@
       "properties": {
         "rrequest.syncServerUrl": {
           "type": "string",
-          "default": "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api",
-          "description": "rrequest sync backend URL"
+          "default": "",
+          "description": "rrequest sync backend URL (ending in /api). Leave empty to use the URL baked into this build (production by default)."
         },
         "rrequest.syncPollIntervalMs": {
           "type": "number",

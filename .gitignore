@@ -2,3 +2,7 @@ node_modules/
 dist/
 media/
 *.vsix
+
+# Local build config (SYNC_SERVER_URL etc.) — never commit
+.env
+.env.*

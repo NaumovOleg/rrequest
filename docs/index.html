@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RREQUEST — REST client for VS Code</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a2e; --muted:#555; --bg:#fff; --card:#f5f7fb; --accent:#0e639c; --border:#e2e6ee; }
+  @media (prefers-color-scheme: dark){ :root{ --fg:#e6e6ee; --muted:#a6adbb; --bg:#0f1116; --card:#171a21; --accent:#4aa5f0; --border:#252a34; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); }
+  .wrap { max-width:760px; margin:0 auto; padding:48px 24px 80px; }
+  header { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+  .logo { width:64px; height:64px; border-radius:16px; background:linear-gradient(135deg,#4aa5f0,#0e639c); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:30px; }
+  h1 { font-size:34px; margin:0; letter-spacing:.5px; }
+  .tag { color:var(--muted); margin:4px 0 28px; font-size:18px; }
+  .btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; padding:10px 18px; border-radius:8px; font-weight:600; }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:40px; }
+  h2 { font-size:20px; margin:36px 0 12px; }
+  ul { padding-left:20px; } li { margin:6px 0; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:520px){ .cards{ grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .card h3 { margin:0 0 6px; font-size:16px; }
+  .card p { margin:0; color:var(--muted); font-size:14px; }
+  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--border); color:var(--muted); font-size:14px; }
+  footer a { color:var(--accent); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">R</div>
+    <div>
+      <h1>RREQUEST</h1>
+    </div>
+  </header>
+  <p class="tag">A Postman-style REST client that lives inside Visual Studio Code — with optional Google&nbsp;Drive workspace sync.</p>
+
+  <div class="row">
+    <a class="btn" href="https://marketplace.visualstudio.com/items?itemName=olgert.rrequest">Get it on the VS Code Marketplace</a>
+    <a class="btn ghost" href="https://github.com/NaumovOleg/rrequest">Source on GitHub</a>
+  </div>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>Build and send HTTP requests, WebSocket and gRPC calls, with tabs, history and environments.</li>
+    <li>Organize requests into collections and workspaces; import/export Postman and cURL.</li>
+    <li>Pre-request &amp; test scripts with a focused <code>pm</code> API.</li>
+    <li><strong>Optional</strong> cloud sync: sign in with Google to sync a workspace across machines and share it (owner / editor / viewer) — each workspace is stored as a single JSON file in <em>your</em> Google Drive.</li>
+  </ul>
+
+  <h2>Cloud sync &amp; your data</h2>
+  <p>Sync is entirely optional and off until you sign in. When enabled, RREQUEST uses the Google
+  <code>drive.file</code> scope, which grants access <strong>only</strong> to files the app itself creates —
+  never the rest of your Drive. See the details below.</p>
+
+  <div class="cards">
+    <a class="card" href="./privacy-policy.html" style="text-decoration:none;color:inherit">
+      <h3>Privacy Policy →</h3>
+      <p>What we collect, how it's stored and used, and how to delete it.</p>
+    </a>
+    <a class="card" href="./terms-of-service.html" style="text-decoration:none;color:inherit">
+      <h3>Terms of Service →</h3>
+      <p>The terms under which RREQUEST is provided.</p>
+    </a>
+  </div>
+
+  <footer>
+    RREQUEST · Developed by Oleg Naumov · Contact:
+    <a href="mailto:keeperoleg26@gmail.com">keeperoleg26@gmail.com</a><br>
+    <a href="./privacy-policy.html">Privacy Policy</a> · <a href="./terms-of-service.html">Terms of Service</a> · <a href="https://github.com/NaumovOleg/rrequest">GitHub</a>
+  </footer>
+</div>
+</body>
+</html>

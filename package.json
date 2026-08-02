@@ -67,6 +67,7 @@
     "url": "https://github.com/NaumovOleg/rrequest"
   },
   "icon": "resources/rrequest.png",
+  "homepage": "https://naumovoleg.github.io/rrequest/",
   "scripts": {
     "build": "RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build && node esbuild.js",
     "watch": "node esbuild.js --watch",

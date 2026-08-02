@@ -1,7 +1,6 @@
 import { SplitButton } from "../../elements";
-import { WorkspaceSwitcher } from "../WorkspaceSwitcher/WorkspaceSwitcher";
+import { AccountsPanel } from "../AccountsPanel/AccountsPanel";
 import { useStore } from "../../state/store";
-import { postToHost } from "../../ipc";
 
 export type SidebarTab = "collections" | "environments" | "history" | "trash";
 
@@ -19,25 +18,9 @@ export function SidebarHeader({
   onNewGrpc: () => void;
 }) {
   const isViewer = useStore((s) => s.isViewer());
-  const authEmail = useStore((s) => s.authEmail);
   return (
     <header className="rm-sbhead">
-      <div className="rm-account">
-        {authEmail ? (
-          <>
-            <span className="codicon codicon-account" />
-            <span className="rm-account-email" title={authEmail}>{authEmail}</span>
-            <button type="button" className="rm-linkbtn" onClick={() => postToHost({ type: "signOut" })}>
-              Sign out
-            </button>
-          </>
-        ) : (
-          <button type="button" className="rm-btn rm-btn--ghost" onClick={() => postToHost({ type: "signIn" })}>
-            <span className="codicon codicon-account" /> Sign in with Google
-          </button>
-        )}
-      </div>
-      <WorkspaceSwitcher />
+      <AccountsPanel />
       <SplitButton
         label="New HTTP Request"
         onClick={onNewHttp}

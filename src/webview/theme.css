@@ -179,6 +179,24 @@ body {
 .rm-sync-enable { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--rm-muted); }
 .rm-ws-share { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .rm-ws-share .codicon { font-size: 13px; }
+
+/* --- Accounts panel (accounts with nested workspaces) --- */
+.rm-accts { display: flex; flex-direction: column; gap: 8px; }
+.rm-acct { display: flex; flex-direction: column; }
+.rm-acct-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px; font-size: 0.82em; color: var(--rm-muted); }
+.rm-acct-head .codicon { font-size: 14px; }
+.rm-acct-email { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rm-acct-list { display: flex; flex-direction: column; }
+.rm-acct-empty { padding: 2px 8px 2px 22px; font-size: 0.8em; color: var(--rm-muted); }
+.rm-acct-ws { display: flex; align-items: center; gap: 4px; padding: 1px 4px 1px 6px; border-radius: var(--rm-radius); flex-wrap: wrap; }
+.rm-acct-ws:hover, .rm-acct-ws:focus-within { background: var(--rm-hover); }
+.rm-acct-ws.is-active { background: color-mix(in srgb, var(--rm-accent) 14%, transparent); }
+.rm-acct-ws-dot { flex: none; width: 12px; display: inline-flex; color: var(--rm-accent); font-size: 8px; }
+.rm-acct-ws-name { flex: 1; min-width: 0; text-align: left; background: none; border: none; color: var(--rm-fg); cursor: pointer; padding: 3px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.rm-acct-ws-actions { display: inline-flex; align-items: center; gap: 1px; flex: none; }
+.rm-acct-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; width: 100%; padding: 2px 4px 4px 22px; }
+.rm-acct-pick-label { font-size: 0.78em; color: var(--rm-muted); }
+.rm-acct-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 2px 4px; }
 .rm-sync-enable:hover { color: var(--rm-fg); }
 .rm-sync-enable .codicon { font-size: 13px; }
 

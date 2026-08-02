@@ -8,44 +8,33 @@ vi.mock('../../src/webview/ipc', () => ({
   onHostMessage: () => () => {},
 }))
 
-import { WorkspaceSwitcher } from '../../src/webview/views/WorkspaceSwitcher/WorkspaceSwitcher'
+import { AccountsPanel } from '../../src/webview/views/AccountsPanel/AccountsPanel'
 import { RequestPanel } from '../../src/webview/views/RequestPanel/RequestPanel'
 
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 
 describe('viewer read-only UX', () => {
-  it('shows a role badge for a viewer next to the active workspace', () => {
-    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer' }], 'w1')
-    render(<WorkspaceSwitcher />)
-    expect(screen.getByText(/viewer/i)).toBeTruthy() // role badge visible
+  it('shows a role badge for a viewer workspace', () => {
+    useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer', synced: true, accountId: 'a1' }], 'w1')
+    render(<AccountsPanel />)
+    expect(screen.getByText(/viewer/i)).toBeTruthy()
   })
 
-  it('shows no "viewer" text for an owner', () => {
-    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Mine', role: 'owner' }], 'w1')
-    render(<WorkspaceSwitcher />)
-    expect(screen.queryByText(/viewer/i)).toBeNull()
-  })
-
-  it('hides "Create Workspace" and row edit/delete affordances for a viewer once the popup is open, but keeps switching enabled', () => {
-    useStore.getState().setWorkspaces(
-      [{ id: 'w1', name: 'Shared', role: 'viewer' }, { id: 'w2', name: 'Other', role: 'viewer' }],
-      'w1',
-    )
-    render(<WorkspaceSwitcher />)
-    // open the popup the way a user would -- click the switch-workspace trigger
-    fireEvent.click(screen.getByLabelText(/workspaces|switch/i))
-    expect(screen.queryByRole('button', { name: /create workspace/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /^edit$/i })).toBeNull()
+  it('hides rename/delete affordances for a viewer workspace', () => {
+    useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer', synced: true, accountId: 'a1' }], 'w1')
+    render(<AccountsPanel />)
+    expect(screen.queryByRole('button', { name: /^rename$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull()
-    // switching workspace (the combo textbox) stays enabled for a viewer
-    expect(screen.getByRole('textbox')).not.toBeDisabled()
   })
 
-  it('shows "Create Workspace" for an owner once the popup is open', () => {
-    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Mine', role: 'owner' }], 'w1')
-    render(<WorkspaceSwitcher />)
-    fireEvent.click(screen.getByLabelText(/workspaces|switch/i))
-    expect(screen.getByRole('button', { name: /create workspace/i })).toBeTruthy()
+  it('shows rename/delete for an owner workspace', () => {
+    useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Mine', role: 'owner', synced: true, accountId: 'a1' }], 'w1')
+    render(<AccountsPanel />)
+    expect(screen.getByRole('button', { name: /^rename$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy()
   })
 
   it('disables RequestPanel Save when the active workspace is a viewer, even with a collection chosen', () => {

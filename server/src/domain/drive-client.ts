@@ -267,6 +267,10 @@ export class FakeDriveClient implements DriveClient {
     for (const [id, f] of this.files) if (f.folderId === folderId) out.push({ id, name: f.name, headRevision: String(f.revision) });
     return out;
   }
+  /** Test aid: the current Drive filename for a file. */
+  nameOf(fileId: string): string | undefined {
+    return this.files.get(fileId)?.name;
+  }
   async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
     const resourceId = `res-${opts.channelId}`;
     const expiration = Date.now() + (opts.ttlSeconds ?? 3600) * 1000;

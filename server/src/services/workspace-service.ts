@@ -130,10 +130,19 @@ export class WorkspaceService {
       if (e instanceof DriveAuthError) return { status: 401 };
       throw e;
     }
-    // Keep the workspace row's name in step with the snapshot (a rename only
-    // changes the name inside the pushed file; without this the DynamoDB row —
-    // and therefore listWorkspaces — keeps the stale name).
+    // The Drive file is the source of truth for content, incl. the workspace
+    // name. Keep both the Drive file's NAME (its filename) and the DynamoDB
+    // row's name (a cache for cheap listing) in step with the pushed snapshot,
+    // so a rename shows up everywhere. Renaming the Drive file is best-effort —
+    // a failure must not fail the content push.
     const name = snapshotName(clean) ?? ws.name;
+    if (name !== ws.name) {
+      try {
+        await drive.renameFile(ws.driveFileId, `${name}-${id}.json`);
+      } catch {
+        /* best-effort filename sync */
+      }
+    }
     await this.deps.workspaces.upsert({ ...ws, name, revision, updatedAt: Date.now() });
     return { revision };
   }

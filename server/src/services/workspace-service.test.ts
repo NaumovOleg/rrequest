@@ -196,6 +196,16 @@ describe("WorkspaceService.push", () => {
     expect(ws!.name).toBe("New Name");
   });
 
+  it("renames the Drive file (its filename) when the pushed name changes", async () => {
+    const { service, users, workspaces, drive } = makeService();
+    const owner = await makeUser(users, "owner@x.com");
+    await service.enable(owner, { workspaceId: "w1", name: "Old", snapshot: '{"name":"Old"}' });
+    const fileId = (await workspaces.get("w1"))!.driveFileId;
+    expect(drive.nameOf(fileId)).toBe("Old-w1.json");
+    await service.push(owner, "w1", { snapshot: '{"name":"New","collections":[]}', baseRevision: "1" });
+    expect(drive.nameOf(fileId)).toBe("New-w1.json");
+  });
+
   it("409s with the current snapshot + revision on a stale baseRevision", async () => {
     const { service, users } = makeService();
     const owner = await makeUser(users, "owner@x.com");

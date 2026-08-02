@@ -24,6 +24,12 @@ export class WorkspaceStore {
     await writeJsonAtomic(this.file(w.id), w)
     return w
   }
+  /** Create a workspace with a specific id if absent (adopting a server workspace). Keeps an existing local name. */
+  async upsertIfAbsent(id: string, name: string): Promise<void> {
+    const existing = await readJsonSafe<Workspace>(this.file(id))
+    if (existing) return
+    await writeJsonAtomic(this.file(id), { id, name })
+  }
   async rename(id: string, name: string): Promise<void> {
     const w = await readJsonSafe<Workspace>(this.file(id))
     if (w) await writeJsonAtomic(this.file(id), { ...w, name })

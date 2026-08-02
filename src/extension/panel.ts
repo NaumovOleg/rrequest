@@ -61,6 +61,22 @@ function nonce(): string {
   return crypto.randomBytes(16).toString("hex");
 }
 
+// The id(s) an explicit-delete message removes, so sync can prune them from the
+// remote (see SyncManager.recordDeletion). Non-delete messages return [].
+function deletedIdsFromMessage(msg: WebviewMessage): string[] {
+  switch (msg.type) {
+    case "deleteCollection":
+    case "deleteEnvironment":
+      return [msg.id];
+    case "deleteFolder":
+      return [msg.folderId];
+    case "deleteRequest":
+      return [msg.requestId];
+    default:
+      return [];
+  }
+}
+
 // Shared host bootstrap: builds the stores, ensures a Default workspace + an
 // active workspace id exist, constructs the router with ALL deps (including the
 // dialog impls used by both surfaces), builds a snapshot() that returns the
@@ -390,11 +406,24 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       },
     });
     hub.setAfterDispatch((msg) => {
+      // Explicit deletes are recorded so the next push prunes them from the
+      // remote (sync is otherwise a pure union that never drops remote data).
+      const del = deletedIdsFromMessage(msg);
+      if (del.length) manager.recordDeletion(del);
       if (isMutating(msg.type)) runtime.schedulePush(activeWsId());
     });
     syncRuntimeRef = runtime;
     void runtime.refreshRoleCache();
-    void manager.refreshRoles().then(() => runtime.refreshRoleCache());
+    // On startup with an existing session, adopt server workspaces (pull their
+    // content down) so collections appear without an explicit sign-in, then
+    // refresh roles + repaint. Gated on a loaded token (see isAuthed).
+    if (isAuthed()) {
+      void manager
+        .adoptRemoteWorkspaces()
+        .then(() => manager.refreshRoles())
+        .then(() => runtime.refreshRoleCache())
+        .then(() => runtime.refresh());
+    }
     // Owner-delete: when a locally-synced workspace is deleted, also trash the
     // Drive file + server rows (best-effort — deleteSync already swallows its
     // own errors via onSyncError and never throws, so the local delete in
@@ -441,6 +470,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           const me = await syncClient.me();
           await context.globalState.update("rrequest.syncEmail", me.email);
           hub.authState(me.email);
+          // Pull the user's workspaces down so their collections/requests show
+          // up right after signing in (adopt is read-only + union — no wipe).
+          await manager.adoptRemoteWorkspaces();
+          await runtime.refreshRoleCache();
         } catch {
           hub.authState(null);
         }

@@ -3,13 +3,17 @@ import type { SyncClient } from './sync-client'
 import { SyncForbiddenError, SyncGoneError, SyncAuthError } from './sync-client'
 import type { SyncStateStore } from './sync-state-store'
 import { buildSnapshot, mergeEnvironmentsPreservingSecrets, type WorkspaceSnapshot } from './snapshot'
-import { mergeSnapshots } from './merge'
+import { mergeSnapshots, pruneDeleted } from './merge'
 
 export type StoresPort = {
   getName(workspaceId: string): Promise<string>
   getCollections(workspaceId: string): Promise<Collection[]>
   getEnvironments(workspaceId: string): Promise<Environment[]>
   applyPulled(workspaceId: string, collections: Collection[], environments: Environment[]): Promise<void>
+  // Create a local workspace with the given id if it doesn't exist yet (used
+  // when adopting a server workspace on a fresh machine). Never clobbers an
+  // existing local workspace's name.
+  ensureWorkspace?(id: string, name: string): Promise<void>
 }
 
 export class SyncManager {
@@ -29,8 +33,39 @@ export class SyncManager {
     },
   ) {}
 
+  // Ids (collections/folders/requests/environments) the user EXPLICITLY deleted
+  // since the last successful push. Sync is otherwise a pure union merge that
+  // never drops remote data, so this set is the ONLY way a delete reaches the
+  // remote: pruned out of the pushed snapshot, then cleared once the push lands.
+  private pendingDeletes = new Set<string>()
+
+  recordDeletion(ids: string[]): void {
+    for (const id of ids) if (id) this.pendingDeletes.add(id)
+  }
+
   private authed(): boolean {
     return this.deps.isAuthed?.() ?? true
+  }
+
+  /** Pull the current remote snapshot, or undefined if the workspace isn't on the server yet (404). */
+  private async tryPull(workspaceId: string): Promise<{ snapshot: WorkspaceSnapshot; revision: string } | undefined> {
+    try {
+      const { snapshot, revision } = await this.deps.client.pull(workspaceId)
+      return { snapshot: JSON.parse(snapshot) as WorkspaceSnapshot, revision }
+    } catch (e) {
+      if (e instanceof SyncGoneError) return undefined // not created on the server yet
+      throw e
+    }
+  }
+
+  /** Upsert a merged snapshot into the local stores (never deletes locally — applyPulled only saves). */
+  private async applyMergedLocally(workspaceId: string, snap: WorkspaceSnapshot): Promise<void> {
+    const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
+    await this.deps.stores.applyPulled(
+      workspaceId,
+      snap.collections,
+      mergeEnvironmentsPreservingSecrets(snap.environments, localEnvs),
+    )
   }
 
   /** Shared catch taxonomy for push/pull. Returns true if the error was handled (caller should return). */
@@ -51,8 +86,20 @@ export class SyncManager {
   }
 
   async enable(workspaceId: string): Promise<void> {
-    const snap = await this.buildLocalSnapshot(workspaceId)
-    const { driveFileId, revision } = await this.deps.client.enableSync(workspaceId, snap.name, JSON.stringify(snap))
+    if (!this.authed()) return
+    const local = await this.buildLocalSnapshot(workspaceId)
+    // Adopt an already-existing remote file (re-enabling, or a new machine)
+    // instead of overwriting it: union local edits over the remote content
+    // (local wins, remote-only items kept) and pull that union down locally so
+    // the remote's collections show up. A brand-new workspace (404) just writes
+    // local.
+    const remote = await this.tryPull(workspaceId)
+    let toWrite = local
+    if (remote) {
+      toWrite = mergeSnapshots(local, remote.snapshot)
+      await this.applyMergedLocally(workspaceId, toWrite)
+    }
+    const { driveFileId, revision } = await this.deps.client.enableSync(workspaceId, toWrite.name, JSON.stringify(toWrite))
     await this.deps.state.set(workspaceId, { driveFileId, ownerEmail: this.deps.email(), role: 'owner', lastRevision: revision, synced: true })
   }
 
@@ -67,15 +114,35 @@ export class SyncManager {
     if (!state?.synced) return
     try {
       const local = await this.buildLocalSnapshot(workspaceId)
-      const first = await this.deps.client.push(workspaceId, JSON.stringify(local), state.lastRevision)
-      if (first.ok) { await this.deps.state.set(workspaceId, { ...state, lastRevision: first.revision }); return }
-      // conflict: merge remote + local, apply locally, retry once against the remote revision
-      const remote = JSON.parse(first.snapshot) as WorkspaceSnapshot
-      const merged = mergeSnapshots(remote, local)
-      const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
-      await this.deps.stores.applyPulled(workspaceId, merged.collections, mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs))
-      const retry = await this.deps.client.push(workspaceId, JSON.stringify(merged), first.revision)
-      if (retry.ok) await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
+      // Union local over the CURRENT remote before writing, so a stale/empty
+      // local can never wipe remote-only collections/requests. Local edits win
+      // for shared ids; remote-only items are preserved; explicitly-deleted ids
+      // are pruned back out (the only way a delete reaches the remote).
+      const remote = await this.tryPull(workspaceId)
+      let merged = remote ? mergeSnapshots(local, remote.snapshot) : local
+      merged = pruneDeleted(merged, this.pendingDeletes)
+      const baseRevision = remote ? remote.revision : state.lastRevision
+
+      const first = await this.deps.client.push(workspaceId, JSON.stringify(merged), baseRevision)
+      if (first.ok) {
+        // Only after the write succeeds do we adopt the union locally (so any
+        // remote-only items now show up) — local-first: a failed sync never
+        // mutates local stores.
+        if (remote) await this.applyMergedLocally(workspaceId, merged)
+        await this.deps.state.set(workspaceId, { ...state, lastRevision: first.revision })
+        this.pendingDeletes.clear()
+        return
+      }
+      // conflict: remote moved between our pull and push — union the newer
+      // remote under our merged (local still wins), prune again, retry once.
+      const remote2 = JSON.parse(first.snapshot) as WorkspaceSnapshot
+      const merged2 = pruneDeleted(mergeSnapshots(merged, remote2), this.pendingDeletes)
+      const retry = await this.deps.client.push(workspaceId, JSON.stringify(merged2), first.revision)
+      if (retry.ok) {
+        await this.applyMergedLocally(workspaceId, merged2)
+        await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
+        this.pendingDeletes.clear()
+      }
     } catch (e) {
       await this.handleSyncError(workspaceId, e)
     }
@@ -96,6 +163,40 @@ export class SyncManager {
       await this.deps.state.set(workspaceId, { ...state, lastRevision: revision, role: role ?? state.role })
     } catch (e) {
       await this.handleSyncError(workspaceId, e)
+    }
+  }
+
+  // Pull every server workspace down after login so its collections/requests
+  // appear locally. Read-only (no push), remote-wins union, so it never
+  // overwrites remote OR local — it only adds. Creates a matching local
+  // workspace on a fresh machine.
+  async adoptRemoteWorkspaces(): Promise<void> {
+    if (!this.authed()) return
+    let remotes
+    try {
+      remotes = await this.deps.client.listWorkspaces()
+    } catch (e) {
+      if (e instanceof SyncAuthError) await this.deps.onAuthLost?.()
+      return
+    }
+    for (const w of remotes) {
+      try {
+        const pulled = await this.tryPull(w.id)
+        if (!pulled) continue
+        await this.deps.stores.ensureWorkspace?.(w.id, w.name || pulled.snapshot.name || w.id)
+        const local = await this.buildLocalSnapshot(w.id)
+        const merged = mergeSnapshots(pulled.snapshot, local) // remote-wins union (adopt)
+        await this.applyMergedLocally(w.id, merged)
+        await this.deps.state.set(w.id, {
+          driveFileId: w.driveFileId ?? '',
+          ownerEmail: this.deps.email(),
+          role: w.role ?? 'owner',
+          lastRevision: pulled.revision,
+          synced: true,
+        })
+      } catch {
+        // Skip a workspace that fails to adopt; keep going with the rest.
+      }
     }
   }
 

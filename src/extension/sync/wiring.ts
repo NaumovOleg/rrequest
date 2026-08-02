@@ -20,5 +20,8 @@ export function buildStoresPort(collections: CollectionStore, environments: Envi
       for (const c of cols) await collections.saveCollection(c)
       for (const e of envs) await environments.saveEnvironment(e)
     },
+    async ensureWorkspace(id: string, name: string): Promise<void> {
+      await workspaces.upsertIfAbsent(id, name)
+    },
   }
 }

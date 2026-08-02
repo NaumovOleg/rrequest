@@ -6,9 +6,21 @@ import { IconButton } from '../../elements'
 export function Members() {
   const members = useStore((s) => s.members)
   const workspaceId = useStore((s) => s.membersWorkspaceId)
-  const isOwner = useStore((s) => s.activeWorkspace()?.role === 'owner')
+  const activeRole = useStore((s) => s.activeWorkspace()?.role)
+  const synced = useStore((s) => s.activeSynced())
+  const authEmail = useStore((s) => s.authEmail)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
+
+  // A non-owner member (editor/viewer) can only view. Everyone else on a synced
+  // workspace can manage it — that's the owner. We intentionally don't require
+  // role === 'owner' here: an owner's role can be momentarily unknown in the
+  // webview (stale role cache), and the server is the real gate (owner-only,
+  // 403 otherwise). Inviting shares the Drive file, so it needs sync first;
+  // a local (not-yet-synced) workspace shows an Enable-Sync prompt instead.
+  const isNonOwnerMember = activeRole === 'editor' || activeRole === 'viewer'
+  const canManage = synced && !isNonOwnerMember
+  const needsSync = !synced && !!authEmail && !isNonOwnerMember
 
   useEffect(() => {
     if (workspaceId) postToHost({ type: 'loadMembers', workspaceId })
@@ -21,21 +33,34 @@ export function Members() {
     setEmail('')
   }
   const remove = (memberId: string) => { if (workspaceId) postToHost({ type: 'removeMember', workspaceId, memberId }) }
+  const enableSync = () => { if (workspaceId) postToHost({ type: 'enableSync', workspaceId }) }
 
   return (
     <div className="rm-members">
       <div className="rm-members-head">
-        <span className="rm-members-title">{isOwner ? 'Invite to Workspace' : 'Members'}</span>
+        <span className="rm-members-title">{canManage ? 'Invite to Workspace' : 'Members'}</span>
       </div>
 
-      {isOwner && (
+      {needsSync && (
+        <div className="rm-invite-block">
+          <div className="rm-invite-banner">
+            <span className="codicon codicon-cloud-upload" />
+            <span>Enable sync to share this workspace and invite people.</span>
+          </div>
+          <div className="rm-invite-actions">
+            <button className="rm-btn rm-btn--primary" onClick={enableSync}>Enable Sync</button>
+          </div>
+        </div>
+      )}
+
+      {canManage && (
         <div className="rm-invite-banner">
           <span className="codicon codicon-info" />
           <span>Inviting people makes this a team workspace.</span>
         </div>
       )}
 
-      {isOwner && (
+      {canManage && (
         <div className="rm-invite-block">
           <div className="rm-invite-form">
             <input
@@ -67,7 +92,7 @@ export function Members() {
               {m.pending && <span className="rm-pending-tag">Pending</span>}
               <span className="rm-role-badge">{m.role}</span>
             </div>
-            {isOwner && m.id && m.role !== 'owner' && (
+            {canManage && m.id && m.role !== 'owner' && (
               <div className="rm-actions">
                 <IconButton icon="close" label={`remove ${m.email}`} onClick={() => remove(m.id!)} />
               </div>

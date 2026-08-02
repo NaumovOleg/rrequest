@@ -19,6 +19,13 @@ export function WorkspaceSwitcher() {
   const isOwner = useStore((s) => s.activeWorkspace()?.role === "owner");
   const authEmail = useStore((s) => s.authEmail);
   const synced = useStore((s) => s.activeSynced());
+  // Who may share the active workspace: the owner of a synced one, OR the owner
+  // of a local (not-yet-synced) one — a local workspace has no server role yet,
+  // but the signed-in user owns it. Members of a shared workspace (editor /
+  // viewer) can't invite. Shown before sync so the entry point is discoverable;
+  // the Members panel then guides an unsynced workspace to Enable Sync first.
+  const activeRole = useStore((s) => s.activeWorkspace()?.role);
+  const canShare = !!authEmail && !!active && activeRole !== "viewer" && activeRole !== "editor";
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -154,10 +161,10 @@ export function WorkspaceSwitcher() {
           />
         )}
 
-        {isOwner && active && (
+        {canShare && active && (
           <IconButton
             icon="organization"
-            label="members"
+            label="Share / invite people"
             onClick={() => postToHost({ type: "openMembers", workspaceId: active.id })}
           />
         )}

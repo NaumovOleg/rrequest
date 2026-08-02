@@ -304,6 +304,22 @@ export function RequestPanel() {
   useEffect(() => {
     setSaveFolderId(pendingSaveFolderId ?? "");
   }, [pendingSaveFolderId]);
+  // Cmd/Ctrl+S saves the active request, like saving a file in VS Code. The
+  // editor is a webview (VS Code's own save is a no-op for a webview panel), so
+  // we catch the shortcut in-page and route it to the same save() the button
+  // uses. The ref binds the listener once while always calling the latest
+  // closure (which captures the current tab + chosen save target).
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   // No autosave: editor edits stay local (the tab shows a dirty dot) and only
   // reach the sidebar/tree when the user hits Save — see `save()` below.
   if (!active) return <div className="rm-panel">No request open</div>;
@@ -379,6 +395,8 @@ export function RequestPanel() {
     // lets subsequent tree broadcasts refresh this tab).
     markTabSaved(active.id);
   };
+  // Keep the Cmd/Ctrl+S handler pointed at the latest save closure.
+  saveRef.current = save;
 
   const saveFolders =
     tree.find((c) => c.id === saveCollectionId)?.folders ?? [];

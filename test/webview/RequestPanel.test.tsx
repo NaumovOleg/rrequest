@@ -54,6 +54,16 @@ describe('RequestPanel', () => {
     expect(posted[0].request.id).toBe(useStore.getState().activeTabId)
   })
 
+  it('Cmd/Ctrl+S saves the active request like the Save button', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/save to collection/i), { target: { value: 'c1' } })
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(posted).toHaveLength(1)
+    expect(posted[0].type).toBe('saveRequest')
+    expect(posted[0].collectionId).toBe('c1')
+  })
+
   it('typing into the name input updates the active request', () => {
     render(<RequestPanel />)
     fireEvent.change(screen.getByLabelText(/request name/i), { target: { value: 'My Req' } })

@@ -19,10 +19,19 @@ export class SyncManager {
       state: SyncStateStore
       stores: StoresPort
       email: () => string
+      // Returns false when there's no app token yet (never signed in, or the
+      // token is still loading from SecretStorage on startup). Network methods
+      // no-op in that case, so an empty `Bearer` request never fires — which
+      // would otherwise 401 and trip onAuthLost, wiping the stored token.
+      isAuthed?: () => boolean
       onAuthLost?: () => void | Promise<void>
       onSyncError?: (workspaceId: string, error: unknown) => void
     },
   ) {}
+
+  private authed(): boolean {
+    return this.deps.isAuthed?.() ?? true
+  }
 
   /** Shared catch taxonomy for push/pull. Returns true if the error was handled (caller should return). */
   private async handleSyncError(workspaceId: string, e: unknown): Promise<void> {
@@ -53,6 +62,7 @@ export class SyncManager {
   }
 
   async push(workspaceId: string): Promise<void> {
+    if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     try {
@@ -72,6 +82,7 @@ export class SyncManager {
   }
 
   async pull(workspaceId: string): Promise<void> {
+    if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     try {
@@ -89,6 +100,7 @@ export class SyncManager {
   }
 
   async refreshRoles(): Promise<void> {
+    if (!this.authed()) return
     let remote
     try {
       remote = await this.deps.client.listWorkspaces()
@@ -117,6 +129,7 @@ export class SyncManager {
   }
 
   async pullIfNewer(workspaceId: string, revision: string): Promise<boolean> {
+    if (!this.authed()) return false
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return false
     if (state.lastRevision === revision) return false // we already have this (e.g. our own push)

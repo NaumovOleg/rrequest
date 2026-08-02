@@ -116,6 +116,15 @@ describe('SyncManager', () => {
     expect((await state.get('w1'))?.role).toBe('viewer')
     expect(await state.get('w2')).toBeUndefined()
   })
+  it('refreshRoles no-ops (no network, no onAuthLost) when isAuthed is false', async () => {
+    const client = { listWorkspaces: vi.fn() } as any
+    const onAuthLost = vi.fn()
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await new SyncManager({ client, state, stores: port, email: () => 'me', isAuthed: () => false, onAuthLost }).refreshRoles()
+    expect(client.listWorkspaces).not.toHaveBeenCalled()
+    expect(onAuthLost).not.toHaveBeenCalled()
+  })
   it('push drops sync (synced=false) but keeps local data on a 403', async () => {
     const applyPulled = vi.fn()
     const client = { push: vi.fn(async () => { throw new SyncForbiddenError() }), enableSync: vi.fn(), pull: vi.fn() } as any

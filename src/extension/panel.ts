@@ -130,10 +130,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           "syncServerUrl",
           "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api",
         );
-    let cachedToken: string | undefined;
-    void context.secrets.get("rrequest.syncToken").then((t) => {
-      cachedToken = t ?? undefined;
-    });
+    // AWAIT the token load (don't fire-and-forget): startup kicks off authed
+    // calls (manager.refreshRoles, the poll loop) right below, and if the token
+    // weren't loaded yet they'd send an empty `Bearer`, 401, and onAuthLost
+    // would wipe the stored token — logging the user out on every reload.
+    let cachedToken: string | undefined =
+      (await context.secrets.get("rrequest.syncToken")) ?? undefined;
+    const isAuthed = (): boolean => !!cachedToken;
     context.secrets.onDidChange(async (e) => {
       if (e.key === "rrequest.syncToken")
         cachedToken =
@@ -359,6 +362,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       state: syncState,
       stores: buildStoresPort(collections, environments, workspaces),
       email: () => context.globalState.get<string>("rrequest.syncEmail", "me"),
+      isAuthed,
       onAuthLost: async () => {
         await clearSyncAuth();
         hub.authState(null);
@@ -411,6 +415,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       listWorkspaces: () => syncClient.listWorkspaces(),
       state: syncState,
       pullIfNewer: (id, revision) => manager.pullIfNewer(id, revision),
+      isAuthed,
       onPulled: async () => {
         await runtime.refreshRoleCache();
         await hub.refresh();

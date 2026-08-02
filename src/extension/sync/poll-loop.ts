@@ -9,6 +9,9 @@ export function createPollLoop(deps: {
   state: PollStateStore
   pullIfNewer: (id: string, revision: string) => Promise<boolean>
   onPulled: () => Promise<void>
+  // When absent, always polls. When present, a tick no-ops unless authed, so a
+  // signed-out / still-loading session never fires an empty-Bearer request.
+  isAuthed?: () => boolean
   intervalMs?: number
 }): { start(): void; stop(): void } {
   const intervalMs = deps.intervalMs ?? 45000
@@ -19,6 +22,7 @@ export function createPollLoop(deps: {
 
   const tick = async (): Promise<void> => {
     if (running) return
+    if (deps.isAuthed && !deps.isAuthed()) return
     running = true
     try {
       const workspaces = await deps.listWorkspaces()

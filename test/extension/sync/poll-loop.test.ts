@@ -24,6 +24,21 @@ describe('createPollLoop', () => {
     loop.stop()
   })
 
+  it('skips the tick (no network) when isAuthed() returns false', async () => {
+    const listWorkspaces = vi.fn(async () => [{ id: 'w1', revision: '5' }])
+    const state = { get: vi.fn(async () => ({ lastRevision: '3', synced: true })) }
+    const pullIfNewer = vi.fn(async () => true)
+    const onPulled = vi.fn(async () => {})
+    const loop = createPollLoop({ listWorkspaces, state, pullIfNewer, onPulled, isAuthed: () => false, intervalMs: 1000 })
+
+    loop.start()
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(listWorkspaces).not.toHaveBeenCalled()
+    expect(pullIfNewer).not.toHaveBeenCalled()
+    loop.stop()
+  })
+
   it('does nothing when the server revision matches the last-known revision', async () => {
     const listWorkspaces = vi.fn(async () => [{ id: 'w1', revision: '3' }])
     const state = { get: vi.fn(async () => ({ lastRevision: '3', synced: true })) }

@@ -11,6 +11,9 @@ export type RrequestStackProps = StackProps & {
   // Plaintext secret VALUES, supplied at deploy time (see bin/app.ts). Baked
   // into the Lambda environment -- no Parameter Store fetch at cold start.
   secrets: DataSecrets;
+  // Physical-name prefix for a stage-isolated deployment (e.g. "development-").
+  // Empty for production (keeps the original "Users"/"Workspaces"/... names).
+  resourcePrefix?: string;
 };
 
 /**
@@ -28,9 +31,11 @@ export class RrequestStack extends Stack {
   constructor(scope: Construct, id: string, props: RrequestStackProps) {
     super(scope, id, props);
 
+    const prefix = props.resourcePrefix ?? "";
+
     // --- DynamoDB tables (RETAIN so a stack teardown never drops user data) ---
     this.usersTable = new Table(this, "UsersTable", {
-      tableName: "Users",
+      tableName: `${prefix}Users`,
       partitionKey: { name: "userId", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
@@ -47,7 +52,7 @@ export class RrequestStack extends Stack {
     });
 
     this.workspacesTable = new Table(this, "WorkspacesTable", {
-      tableName: "Workspaces",
+      tableName: `${prefix}Workspaces`,
       partitionKey: { name: "workspaceId", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
@@ -59,7 +64,7 @@ export class RrequestStack extends Stack {
     });
 
     this.membershipsTable = new Table(this, "MembershipsTable", {
-      tableName: "Memberships",
+      tableName: `${prefix}Memberships`,
       partitionKey: { name: "membershipId", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,

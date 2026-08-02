@@ -22,8 +22,17 @@ const requireEnv = (name: string): string => {
   return v;
 };
 
-new RrequestStack(app, "RrequestStack", {
+// STAGE picks a fully isolated deployment: "development" gets its own stack name
+// and a "development-" prefix on every physical resource name (DynamoDB tables),
+// so dev and prod can live side by side in the same AWS account without
+// colliding. Production keeps the original unprefixed names (backwards-compatible
+// with the already-deployed stack). Defaults to production.
+const isDev = process.env.STAGE === "development";
+const stackId = isDev ? "DevelopmentRrequestStack" : "RrequestStack";
+
+new RrequestStack(app, stackId, {
   env,
+  resourcePrefix: isDev ? "development-" : "",
   config: {
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",

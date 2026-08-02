@@ -16,6 +16,26 @@ function buildTemplate(): Template {
 
 const template = buildTemplate();
 
+describe("RrequestStack — stage isolation (resourcePrefix)", () => {
+  it("prefixes every DynamoDB table name for a development deployment", () => {
+    const app = new App();
+    const stack = new RrequestStack(app, "DevStack", {
+      env: { account: "000000000000", region: "us-east-1" },
+      resourcePrefix: "development-",
+      config: { googleClientId: "x", googleRedirectUri: "https://e/callback" },
+      secrets: { googleClientSecret: "s", jwtSecret: "j", tokenEncKey: "t" },
+    });
+    const dev = Template.fromStack(stack);
+    for (const name of ["development-Users", "development-Workspaces", "development-Memberships"]) {
+      dev.hasResourceProperties("AWS::DynamoDB::Table", { TableName: name });
+    }
+  });
+
+  it("keeps the original unprefixed names for production (no prefix)", () => {
+    template.hasResourceProperties("AWS::DynamoDB::Table", { TableName: "Users" });
+  });
+});
+
 describe("RrequestStack — DynamoDB", () => {
   it("provisions exactly 3 PAY_PER_REQUEST tables", () => {
     template.resourceCountIs("AWS::DynamoDB::Table", 3);

@@ -18,6 +18,7 @@ describe('viewer read-only UX', () => {
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
     useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer', synced: true, accountId: 'a1' }], 'w1')
     render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
     expect(screen.getByText(/viewer/i)).toBeTruthy()
   })
 
@@ -25,6 +26,7 @@ describe('viewer read-only UX', () => {
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
     useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer', synced: true, accountId: 'a1' }], 'w1')
     render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
     expect(screen.queryByRole('button', { name: /^rename$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /^delete$/i })).toBeNull()
   })
@@ -33,6 +35,7 @@ describe('viewer read-only UX', () => {
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
     useStore.getState().setWorkspaces([{ id: 'w1', name: 'Mine', role: 'owner', synced: true, accountId: 'a1' }], 'w1')
     render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
     expect(screen.getByRole('button', { name: /^rename$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeTruthy()
   })

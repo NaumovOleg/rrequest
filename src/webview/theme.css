@@ -177,6 +177,8 @@ body {
 
 /* per-workspace sync control — sits beside the role badge */
 .rm-sync-enable { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--rm-muted); }
+.rm-ws-share { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.rm-ws-share .codicon { font-size: 13px; }
 .rm-sync-enable:hover { color: var(--rm-fg); }
 .rm-sync-enable .codicon { font-size: 13px; }
 

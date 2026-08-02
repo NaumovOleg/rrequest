@@ -160,17 +160,9 @@ export function WorkspaceSwitcher() {
             onClick={() => postToHost({ type: "importCollection" })}
           />
         )}
-
-        {canShare && active && (
-          <IconButton
-            icon="organization"
-            label="Share / invite people"
-            onClick={() => postToHost({ type: "openMembers", workspaceId: active.id })}
-          />
-        )}
       </div>
 
-      {/* Row 2: role + sync status — its own line so nothing overlaps the picker */}
+      {/* Row 2: role + sync status + Share — its own line so nothing overlaps the picker */}
       {showMeta && (
         <div className="rm-ws-meta">
           {active?.role && <span className="rm-role-badge">{ROLE_LABEL[active.role]}</span>}
@@ -198,6 +190,18 @@ export function WorkspaceSwitcher() {
                 Enable Sync
               </button>
             )
+          )}
+
+          {/* Clearly-labeled entry to add/manage people (owner of the active workspace) */}
+          {canShare && active && (
+            <button
+              type="button"
+              className="rm-btn rm-btn--ghost rm-btn--sm rm-ws-share"
+              onClick={() => postToHost({ type: "openMembers", workspaceId: active.id })}
+            >
+              <span className="codicon codicon-organization" aria-hidden="true" />
+              Share
+            </button>
           )}
         </div>
       )}

@@ -21,6 +21,20 @@ describe('WorkspaceSwitcher', () => {
     openList()
     expect(screen.getByTestId('active-workspace')).toHaveTextContent('Team')
   })
+  it('shows a Share button for a signed-in owner and opens the members panel', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Default', role: 'owner', synced: true }], 'w1')
+    useStore.getState().setAuthEmail('me@x.com')
+    render(<WorkspaceSwitcher />)
+    const share = screen.getByRole('button', { name: /share/i })
+    fireEvent.click(share)
+    expect(posted).toContainEqual({ type: 'openMembers', workspaceId: 'w1' })
+  })
+  it('hides the Share button for a viewer', () => {
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Shared', role: 'viewer', synced: true }], 'w1')
+    useStore.getState().setAuthEmail('me@x.com')
+    render(<WorkspaceSwitcher />)
+    expect(screen.queryByRole('button', { name: /share/i })).toBeNull()
+  })
   it('picking a workspace posts setActiveWorkspace', () => {
     useStore.getState().setWorkspaces([{ id: 'w1', name: 'Default' }, { id: 'w2', name: 'Team' }], 'w1')
     render(<WorkspaceSwitcher />)

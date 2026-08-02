@@ -115,17 +115,21 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     const workspaces = new WorkspaceStore(base);
     const trash = new TrashStore(base);
 
-    // ensure a Default workspace + active id
+    // Always keep a local (unsynced) "Default" workspace, and default the active
+    // selection to a local one — so signing in / syncing never hijacks the
+    // landing view (the local workspace is the default). A fresh SyncStateStore
+    // read tells us which existing workspaces are synced vs local.
+    const bootStates = await new SyncStateStore(base).all();
+    const isLocalWs = (w: { id: string }): boolean => !bootStates[w.id]?.synced;
     let list = await workspaces.list();
-    if (list.length === 0) {
+    if (!list.some(isLocalWs)) {
       const def = await workspaces.create("Default");
-      list = [def];
+      list = [...list, def];
     }
-    if (!context.globalState.get<string>("rrequest.activeWorkspaceId")) {
-      await context.globalState.update(
-        "rrequest.activeWorkspaceId",
-        list[0].id,
-      );
+    const bootActive = context.globalState.get<string>("rrequest.activeWorkspaceId", "");
+    if (!list.some((w) => w.id === bootActive)) {
+      const local = list.find(isLocalWs) ?? list[0];
+      await context.globalState.update("rrequest.activeWorkspaceId", local.id);
     }
 
     // createRouter runs before the Hub exists, so the WsManager's emit (and the
@@ -436,11 +440,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // content down) so collections appear without an explicit sign-in, then
     // refresh roles + repaint. Gated on a loaded token (see isAuthed).
     if (isAuthed()) {
+      hub.syncStatus(true);
       void manager
         .adoptRemoteWorkspaces()
         .then(() => manager.refreshRoles())
         .then(() => runtime.refreshRoleCache())
-        .then(() => runtime.refresh());
+        .then(() => runtime.refresh())
+        .finally(() => hub.syncStatus(false));
     }
     // Owner-delete: when a locally-synced workspace is deleted, also trash the
     // Drive file + server rows (best-effort — deleteSync already swallows its
@@ -507,10 +513,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           hub.authState(currentAccounts());
           // Pull every account's workspaces down (adopt is read-only + union — no
           // wipe), each bound to its owning account.
+          hub.syncStatus(true);
           const res = await manager.adoptRemoteWorkspaces();
           await runtime.refreshRoleCache();
           if (res.adopted.length) {
-            await context.globalState.update("rrequest.activeWorkspaceId", res.adopted[0]);
+            // Keep the active workspace on the local Default — don't auto-jump
+            // into a synced workspace after signing in.
             hub.toast("info", `Pulled ${res.adopted.length} workspace(s).`);
           } else if (res.error) {
             hub.toast("error", `Couldn't fetch your workspaces: ${res.error}`);
@@ -520,6 +528,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         } catch (e: any) {
           hub.toast("error", `Sign-in failed: ${e?.message ?? e}`);
         }
+        hub.syncStatus(false);
         await runtime.refresh();
       },
       // signOut removes ONE account and drops sync on its workspaces (local data

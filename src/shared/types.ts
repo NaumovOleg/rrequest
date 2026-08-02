@@ -208,6 +208,7 @@ export type HostMessage =
   | { type: 'showMembers'; workspaceId: string }
   | { type: 'members'; members: Member[] }
   | { type: 'authState'; accounts: Account[] }
+  | { type: 'syncStatus'; loading: boolean }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

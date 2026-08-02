@@ -18,6 +18,7 @@ const ROLE_LABEL = { owner: "Owner", editor: "Editor", viewer: "Viewer" } as con
 export function AccountsPanel() {
   const accounts = useStore((s) => s.accounts);
   const isViewer = useStore((s) => s.isViewer());
+  const syncLoading = useStore((s) => s.syncLoading);
   const { workspaces, activeId, active, create, rename, remove, select } = useWorkspace();
 
   const [open, setOpen] = useState(false);
@@ -129,10 +130,10 @@ export function AccountsPanel() {
     <div className="rm-accts" ref={ref}>
       <div className="rm-accts-bar">
         <button type="button" className="rm-accts-trigger" aria-label="Switch account or workspace" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <span className="codicon codicon-account rm-accts-trigger-icon" aria-hidden="true" />
+          <span className={`codicon ${syncLoading ? "codicon-loading rm-spin" : "codicon-account"} rm-accts-trigger-icon`} aria-hidden="true" />
           <span className="rm-accts-current">
             <span className="rm-accts-current-name">{active?.name ?? "No workspace"}</span>
-            <span className="rm-accts-current-sub">{activeAccountEmail ?? "Local"}</span>
+            <span className="rm-accts-current-sub">{syncLoading ? "Loading accounts…" : (activeAccountEmail ?? "Local")}</span>
           </span>
           <span className="codicon codicon-chevron-down rm-accts-chevron" aria-hidden="true" />
         </button>

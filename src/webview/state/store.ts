@@ -63,6 +63,7 @@ type State = {
   toasts: { id: string; level: 'error' | 'info'; message: string }[]
   authEmail: string | null
   accounts: Account[]
+  syncLoading: boolean
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -101,6 +102,7 @@ type State = {
   activeWorkspace(): Workspace | undefined
   setAccounts(list: Account[]): void
   setAuthEmail(email: string | null): void
+  setSyncLoading(v: boolean): void
   activeSynced(): boolean
   __reset(): void
 }
@@ -135,6 +137,7 @@ export const useStore = create<State>((set, get) => ({
   toasts: [],
   authEmail: null,
   accounts: [],
+  syncLoading: false,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -248,7 +251,8 @@ export const useStore = create<State>((set, get) => ({
   setAccounts: (accounts) => set({ accounts: accounts ?? [], authEmail: accounts?.[0]?.email ?? null }),
   // Convenience for the single-account case (tests, legacy call sites).
   setAuthEmail: (email) => set({ accounts: email ? [{ id: 'me', email }] : [], authEmail: email }),
+  setSyncLoading: (syncLoading) => set({ syncLoading }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [] }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: false }),
 }))

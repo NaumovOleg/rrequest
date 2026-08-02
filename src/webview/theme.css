@@ -180,6 +180,9 @@ body {
 .rm-ws-share { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .rm-ws-share .codicon { font-size: 13px; }
 
+@keyframes rm-spin { to { transform: rotate(360deg); } }
+.rm-spin { animation: rm-spin 1s linear infinite; display: inline-block; }
+
 /* --- Accounts panel (compact dropdown: accounts with nested workspaces) --- */
 .rm-accts { position: relative; }
 .rm-accts-bar { display: flex; align-items: center; gap: var(--rm-sp-1); }

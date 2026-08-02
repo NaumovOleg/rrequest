@@ -49,6 +49,7 @@ export function SidebarApp() {
       else if (m.type === "trash") setTrash(m.entries);
       else if (m.type === "toast") pushToast(m.level, m.message);
       else if (m.type === "authState") useStore.getState().setAccounts(m.accounts);
+      else if (m.type === "syncStatus") useStore.getState().setSyncLoading(m.loading);
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadWorkspaces" });

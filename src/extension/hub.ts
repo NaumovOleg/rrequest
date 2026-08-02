@@ -42,6 +42,7 @@ export class Hub {
 
   // Broadcast the current auth state to every sink (used by the host after sign-in/out).
   authState(accounts: Account[]): void { this.broadcast({ type: 'authState', accounts }) }
+  syncStatus(loading: boolean): void { this.broadcast({ type: 'syncStatus', loading }) }
 
   private postTo(id: string, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }

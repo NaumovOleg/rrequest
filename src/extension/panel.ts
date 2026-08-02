@@ -410,6 +410,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // remote (sync is otherwise a pure union that never drops remote data).
       const del = deletedIdsFromMessage(msg);
       if (del.length) manager.recordDeletion(del);
+      // Renaming a workspace must push THAT workspace (its name lives in the
+      // snapshot / Drive file), not the active one.
+      if (msg.type === "renameWorkspace") {
+        runtime.schedulePush(msg.id);
+        return;
+      }
       if (isMutating(msg.type)) runtime.schedulePush(activeWsId());
     });
     syncRuntimeRef = runtime;
@@ -472,8 +478,20 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           hub.authState(me.email);
           // Pull the user's workspaces down so their collections/requests show
           // up right after signing in (adopt is read-only + union — no wipe).
-          await manager.adoptRemoteWorkspaces();
+          const res = await manager.adoptRemoteWorkspaces();
           await runtime.refreshRoleCache();
+          if (res.adopted.length) {
+            // Switch to a just-adopted workspace so its collections are visible
+            // immediately instead of the empty local Default.
+            await context.globalState.update("rrequest.activeWorkspaceId", res.adopted[0]);
+            hub.toast("info", `Pulled ${res.adopted.length} workspace(s) from your account.`);
+          } else if (res.error) {
+            hub.toast("error", `Couldn't fetch your workspaces: ${res.error}`);
+          } else if (res.failed > 0) {
+            hub.toast("error", `Found ${res.failed} workspace(s) on the server but couldn't read their Drive files.`);
+          } else {
+            hub.toast("info", "No synced workspaces found on the server for this account.");
+          }
         } catch {
           hub.authState(null);
         }

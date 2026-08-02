@@ -5,6 +5,13 @@ import type { SyncStateStore } from './sync-state-store'
 import { buildSnapshot, mergeEnvironmentsPreservingSecrets, type WorkspaceSnapshot } from './snapshot'
 import { mergeSnapshots, pruneDeleted } from './merge'
 
+export type AdoptResult = {
+  listed: number // workspaces the server (DynamoDB) knows about for this account
+  adopted: string[] // workspace ids pulled down successfully
+  failed: number // listed but the pull failed (e.g. trashed Drive file)
+  error?: string // listWorkspaces itself failed
+}
+
 export type StoresPort = {
   getName(workspaceId: string): Promise<string>
   getCollections(workspaceId: string): Promise<Collection[]>
@@ -169,21 +176,27 @@ export class SyncManager {
   // Pull every server workspace down after login so its collections/requests
   // appear locally. Read-only (no push), remote-wins union, so it never
   // overwrites remote OR local — it only adds. Creates a matching local
-  // workspace on a fresh machine.
-  async adoptRemoteWorkspaces(): Promise<void> {
-    if (!this.authed()) return
+  // workspace on a fresh machine. Returns a summary so the caller can surface
+  // what happened (auto-select an adopted workspace, or report why nothing
+  // came down).
+  async adoptRemoteWorkspaces(): Promise<AdoptResult> {
+    if (!this.authed()) return { listed: 0, adopted: [], failed: 0 }
     let remotes
     try {
       remotes = await this.deps.client.listWorkspaces()
     } catch (e) {
       if (e instanceof SyncAuthError) await this.deps.onAuthLost?.()
-      return
+      return { listed: 0, adopted: [], failed: 0, error: String((e as Error)?.message ?? e) }
     }
+    const adopted: string[] = []
+    let failed = 0
     for (const w of remotes) {
       try {
         const pulled = await this.tryPull(w.id)
-        if (!pulled) continue
-        await this.deps.stores.ensureWorkspace?.(w.id, w.name || pulled.snapshot.name || w.id)
+        if (!pulled) { failed++; continue } // listed but no remote file (404) — inconsistent server state
+        // Prefer the Drive file's name (content truth) over the DynamoDB row's
+        // name, which can be stale (push only bumps revision, not the row name).
+        await this.deps.stores.ensureWorkspace?.(w.id, pulled.snapshot.name || w.name || w.id)
         const local = await this.buildLocalSnapshot(w.id)
         const merged = mergeSnapshots(pulled.snapshot, local) // remote-wins union (adopt)
         await this.applyMergedLocally(w.id, merged)
@@ -194,10 +207,14 @@ export class SyncManager {
           lastRevision: pulled.revision,
           synced: true,
         })
-      } catch {
-        // Skip a workspace that fails to adopt; keep going with the rest.
+        adopted.push(w.id)
+      } catch (e) {
+        failed++
+        // eslint-disable-next-line no-console
+        console.error(`[rrequest] adopt failed for workspace ${w.id}:`, e)
       }
     }
+    return { listed: remotes.length, adopted, failed }
   }
 
   async refreshRoles(): Promise<void> {

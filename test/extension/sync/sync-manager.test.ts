@@ -145,7 +145,8 @@ describe('SyncManager', () => {
     const { port, box } = stores({ collections: [], environments: [] })
     ;(port as any).ensureWorkspace = async (id: string) => { ensured.push(id) }
     const state = new SyncStateStore(dir)
-    await new SyncManager({ client, state, stores: port, email: () => 'me' }).adoptRemoteWorkspaces()
+    const res = await new SyncManager({ client, state, stores: port, email: () => 'me' }).adoptRemoteWorkspaces()
+    expect(res).toEqual({ listed: 1, adopted: ['w1'], failed: 0 })
     expect(ensured).toEqual(['w1'])
     expect(box.applied.collections.map((c: any) => c.id)).toEqual(['c1'])
     expect((await state.get('w1'))?.synced).toBe(true)

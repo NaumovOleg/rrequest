@@ -22,6 +22,16 @@ export type PushResult =
   | { status: 500 };
 export type DeleteSyncResult = { ok: true } | { status: 403 | 404 };
 
+/** The `name` field of a snapshot JSON string, or undefined if unparseable. */
+function snapshotName(snapshot: string): string | undefined {
+  try {
+    const v = JSON.parse(snapshot) as { name?: unknown };
+    return typeof v.name === "string" ? v.name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class WorkspaceService {
   constructor(private deps: WorkspaceServiceDeps) {}
 
@@ -119,7 +129,11 @@ export class WorkspaceService {
       if (e instanceof DriveAuthError) return { status: 401 };
       throw e;
     }
-    await this.deps.workspaces.setRevision(id, revision, Date.now());
+    // Keep the workspace row's name in step with the snapshot (a rename only
+    // changes the name inside the pushed file; without this the DynamoDB row —
+    // and therefore listWorkspaces — keeps the stale name).
+    const name = snapshotName(clean) ?? ws.name;
+    await this.deps.workspaces.upsert({ ...ws, name, revision, updatedAt: Date.now() });
     return { revision };
   }
 

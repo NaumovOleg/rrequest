@@ -187,6 +187,15 @@ describe("WorkspaceService.push", () => {
     expect(result).toEqual({ revision: "2" });
   });
 
+  it("updates the workspace row name from the pushed snapshot (rename propagates to DynamoDB)", async () => {
+    const { service, users, workspaces } = makeService();
+    const owner = await makeUser(users, "owner@x.com");
+    await service.enable(owner, { workspaceId: "w1", name: "Old Name", snapshot: '{"name":"Old Name"}' });
+    await service.push(owner, "w1", { snapshot: '{"name":"New Name","collections":[]}', baseRevision: "1" });
+    const ws = await workspaces.get("w1");
+    expect(ws!.name).toBe("New Name");
+  });
+
   it("409s with the current snapshot + revision on a stale baseRevision", async () => {
     const { service, users } = makeService();
     const owner = await makeUser(users, "owner@x.com");

@@ -193,11 +193,25 @@ describe('store setTree tab reconciliation', () => {
     expect(t?.collectionId).toBe('c1')
     expect(t?.folderId).toBe('f1')
   })
-  it('does not clobber the active linked tab from a tree broadcast', () => {
-    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Typing', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
-    // r1 is the active tab; a stale tree broadcast must not overwrite it
+  it('does not clobber a DIRTY active tab from a tree broadcast', () => {
+    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Base', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    useStore.getState().updateActive({ name: 'Typing' }) // in-progress editor edit -> dirty
+    // a tree broadcast must not overwrite unsaved editor edits
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Stale', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
     expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Typing')
+  })
+  it('a CLEAN active tab adopts tree changes (sidebar edit reflects in the editor)', () => {
+    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Old', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    // no editor edits -> a sidebar-side rename should flow straight into the tab
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Renamed', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
+    expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Renamed')
+  })
+  it('markTabSaved clears dirty so later tree broadcasts refresh the tab again', () => {
+    useStore.getState().openOrReplaceBlank({ id: 'r1', name: 'Base', method: 'GET', url: 'u', collectionId: 'c1', folderId: null })
+    useStore.getState().updateActive({ name: 'Edited' })
+    useStore.getState().markTabSaved('r1')
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'FromTree', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
+    expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('FromTree')
   })
 })
 

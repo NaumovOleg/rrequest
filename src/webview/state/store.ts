@@ -3,7 +3,10 @@ import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, 
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
-export type Tab = RestRequest & { collectionId?: string; folderId?: string | null }
+// `dirty` = the editor has unsaved edits: those stay LOCAL (not pushed to the
+// sidebar/tree) until the user hits Save, and a tree broadcast won't clobber
+// them. Cleared by markTabSaved.
+export type Tab = RestRequest & { collectionId?: string; folderId?: string | null; dirty?: boolean }
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'Untitled', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
@@ -66,6 +69,7 @@ type State = {
   openOrReplaceBlank(patch: Partial<Tab>): void
   openLinkedTab(request: RestRequest, collectionId?: string, folderId?: string | null): void
   setTabBody(tabId: string, body: RestRequest['body']): void
+  markTabSaved(tabId: string): void
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
   setHistory(entries: HistoryEntry[]): void
@@ -143,7 +147,9 @@ export const useStore = create<State>((set, get) => ({
   setActive: (id) => set({ activeTabId: id }),
 
   updateActive: (patch) => set((s) => ({
-    tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch } : t)),
+    // A user edit in the editor -> mark the tab dirty; it won't reach the
+    // sidebar/tree until the user Saves.
+    tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch, dirty: true } : t)),
   })),
 
   openOrReplaceBlank: (patch) => set((s) => {
@@ -179,21 +185,22 @@ export const useStore = create<State>((set, get) => ({
     return { tabs: [...s.tabs, tab], activeTabId: tab.id }
   }),
 
-  setTabBody: (tabId, body) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, body } : t)) })),
+  setTabBody: (tabId, body) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, body, dirty: true } : t)) })),
+
+  markTabSaved: (tabId) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, dirty: false } : t)) })),
 
   setTree: (tree) => set((s) => ({
     tree,
-    // Reflect tree-side changes (e.g. a rename in the sidebar) back into open
-    // linked tabs. Skip the active tab so a broadcast never clobbers what the
-    // user is currently typing — its own edits already flow out via autosave.
+    // Reflect tree-side changes (a rename/edit in the sidebar, or a synced pull)
+    // back into open linked tabs. A DIRTY tab keeps its unsaved working copy —
+    // only its link is refreshed (so a move still shows the new path); a clean
+    // tab (incl. the active one) adopts the tree's version immediately, so
+    // sidebar-side changes show up in the editor right away.
     tabs: s.tabs.map((t) => {
       if (!t.collectionId) return t
       const loc = locateInTree(tree, t.id)
       if (!loc || itemKind(loc.item) !== 'http') return t
-      // Always refresh the link (collection/folder) so a moved request shows its
-      // new path in the header. Skip the field merge for the active tab to avoid
-      // clobbering in-progress edits — its own edits flow out via autosave.
-      if (t.id === s.activeTabId) return { ...t, collectionId: loc.collectionId, folderId: loc.folderId }
+      if (t.dirty) return { ...t, collectionId: loc.collectionId, folderId: loc.folderId }
       return { ...t, ...(loc.item as RestRequest), collectionId: loc.collectionId, folderId: loc.folderId }
     }),
   })),

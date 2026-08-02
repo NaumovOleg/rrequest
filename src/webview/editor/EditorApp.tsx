@@ -36,9 +36,12 @@ export function EditorApp() {
   const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
   const activeLabel = active ? `${active.method} ${active.name}` : undefined;
   const activeMethod = active?.method;
+  const activeDirty = active?.dirty ?? false;
 
   // Keep the VS Code editor tab titled + iconed after the request. gRPC/WebSocket
-  // panels post their own title/icon, so skip them here.
+  // panels post their own title/icon, so skip them here. A leading "●" marks an
+  // unsaved (dirty) request — WebviewPanels have no native dirty indicator, so
+  // the dot in the title is the equivalent of VS Code's unsaved-file dot.
   useEffect(() => {
     if (wsMode || grpcMode) return;
     if (membersMode) {
@@ -46,9 +49,13 @@ export function EditorApp() {
     } else if (envMode) {
       postToHost({ type: "setTitle", title: "Environments" });
     } else if (activeLabel && activeMethod) {
-      postToHost({ type: "setTitle", title: activeLabel, icon: `method-${activeMethod}` });
+      postToHost({
+        type: "setTitle",
+        title: `${activeDirty ? "● " : ""}${activeLabel}`,
+        icon: `method-${activeMethod}`,
+      });
     }
-  }, [activeLabel, activeMethod, envMode, wsMode, grpcMode, membersMode]);
+  }, [activeLabel, activeMethod, activeDirty, envMode, wsMode, grpcMode, membersMode]);
 
   useEffect(() => {
     const off = onHostMessage((m) => {

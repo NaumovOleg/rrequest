@@ -287,6 +287,7 @@ export function RequestPanel() {
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const isViewer = useStore((s) => s.isViewer());
   const update = useStore((s) => s.updateActive);
+  const markTabSaved = useStore((s) => s.markTabSaved);
   const openNewTab = useStore((s) => s.openNewTab);
   const tree = useStore((s) => s.tree);
   const pendingSaveCollectionId = useStore((s) => s.pendingSaveCollectionId);
@@ -303,24 +304,8 @@ export function RequestPanel() {
   useEffect(() => {
     setSaveFolderId(pendingSaveFolderId ?? "");
   }, [pendingSaveFolderId]);
-  // Linked tabs (opened from a collection) autosave their edits back to the
-  // tree, debounced, so any field change — name included — stays in sync. A
-  // viewer can't mutate the shared tree (the router would reject it anyway),
-  // so skip firing the request entirely rather than let it round-trip into a
-  // rejection toast.
-  useEffect(() => {
-    if (!active || !active.collectionId || isViewer) return;
-    const t = setTimeout(() => {
-      const { collectionId, folderId, ...request } = active;
-      postToHost({
-        type: "saveRequest",
-        collectionId: collectionId!,
-        folderId: folderId ?? null,
-        request,
-      });
-    }, 400);
-    return () => clearTimeout(t);
-  }, [active, isViewer]);
+  // No autosave: editor edits stay local (the tab shows a dirty dot) and only
+  // reach the sidebar/tree when the user hits Save — see `save()` below.
   if (!active) return <div className="rm-panel">No request open</div>;
 
   const send = () => {
@@ -381,7 +366,7 @@ export function RequestPanel() {
 
   const save = () => {
     if (isViewer) return;
-    const { collectionId: linkC, folderId: linkF, ...request } = active;
+    const { collectionId: linkC, folderId: linkF, dirty: _dirty, ...request } = active;
     const collectionId = linkC || saveCollectionId;
     if (!collectionId) return;
     postToHost({
@@ -390,6 +375,9 @@ export function RequestPanel() {
       folderId: linkC ? (linkF ?? null) : saveFolderId || null,
       request,
     });
+    // Committed to the tree -> tab is clean again (clears the dirty dot and
+    // lets subsequent tree broadcasts refresh this tab).
+    markTabSaved(active.id);
   };
 
   const saveFolders =

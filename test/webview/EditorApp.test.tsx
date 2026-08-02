@@ -63,7 +63,7 @@ describe('EditorApp', () => {
   it('sets the VS Code tab title (method + name) after opening a request', () => {
     render(<EditorApp />)
     act(() => handler?.({ type: 'openInEditor', request: { id: 'r', name: 'Users', method: 'POST', url: 'u', params: [], headers: [], body: { mode: 'none' } } }))
-    expect(posted).toContainEqual({ type: 'setTitle', title: 'Users' })
+    expect(posted).toContainEqual({ type: 'setTitle', title: 'Users', icon: 'method-POST' })
   })
   it('openInEditor with targetCollectionId sets pendingSaveCollectionId', () => {
     render(<EditorApp />)

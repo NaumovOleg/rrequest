@@ -51,12 +51,12 @@ export function EditorApp() {
     } else if (envMode) {
       postToHost({ type: "setTitle", title: "Environments" });
     } else if (active && activeMethod) {
-      // One request glyph for all methods (like Postman's http-request icon):
-      // just set the title to the request name; the panel keeps its request
-      // icon (resources/icon-request-*.svg). No per-method icon.
+      // One request glyph (exchange arrows) colored by method — matching the
+      // sidebar's method colors — as the tab icon; title = the request name.
       postToHost({
         type: "setTitle",
         title: `${activeDirty ? "● " : ""}${active.name}`,
+        icon: `method-${activeMethod}`,
       });
     }
   }, [activeLabel, activeMethod, activeDirty, envMode, wsMode, grpcMode, membersMode]);

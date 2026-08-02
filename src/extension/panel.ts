@@ -391,6 +391,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       (level, message) => hub.toast(level, message),
       15000,
     );
+    // Suppresses the "sign-in expired" toast during the background startup sweep
+    // (adopt + refreshRoles) — that runs across every account/workspace and would
+    // otherwise nag on every launch. A 401 during an EXPLICIT user action
+    // (syncNow/enable) still toasts (throttled to once).
+    let authToastSilent = false;
     const manager = new SyncManager({
       clientFor,
       accounts: () => accounts.ids(),
@@ -399,9 +404,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       email: (accountId) => accounts.emailOf(accountId) ?? "me",
       isAuthed,
       onAuthLost: async () => {
-        // Multi-account: we can't tell which account's token expired from here,
-        // so don't remove anything — just prompt a re-sign-in.
-        hub.toast("error", "A sync sign-in expired — please sign in again.");
+        // Multi-account: we can't tell which account's token expired here, so
+        // don't remove anything — just (once) prompt a re-sign-in, and never
+        // during the silent startup sweep.
+        if (authToastSilent) return;
+        throttledToast("error", "A sync sign-in expired — sign in again to resume syncing.");
       },
       onSyncError: (_workspaceId, error) => {
         if (error instanceof SyncGoneError) {
@@ -444,12 +451,16 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // refresh roles + repaint. Gated on a loaded token (see isAuthed).
     if (isAuthed()) {
       hub.syncStatus(true);
+      authToastSilent = true;
       void manager
         .adoptRemoteWorkspaces()
         .then(() => manager.refreshRoles())
         .then(() => runtime.refreshRoleCache())
         .then(() => runtime.refresh())
-        .finally(() => hub.syncStatus(false));
+        .finally(() => {
+          hub.syncStatus(false);
+          authToastSilent = false;
+        });
     }
     // Owner-delete: when a locally-synced workspace is deleted, also trash the
     // Drive file + server rows (best-effort — deleteSync already swallows its

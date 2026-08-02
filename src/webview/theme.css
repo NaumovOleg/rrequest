@@ -118,7 +118,10 @@ body {
 .rm-tree-caret { width: 14px; color: var(--rm-muted); flex: none; }
 .rm-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rm-tree-children { padding-left: var(--rm-sp-3); }
-.rm-req-row { display: flex; align-items: center; gap: var(--rm-sp-2); padding: 2px var(--rm-sp-2) 2px var(--rm-sp-3); cursor: pointer; border-radius: var(--rm-radius); }
+/* Requests sit one level deeper than the folder/collection row they live in.
+   The folder row has a caret + icon column; requests have neither, so add that
+   width as extra indent — otherwise a request lines up with its folder. */
+.rm-req-row { display: flex; align-items: center; gap: var(--rm-sp-2); padding: 2px var(--rm-sp-2) 2px calc(var(--rm-sp-3) + 18px); cursor: pointer; border-radius: var(--rm-radius); }
 .rm-req-row:hover { background: var(--rm-hover); }
 /* row actions surface on hover / keyboard focus to keep the tree calm */
 .rm-tree-row .rm-actions, .rm-req-row .rm-actions { opacity: 0; }

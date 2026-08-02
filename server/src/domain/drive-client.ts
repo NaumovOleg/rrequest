@@ -5,6 +5,7 @@ export interface DriveClient {
   ensureFolder(name: string): Promise<string>;
   createFile(folderId: string, name: string, content: string): Promise<{ fileId: string; revision: string }>;
   updateFile(fileId: string, content: string): Promise<{ revision: string }>;
+  renameFile(fileId: string, name: string): Promise<void>;
   readFile(fileId: string): Promise<string>;
   getHeadRevision(fileId: string): Promise<string>;
   listFiles(folderId: string): Promise<{ id: string; name: string; headRevision: string }[]>;
@@ -141,6 +142,15 @@ export class GoogleDriveClient implements DriveClient {
     return { revision: ((await res.json()) as { headRevisionId?: string }).headRevisionId ?? "" };
   }
 
+  async renameFile(fileId: string, name: string): Promise<void> {
+    const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}?fields=id`, {
+      method: "PATCH",
+      headers: { ...(await this.auth()), "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error(`Drive rename failed: ${res.status}`);
+  }
+
   async readFile(fileId: string): Promise<string> {
     const res = await this.fetchWithRetry(`${DRIVE}/files/${fileId}?alt=media`, { headers: await this.auth() });
     if (!res.ok) throw new Error(`Drive read failed: ${res.status}`);
@@ -236,6 +246,11 @@ export class FakeDriveClient implements DriveClient {
     f.content = content;
     f.revision += 1;
     return { revision: String(f.revision) };
+  }
+  async renameFile(fileId: string, name: string): Promise<void> {
+    const f = this.files.get(fileId);
+    if (!f) throw new Error("file not found");
+    f.name = name;
   }
   async readFile(fileId: string): Promise<string> {
     const f = this.files.get(fileId);

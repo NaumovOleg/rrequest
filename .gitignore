@@ -3,6 +3,7 @@ dist/
 media/
 *.vsix
 
-# Local build config (SYNC_SERVER_URL etc.) — never commit
+# Local env (single root source: SYNC_SERVER_URL, GOOGLE_*, secrets…) — never commit
 .env
 .env.*
+!.env.example

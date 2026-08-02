@@ -1,6 +1,14 @@
 import { App } from "aws-cdk-lib";
 import { RrequestStack } from "../lib/rrequest-stack";
 
+// Pull local deploy config from the single ROOT env file (STAGE, GOOGLE_*,
+// GOOGLE_CLIENT_SECRET/JWT_SECRET/TOKEN_ENC_KEY, CDK_DEFAULT_*), so a local
+// `cdk deploy` doesn't need everything exported. CI sets these in the
+// environment directly, which wins over the file. `ENV_FILE=.env.prod cdk
+// deploy` selects prod values. (tsx runs this as CommonJS, so `require` is
+// available; the loader resolves the repo root from its own location.)
+require("../../../scripts/load-root-env.cjs")();
+
 // Deploys the backend as a single stack: DynamoDB tables + the Helios Lambda
 // (behind a Lambda Function URL) + the EventBridge-scheduled poll Lambda.
 // Account/region come from the AWS profile / CI credentials. GOOGLE_CLIENT_ID,

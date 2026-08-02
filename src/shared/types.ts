@@ -147,7 +147,7 @@ export type WebviewMessage =
   | { type: 'deleteEnvironment'; id: string }
   | { type: 'setActiveEnv'; id: string | null }
   | { type: 'importCollection' }
-  | { type: 'exportCollection'; id: string; format: 'native' | 'postman' }
+  | { type: 'exportCollection'; id: string; format: 'native' | 'postman' | 'openapi' }
   | { type: 'pickFile' }
   | { type: 'openRequest'; request: CollectionItem; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'loadWorkspaces' }

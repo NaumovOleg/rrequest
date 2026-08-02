@@ -23,7 +23,7 @@ export type RouterDeps = {
   getActiveEnvId: () => string | null
   setActiveEnvId: (id: string | null) => void
   openImport?: () => Promise<import('../shared/types').Collection | null>
-  runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman') => Promise<void>
+  runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman' | 'openapi') => Promise<void>
   pickFile?: () => Promise<{ path: string; filename: string } | null>
   workspaces: WorkspaceStore
   getActiveWorkspaceId: () => string

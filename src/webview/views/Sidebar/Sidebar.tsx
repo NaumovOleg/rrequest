@@ -210,7 +210,8 @@ export function Sidebar() {
                   })),
                   { label: c.environmentId ? '   Unbind environment' : '', icon: 'close' as const, onClick: () => postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId: null }) },
                   { label: 'Export native', icon: 'cloud-download', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'native' }) },
-                  { label: 'Export postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
+                  { label: 'Export Postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
+                  { label: 'Export OpenAPI', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'openapi' }) },
                 ].filter((it) => it.label !== '')} />
               </div>
             </div>

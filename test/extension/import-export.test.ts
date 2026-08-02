@@ -38,3 +38,33 @@ describe('serializeExport', () => {
     expect(p.info.schema).toContain('v2.1.0')
   })
 })
+
+describe('OpenAPI', () => {
+  const coll: Collection = { id: 'c1', name: 'API', workspaceId: '', requests: [
+    { id: 'r1', name: 'Create user', method: 'POST', url: 'https://api.example.com/users?verbose=1', params: [{ key: 'verbose', value: '1', enabled: true }], headers: [{ key: 'X-Api-Key', value: 'k', enabled: true }], body: { mode: 'raw', type: 'json', text: '{"name":"a"}' } },
+  ], folders: [
+    { id: 'f1', name: 'Admin', requests: [{ id: 'r2', name: 'List', method: 'GET', url: 'https://api.example.com/admin', params: [], headers: [], body: { mode: 'none' } }] },
+  ] }
+
+  it('exports an OpenAPI 3 doc with paths/methods/server', () => {
+    const doc = JSON.parse(serializeExport(coll, 'openapi'))
+    expect(doc.openapi).toMatch(/^3\./)
+    expect(doc.info.title).toBe('API')
+    expect(doc.servers[0].url).toBe('https://api.example.com')
+    expect(doc.paths['/users'].post.summary).toBe('Create user')
+    expect(doc.paths['/admin'].get.tags).toEqual(['Admin'])
+    expect(doc.paths['/users'].post.requestBody.content['application/json'].example).toEqual({ name: 'a' })
+  })
+
+  it('detects + imports an OpenAPI doc back into a collection (tags -> folders)', () => {
+    const doc = serializeExport(coll, 'openapi')
+    expect(detectFormat(JSON.parse(doc))).toBe('openapi')
+    const back = parseImport(doc)
+    expect(back.name).toBe('API')
+    const post = back.requests.find((r) => (r as any).method === 'POST') as any
+    expect(post.url).toBe('https://api.example.com/users')
+    expect(post.method).toBe('POST')
+    const admin = back.folders?.find((f) => f.name === 'Admin')
+    expect((admin?.requests[0] as any).method).toBe('GET')
+  })
+})

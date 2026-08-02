@@ -246,9 +246,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         }
       },
       runExport: async (c, format) => {
+        const suffix = format === "openapi" ? ".openapi" : format === "postman" ? ".postman" : "";
+        const safe = (c.name || "collection").replace(/[^a-z0-9_-]+/gi, "_");
         const target = await vscode.window.showSaveDialog({
           filters: { JSON: ["json"] },
           saveLabel: "Export",
+          defaultUri: vscode.Uri.file(`${safe}${suffix}.json`),
         });
         if (!target) return;
         try {

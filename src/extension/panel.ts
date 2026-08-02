@@ -20,6 +20,7 @@ import {
   SyncGoneError,
 } from "./sync/sync-client";
 import { SyncStateStore } from "./sync/sync-state-store";
+import { AccountStore } from "./sync/account-store";
 import { SyncManager } from "./sync/sync-manager";
 import { makeToastThrottle } from "./sync/toast-throttle";
 import { createPollLoop } from "./sync/poll-loop";
@@ -29,6 +30,7 @@ import { signIn } from "./sync/login";
 import {
   newId,
   defaultHeaders,
+  type Account,
   type HostMessage,
   type RestRequest,
   type WebviewMessage,
@@ -91,8 +93,8 @@ export function getSyncRuntime():
 }
 type SyncControlPort = {
   signIn(): Promise<void>;
-  signOut(): Promise<void>;
-  enable(workspaceId: string): Promise<void>;
+  signOut(accountId?: string): Promise<void>;
+  enable(workspaceId: string, accountId?: string): Promise<void>;
   syncNow(workspaceId: string): Promise<void>;
 };
 let syncControlRef: SyncControlPort | undefined;
@@ -148,34 +150,42 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         .get<string>("syncServerUrl") ||
       process.env.SYNC_SERVER_URL ||
       "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api";
-    // AWAIT the token load (don't fire-and-forget): startup kicks off authed
-    // calls (manager.refreshRoles, the poll loop) right below, and if the token
-    // weren't loaded yet they'd send an empty `Bearer`, 401, and onAuthLost
-    // would wipe the stored token — logging the user out on every reload.
-    let cachedToken: string | undefined =
-      (await context.secrets.get("rrequest.syncToken")) ?? undefined;
-    const isAuthed = (): boolean => !!cachedToken;
-    context.secrets.onDidChange(async (e) => {
-      if (e.key === "rrequest.syncToken")
-        cachedToken =
-          (await context.secrets.get("rrequest.syncToken")) ?? undefined;
-    });
-    const currentAuthEmail = (): string | null =>
-      cachedToken
-        ? (context.globalState.get<string>("rrequest.syncEmail") ?? null)
-        : null;
+    // --- Multi-account sync ---
+    // Several Google accounts can be connected at once; each synced workspace is
+    // bound to one (SyncState.accountId). AccountStore loads cached tokens (and
+    // migrates a legacy single-account session) up front, so startup's authed
+    // calls resolve tokens synchronously and never send an empty Bearer.
+    const accounts = new AccountStore({ secrets: context.secrets, globalState: context.globalState });
+    await accounts.load();
+    const isAuthed = (): boolean => !accounts.isEmpty();
+    const currentAccounts = (): Account[] => accounts.list();
     const activeWsId = (): string =>
       context.globalState.get<string>("rrequest.activeWorkspaceId", "");
 
-    const syncClient = new SyncClient({
-      baseUrl: syncBaseUrl(),
-      getToken: () => cachedToken,
-    });
+    // SyncState is read to resolve which account a workspace belongs to (by
+    // clientFor / the members port), so it's constructed here rather than later.
+    const syncState = new SyncStateStore(base);
+
+    // One SyncClient per account — the account's token is baked into its
+    // getToken closure. A missing accountId resolves to the sole account.
+    const clientCache = new Map<string, SyncClient>();
+    const clientFor = (accountId?: string): SyncClient => {
+      const key = accountId ?? "__default__";
+      let c = clientCache.get(key);
+      if (!c) {
+        c = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => accounts.getToken(accountId) });
+        clientCache.set(key, c);
+      }
+      return c;
+    };
+    const clientForWorkspace = async (id: string): Promise<SyncClient> =>
+      clientFor((await syncState.get(id))?.accountId);
+
     const membersPort = {
-      list: (id: string) => syncClient.listMembers(id),
+      list: async (id: string) => (await clientForWorkspace(id)).listMembers(id),
       add: async (id: string, email: string, role: "editor" | "viewer") => {
         try {
-          await syncClient.addMember(id, { email, role });
+          await (await clientForWorkspace(id)).addMember(id, { email, role });
         } catch (e) {
           if (e instanceof SyncForbiddenError) {
             hubRef?.toast("error", "Only the owner can add members.");
@@ -186,7 +196,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       },
       remove: async (id: string, memberId: string) => {
         try {
-          await syncClient.removeMember(id, memberId);
+          await (await clientForWorkspace(id)).removeMember(id, memberId);
         } catch (e) {
           if (e instanceof SyncForbiddenError) {
             hubRef?.toast("error", "Only the owner can remove members.");
@@ -261,7 +271,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // viewer would stay locked out (and the role badge would linger) after
       // signing out, and likewise on a cold start while signed out.
       isReadOnly: (id) =>
-        (cachedToken ? syncRuntimeRef?.isReadOnly(id) : false) ?? false,
+        (isAuthed() ? syncRuntimeRef?.isReadOnly(id) : false) ?? false,
       members: membersPort,
       // syncControlPort is built after the sync runtime below (it needs manager/
       // runtime/hub, which don't exist yet at createRouter time), so this is a
@@ -283,6 +293,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         "rrequest.activeWorkspaceId",
         "",
       );
+      // Per-workspace sync state (which account it's bound to, etc.) for the
+      // workspaces snapshot below.
+      const states = isAuthed() ? await syncState.all() : {};
       const cols = (await collections.list()).filter(
         (c) => (c.workspaceId || ws) === ws,
       );
@@ -307,16 +320,21 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         },
         {
           type: "workspaces",
-          workspaces: (await workspaces.list()).map((w) => ({
-            ...w,
-            role: cachedToken ? syncRuntimeRef?.roleOf(w.id) : undefined,
-            synced: cachedToken ? syncRuntimeRef?.syncedOf(w.id) : undefined,
-          })),
+          workspaces: (await workspaces.list()).map((w) => {
+            const st = states[w.id];
+            return {
+              ...w,
+              role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
+              synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
+              accountId: st?.accountId,
+              accountEmail: accounts.emailOf(st?.accountId),
+            };
+          }),
           activeId: ws,
         },
         { type: "history", entries: hist },
         { type: "trash", entries: trashed },
-        { type: "authState", email: currentAuthEmail() },
+        { type: "authState", accounts: currentAccounts() },
       ];
     };
 
@@ -357,18 +375,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       }
     });
 
-    // --- sync runtime (shares the router's stores + Hub; syncClient itself was
-    // constructed earlier so the router's members port could be built over it) ---
-    const syncState = new SyncStateStore(base);
-    // Shared by signOut and onAuthLost below: forgets the cached/stored token +
-    // remembered email. signOut is a user action (no toast); onAuthLost fires
-    // when the JWT/refresh token was invalidated server-side and additionally
-    // toasts so the user knows why they were signed out.
-    const clearSyncAuth = async (): Promise<void> => {
-      await context.secrets.delete("rrequest.syncToken");
-      cachedToken = undefined;
-      await context.globalState.update("rrequest.syncEmail", undefined);
-    };
+    // --- sync runtime (shares the router's stores + Hub; the account registry +
+    // per-account clients + syncState were constructed earlier so the router's
+    // members port could be built over them) ---
     // At most one toast per distinct message per 15s, so a flurry of failed
     // pushes/polls doesn't spam the user with a toast per workspace/attempt.
     const throttledToast = makeToastThrottle(
@@ -376,15 +385,16 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       15000,
     );
     const manager = new SyncManager({
-      client: syncClient,
+      clientFor,
+      accounts: () => accounts.ids(),
       state: syncState,
       stores: buildStoresPort(collections, environments, workspaces),
-      email: () => context.globalState.get<string>("rrequest.syncEmail", "me"),
+      email: (accountId) => accounts.emailOf(accountId) ?? "me",
       isAuthed,
       onAuthLost: async () => {
-        await clearSyncAuth();
-        hub.authState(null);
-        hub.toast("error", "Sync sign-in expired — please sign in again.");
+        // Multi-account: we can't tell which account's token expired from here,
+        // so don't remove anything — just prompt a re-sign-in.
+        hub.toast("error", "A sync sign-in expired — please sign in again.");
       },
       onSyncError: (_workspaceId, error) => {
         if (error instanceof SyncGoneError) {
@@ -449,7 +459,21 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       .getConfiguration("rrequest")
       .get<number>("syncPollIntervalMs", 45000);
     const pollLoop = createPollLoop({
-      listWorkspaces: () => syncClient.listWorkspaces(),
+      listWorkspaces: async () => {
+        // Aggregate across every connected account so a workspace on any of
+        // them is polled; pullIfNewer resolves each workspace's own account.
+        const out: { id: string; revision: string }[] = [];
+        for (const accountId of accounts.ids()) {
+          try {
+            for (const w of await clientFor(accountId).listWorkspaces()) {
+              out.push({ id: w.id, revision: w.revision });
+            }
+          } catch {
+            /* skip a failing account this tick */
+          }
+        }
+        return out;
+      },
       state: syncState,
       pullIfNewer: (id, revision) => manager.pullIfNewer(id, revision),
       isAuthed,
@@ -466,60 +490,61 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // snapshot) so the UI updates even on the command-palette path, which calls
       // the port directly rather than through hub.dispatch (which broadcasts on
       // its own). Idempotent double-broadcast on the webview path is harmless.
+      // signIn ADDS a Google account (multiple can be connected). The browser
+      // OAuth flow decides which account; we identify it via /me and register it.
       signIn: async () => {
         const token = await signIn({
           baseUrl: syncBaseUrl(),
           openExternal: (u) =>
             void vscode.env.openExternal(vscode.Uri.parse(u)),
         });
-        cachedToken = token;
-        await context.secrets.store("rrequest.syncToken", token);
         try {
-          const me = await syncClient.me();
-          await context.globalState.update("rrequest.syncEmail", me.email);
-          hub.authState(me.email);
-          // Pull the user's workspaces down so their collections/requests show
-          // up right after signing in (adopt is read-only + union — no wipe).
+          const who = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => token });
+          const me = await who.me();
+          await accounts.add({ id: me.id, email: me.email }, token);
+          clientCache.delete(me.id);
+          clientCache.delete("__default__");
+          hub.authState(currentAccounts());
+          // Pull every account's workspaces down (adopt is read-only + union — no
+          // wipe), each bound to its owning account.
           const res = await manager.adoptRemoteWorkspaces();
           await runtime.refreshRoleCache();
           if (res.adopted.length) {
-            // Switch to a just-adopted workspace so its collections are visible
-            // immediately instead of the empty local Default.
-            await context.globalState.update(
-              "rrequest.activeWorkspaceId",
-              res.adopted[0],
-            );
-            hub.toast(
-              "info",
-              `Pulled ${res.adopted.length} workspace(s) from your account.`,
-            );
+            await context.globalState.update("rrequest.activeWorkspaceId", res.adopted[0]);
+            hub.toast("info", `Pulled ${res.adopted.length} workspace(s).`);
           } else if (res.error) {
             hub.toast("error", `Couldn't fetch your workspaces: ${res.error}`);
           } else if (res.failed > 0) {
-            hub.toast(
-              "error",
-              `Found ${res.failed} workspace(s) on the server but couldn't read their Drive files.`,
-            );
-          } else {
-            hub.toast(
-              "info",
-              "No synced workspaces found on the server for this account.",
-            );
+            hub.toast("error", `Found ${res.failed} workspace(s) but couldn't read their Drive files.`);
           }
-        } catch {
-          hub.authState(null);
+        } catch (e: any) {
+          hub.toast("error", `Sign-in failed: ${e?.message ?? e}`);
         }
         await runtime.refresh();
       },
-      signOut: async () => {
-        await clearSyncAuth();
+      // signOut removes ONE account and drops sync on its workspaces (local data
+      // kept). No accountId -> remove the sole account (single-account case).
+      signOut: async (accountId?: string) => {
+        const id = accountId ?? (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
+        if (!id) return;
+        await accounts.remove(id);
+        clientCache.delete(id);
+        clientCache.delete("__default__");
+        for (const [wsId, st] of Object.entries(await syncState.all())) {
+          if (st.accountId === id && st.synced) await syncState.set(wsId, { ...st, synced: false });
+        }
         await runtime.refreshRoleCache();
-        hub.authState(null);
+        hub.authState(currentAccounts());
         await runtime.refresh();
       },
-      enable: async (id: string) => {
+      enable: async (id: string, accountId?: string) => {
+        const acct = accountId ?? (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
+        if (!acct) {
+          hub.toast("error", accounts.isEmpty() ? "Sign in with Google first." : "Choose an account to sync this workspace.");
+          return;
+        }
         try {
-          await manager.enable(id);
+          await manager.enable(id, acct);
           await runtime.refreshRoleCache();
           await runtime.refresh();
         } catch (e: any) {

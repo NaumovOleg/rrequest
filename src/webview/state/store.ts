@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole } from '../../shared/types'
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -62,6 +62,7 @@ type State = {
   membersWorkspaceId: string | null
   toasts: { id: string; level: 'error' | 'info'; message: string }[]
   authEmail: string | null
+  accounts: Account[]
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -98,6 +99,7 @@ type State = {
   dismissToast(id: string): void
   isViewer(): boolean
   activeWorkspace(): Workspace | undefined
+  setAccounts(list: Account[]): void
   setAuthEmail(email: string | null): void
   activeSynced(): boolean
   __reset(): void
@@ -132,6 +134,7 @@ export const useStore = create<State>((set, get) => ({
   membersWorkspaceId: null,
   toasts: [],
   authEmail: null,
+  accounts: [],
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -242,8 +245,10 @@ export const useStore = create<State>((set, get) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   activeWorkspace: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId) },
   isViewer: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.role === 'viewer' },
-  setAuthEmail: (authEmail) => set({ authEmail }),
+  setAccounts: (accounts) => set({ accounts: accounts ?? [], authEmail: accounts?.[0]?.email ?? null }),
+  // Convenience for the single-account case (tests, legacy call sites).
+  setAuthEmail: (email) => set({ accounts: email ? [{ id: 'me', email }] : [], authEmail: email }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [] }),
 }))

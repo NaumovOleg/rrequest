@@ -30,7 +30,7 @@ describe('EditorApp', () => {
   it('stores the workspaces + authState snapshot (so the Members panel sees role/synced)', () => {
     render(<EditorApp />)
     act(() => handler?.({ type: 'workspaces', workspaces: [{ id: 'w1', name: 'W', role: 'owner', synced: true }], activeId: 'w1' }))
-    act(() => handler?.({ type: 'authState', email: 'me@x.com' }))
+    act(() => handler?.({ type: 'authState', accounts: [{ id: 'a1', email: 'me@x.com' }] }))
     const s = useStore.getState()
     expect(s.activeWorkspaceId).toBe('w1')
     expect(s.activeWorkspace()?.role).toBe('owner')

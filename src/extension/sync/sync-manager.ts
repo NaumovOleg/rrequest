@@ -6,7 +6,7 @@ import { buildSnapshot, mergeEnvironmentsPreservingSecrets, type WorkspaceSnapsh
 import { mergeSnapshots, pruneDeleted } from './merge'
 
 export type AdoptResult = {
-  listed: number // workspaces the server (DynamoDB) knows about for this account
+  listed: number // workspaces the server (DynamoDB) knows about across all accounts
   adopted: string[] // workspace ids pulled down successfully
   failed: number // listed but the pull failed (e.g. trashed Drive file)
   error?: string // listWorkspaces itself failed
@@ -26,14 +26,19 @@ export type StoresPort = {
 export class SyncManager {
   constructor(
     private deps: {
-      client: SyncClient
+      // Multi-account: `clientFor(accountId)` returns a SyncClient bound to that
+      // account's token. A single legacy `client` is still accepted (tests) and
+      // used for every account. Each synced workspace records its accountId in
+      // SyncState; ops resolve the right client from it.
+      clientFor?: (accountId: string | undefined) => SyncClient
+      client?: SyncClient
+      accounts?: () => string[] // connected account ids (for adopt / refreshRoles)
       state: SyncStateStore
       stores: StoresPort
-      email: () => string
-      // Returns false when there's no app token yet (never signed in, or the
-      // token is still loading from SecretStorage on startup). Network methods
-      // no-op in that case, so an empty `Bearer` request never fires — which
-      // would otherwise 401 and trip onAuthLost, wiping the stored token.
+      email: (accountId?: string) => string
+      // Returns false when no account is connected (or a token is still loading
+      // on startup). Network methods no-op then, so an empty `Bearer` never
+      // fires and onAuthLost can't wipe a token.
       isAuthed?: () => boolean
       onAuthLost?: () => void | Promise<void>
       onSyncError?: (workspaceId: string, error: unknown) => void
@@ -54,10 +59,23 @@ export class SyncManager {
     return this.deps.isAuthed?.() ?? true
   }
 
+  /** The SyncClient for an account (falls back to the legacy single client). */
+  private cli(accountId?: string): SyncClient {
+    const c = this.deps.clientFor ? this.deps.clientFor(accountId) : this.deps.client
+    if (!c) throw new SyncAuthError()
+    return c
+  }
+
+  /** Account ids to sweep for adopt / refreshRoles; [undefined] when unset (legacy single account). */
+  private accountScope(): (string | undefined)[] {
+    const ids = this.deps.accounts?.()
+    return ids && ids.length ? ids : [undefined]
+  }
+
   /** Pull the current remote snapshot, or undefined if the workspace isn't on the server yet (404). */
-  private async tryPull(workspaceId: string): Promise<{ snapshot: WorkspaceSnapshot; revision: string } | undefined> {
+  private async tryPull(workspaceId: string, accountId?: string): Promise<{ snapshot: WorkspaceSnapshot; revision: string } | undefined> {
     try {
-      const { snapshot, revision } = await this.deps.client.pull(workspaceId)
+      const { snapshot, revision } = await this.cli(accountId).pull(workspaceId)
       return { snapshot: JSON.parse(snapshot) as WorkspaceSnapshot, revision }
     } catch (e) {
       if (e instanceof SyncGoneError) return undefined // not created on the server yet
@@ -75,7 +93,7 @@ export class SyncManager {
     )
   }
 
-  /** Shared catch taxonomy for push/pull. Returns true if the error was handled (caller should return). */
+  /** Shared catch taxonomy for push/pull. */
   private async handleSyncError(workspaceId: string, e: unknown): Promise<void> {
     if (e instanceof SyncForbiddenError) { await this.dropSync(workspaceId); return }
     if (e instanceof SyncGoneError) { await this.dropSync(workspaceId); this.deps.onSyncError?.(workspaceId, e); return }
@@ -83,31 +101,30 @@ export class SyncManager {
     this.deps.onSyncError?.(workspaceId, e)
   }
 
-  private async buildLocalSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
+  private async buildLocalSnapshot(workspaceId: string, accountId?: string): Promise<WorkspaceSnapshot> {
     const [name, collections, environments] = await Promise.all([
       this.deps.stores.getName(workspaceId),
       this.deps.stores.getCollections(workspaceId),
       this.deps.stores.getEnvironments(workspaceId),
     ])
-    return buildSnapshot({ workspaceId, name, collections, environments, updatedBy: this.deps.email() })
+    return buildSnapshot({ workspaceId, name, collections, environments, updatedBy: this.deps.email(accountId) })
   }
 
-  async enable(workspaceId: string): Promise<void> {
+  /** Enable sync for a workspace, binding it to the given account. */
+  async enable(workspaceId: string, accountId?: string): Promise<void> {
     if (!this.authed()) return
-    const local = await this.buildLocalSnapshot(workspaceId)
+    const local = await this.buildLocalSnapshot(workspaceId, accountId)
     // Adopt an already-existing remote file (re-enabling, or a new machine)
-    // instead of overwriting it: union local edits over the remote content
-    // (local wins, remote-only items kept) and pull that union down locally so
-    // the remote's collections show up. A brand-new workspace (404) just writes
-    // local.
-    const remote = await this.tryPull(workspaceId)
+    // instead of overwriting it: union local edits over the remote content and
+    // pull that union down locally. A brand-new workspace (404) just writes local.
+    const remote = await this.tryPull(workspaceId, accountId)
     let toWrite = local
     if (remote) {
       toWrite = mergeSnapshots(local, remote.snapshot)
       await this.applyMergedLocally(workspaceId, toWrite)
     }
-    const { driveFileId, revision } = await this.deps.client.enableSync(workspaceId, toWrite.name, JSON.stringify(toWrite))
-    await this.deps.state.set(workspaceId, { driveFileId, ownerEmail: this.deps.email(), role: 'owner', lastRevision: revision, synced: true })
+    const { driveFileId, revision } = await this.cli(accountId).enableSync(workspaceId, toWrite.name, JSON.stringify(toWrite))
+    await this.deps.state.set(workspaceId, { driveFileId, ownerEmail: this.deps.email(accountId), role: 'owner', lastRevision: revision, synced: true, accountId })
   }
 
   private async dropSync(workspaceId: string): Promise<void> {
@@ -119,22 +136,19 @@ export class SyncManager {
     if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
+    const accountId = state.accountId
     try {
-      const local = await this.buildLocalSnapshot(workspaceId)
+      const local = await this.buildLocalSnapshot(workspaceId, accountId)
       // Union local over the CURRENT remote before writing, so a stale/empty
-      // local can never wipe remote-only collections/requests. Local edits win
-      // for shared ids; remote-only items are preserved; explicitly-deleted ids
-      // are pruned back out (the only way a delete reaches the remote).
-      const remote = await this.tryPull(workspaceId)
+      // local can never wipe remote-only items. Local edits win; remote-only
+      // items are preserved; explicitly-deleted ids are pruned back out.
+      const remote = await this.tryPull(workspaceId, accountId)
       let merged = remote ? mergeSnapshots(local, remote.snapshot) : local
       merged = pruneDeleted(merged, this.pendingDeletes)
       const baseRevision = remote ? remote.revision : state.lastRevision
 
-      const first = await this.deps.client.push(workspaceId, JSON.stringify(merged), baseRevision)
+      const first = await this.cli(accountId).push(workspaceId, JSON.stringify(merged), baseRevision)
       if (first.ok) {
-        // Only after the write succeeds do we adopt the union locally (so any
-        // remote-only items now show up) — local-first: a failed sync never
-        // mutates local stores.
         if (remote) await this.applyMergedLocally(workspaceId, merged)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: first.revision })
         this.pendingDeletes.clear()
@@ -144,7 +158,7 @@ export class SyncManager {
       // remote under our merged (local still wins), prune again, retry once.
       const remote2 = JSON.parse(first.snapshot) as WorkspaceSnapshot
       const merged2 = pruneDeleted(mergeSnapshots(merged, remote2), this.pendingDeletes)
-      const retry = await this.deps.client.push(workspaceId, JSON.stringify(merged2), first.revision)
+      const retry = await this.cli(accountId).push(workspaceId, JSON.stringify(merged2), first.revision)
       if (retry.ok) {
         await this.applyMergedLocally(workspaceId, merged2)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
@@ -159,10 +173,11 @@ export class SyncManager {
     if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
+    const accountId = state.accountId
     try {
-      const { snapshot, revision, role } = await this.deps.client.pull(workspaceId)
+      const { snapshot, revision, role } = await this.cli(accountId).pull(workspaceId)
       const remote = JSON.parse(snapshot) as WorkspaceSnapshot
-      const local = await this.buildLocalSnapshot(workspaceId)
+      const local = await this.buildLocalSnapshot(workspaceId, accountId)
       const merged = mergeSnapshots(remote, local)
       const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
       const environments = mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs)
@@ -173,79 +188,81 @@ export class SyncManager {
     }
   }
 
-  // Pull every server workspace down after login so its collections/requests
-  // appear locally. Read-only (no push), remote-wins union, so it never
-  // overwrites remote OR local — it only adds. Creates a matching local
-  // workspace on a fresh machine. Returns a summary so the caller can surface
-  // what happened (auto-select an adopted workspace, or report why nothing
-  // came down).
+  // Pull every server workspace down (across ALL connected accounts) after
+  // login so its collections/requests appear locally, bound to the account that
+  // owns/shares them. Read-only (no push), remote-wins union — never overwrites.
   async adoptRemoteWorkspaces(): Promise<AdoptResult> {
     if (!this.authed()) return { listed: 0, adopted: [], failed: 0 }
-    // Best-effort: rebuild the server index from Drive first, so workspaces
-    // whose DynamoDB row went missing (desync) reappear in listWorkspaces.
-    try {
-      await this.deps.client.recover()
-    } catch {
-      // recover is a recovery aid, not required — proceed with whatever the
-      // server already indexes.
-    }
-    let remotes
-    try {
-      remotes = await this.deps.client.listWorkspaces()
-    } catch (e) {
-      if (e instanceof SyncAuthError) await this.deps.onAuthLost?.()
-      return { listed: 0, adopted: [], failed: 0, error: String((e as Error)?.message ?? e) }
-    }
     const adopted: string[] = []
+    let listed = 0
     let failed = 0
-    for (const w of remotes) {
+    let error: string | undefined
+    for (const accountId of this.accountScope()) {
       try {
-        const pulled = await this.tryPull(w.id)
-        if (!pulled) { failed++; continue } // listed but no remote file (404) — inconsistent server state
-        // Prefer the Drive file's name (content truth) over the DynamoDB row's
-        // name, which can be stale (push only bumps revision, not the row name).
-        await this.deps.stores.ensureWorkspace?.(w.id, pulled.snapshot.name || w.name || w.id)
-        const local = await this.buildLocalSnapshot(w.id)
-        const merged = mergeSnapshots(pulled.snapshot, local) // remote-wins union (adopt)
-        await this.applyMergedLocally(w.id, merged)
-        await this.deps.state.set(w.id, {
-          driveFileId: w.driveFileId ?? '',
-          ownerEmail: this.deps.email(),
-          role: w.role ?? 'owner',
-          lastRevision: pulled.revision,
-          synced: true,
-        })
-        adopted.push(w.id)
+        await this.cli(accountId).recover()
+      } catch {
+        /* recovery aid — proceed with whatever the server already indexes */
+      }
+      let remotes
+      try {
+        remotes = await this.cli(accountId).listWorkspaces()
       } catch (e) {
-        failed++
-        // eslint-disable-next-line no-console
-        console.error(`[rrequest] adopt failed for workspace ${w.id}:`, e)
+        if (e instanceof SyncAuthError) await this.deps.onAuthLost?.()
+        error = String((e as Error)?.message ?? e)
+        continue
+      }
+      listed += remotes.length
+      for (const w of remotes) {
+        try {
+          const pulled = await this.tryPull(w.id, accountId)
+          if (!pulled) { failed++; continue }
+          await this.deps.stores.ensureWorkspace?.(w.id, pulled.snapshot.name || w.name || w.id)
+          const local = await this.buildLocalSnapshot(w.id, accountId)
+          const merged = mergeSnapshots(pulled.snapshot, local)
+          await this.applyMergedLocally(w.id, merged)
+          await this.deps.state.set(w.id, {
+            driveFileId: w.driveFileId ?? '',
+            ownerEmail: this.deps.email(accountId),
+            role: w.role ?? 'owner',
+            lastRevision: pulled.revision,
+            synced: true,
+            accountId,
+          })
+          adopted.push(w.id)
+        } catch (e) {
+          failed++
+          // eslint-disable-next-line no-console
+          console.error(`[rrequest] adopt failed for workspace ${w.id}:`, e)
+        }
       }
     }
-    return { listed: remotes.length, adopted, failed }
+    return { listed, adopted, failed, ...(adopted.length === 0 && error ? { error } : {}) }
   }
 
   async refreshRoles(): Promise<void> {
     if (!this.authed()) return
-    let remote
-    try {
-      remote = await this.deps.client.listWorkspaces()
-    } catch (e) {
-      if (e instanceof SyncForbiddenError) return
-      if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); return }
-      this.deps.onSyncError?.('*', e)
-      return
-    }
-    for (const w of remote) {
-      if (!w.role) continue
-      const state = await this.deps.state.get(w.id)
-      if (state?.synced) await this.deps.state.set(w.id, { ...state, role: w.role })
+    for (const accountId of this.accountScope()) {
+      let remote
+      try {
+        remote = await this.cli(accountId).listWorkspaces()
+      } catch (e) {
+        if (e instanceof SyncForbiddenError) continue
+        if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); continue }
+        this.deps.onSyncError?.('*', e)
+        continue
+      }
+      for (const w of remote) {
+        if (!w.role) continue
+        const state = await this.deps.state.get(w.id)
+        if (state?.synced) await this.deps.state.set(w.id, { ...state, role: w.role })
+      }
     }
   }
 
   async deleteSync(workspaceId: string): Promise<void> {
+    const accountId = (await this.deps.state.get(workspaceId))?.accountId
     try {
-      await this.deps.client.deleteWorkspace(workspaceId)
+      await this.cli(accountId).deleteWorkspace(workspaceId)
     } catch (e) {
       if (e instanceof SyncGoneError) { await this.dropSync(workspaceId); return }
       this.deps.onSyncError?.(workspaceId, e)

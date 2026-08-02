@@ -33,7 +33,7 @@ export function EditorApp() {
   const setMembersWorkspaceId = useStore((s) => s.setMembersWorkspaceId);
   const setMembers = useStore((s) => s.setMembers);
   const setWorkspaces = useStore((s) => s.setWorkspaces);
-  const setAuthEmail = useStore((s) => s.setAuthEmail);
+  const setAccounts = useStore((s) => s.setAccounts);
   const pushToast = useStore((s) => s.pushToast);
   const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
   const activeLabel = active ? `${active.method} ${active.name}` : undefined;
@@ -98,7 +98,7 @@ export function EditorApp() {
         // workspace snapshot too, not just the sidebar.
         setWorkspaces(m.workspaces, m.activeId);
       } else if (m.type === "authState") {
-        setAuthEmail(m.email);
+        setAccounts(m.accounts);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -165,7 +165,7 @@ export function EditorApp() {
     setMembersWorkspaceId,
     setMembers,
     setWorkspaces,
-    setAuthEmail,
+    setAccounts,
     pushToast,
   ]);
 

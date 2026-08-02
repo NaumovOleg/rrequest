@@ -35,7 +35,7 @@ export type RouterDeps = {
   trash?: import('./trash-store').TrashStore
   isReadOnly?: (workspaceId: string) => boolean
   members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
-  syncControl?: { signIn(): Promise<void>; signOut(): Promise<void>; enable(workspaceId: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }
+  syncControl?: { signIn(): Promise<void>; signOut(accountId?: string): Promise<void>; enable(workspaceId: string, accountId?: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }
   // Best-effort hook fired when a workspace is deleted locally, so the host
   // can also trash its Drive file + server rows if it was synced. Must never
   // reject (the sync side already swallows its own errors) and never blocks
@@ -445,8 +445,8 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'tree', collections: await deps.collections.list() }
       }
       case 'signIn': await deps.syncControl?.signIn(); return undefined
-      case 'signOut': await deps.syncControl?.signOut(); return undefined
-      case 'enableSync': await deps.syncControl?.enable(msg.workspaceId); return undefined
+      case 'signOut': await deps.syncControl?.signOut(msg.accountId); return undefined
+      case 'enableSync': await deps.syncControl?.enable(msg.workspaceId, msg.accountId); return undefined
       case 'syncNow': await deps.syncControl?.syncNow(msg.workspaceId); return undefined
       default:
         return undefined

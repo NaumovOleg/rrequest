@@ -250,6 +250,25 @@ describe('SyncManager', () => {
     expect(onSyncError).toHaveBeenCalledWith('w1', boom)
   })
 
+  it('multi-account: enable binds the workspace to an account and push uses that account\'s client', async () => {
+    const calls: string[] = []
+    const clientA = { enableSync: vi.fn(async () => { calls.push('A.enable'); return { driveFileId: 'f', revision: '1' } }), pull: vi.fn(async () => { throw new SyncGoneError() }), push: vi.fn(async () => { calls.push('A.push'); return { ok: true, revision: '2' } }) } as any
+    const clientB = { enableSync: vi.fn(async () => { calls.push('B.enable'); return { driveFileId: 'fb', revision: '1' } }), pull: vi.fn(async () => { throw new SyncGoneError() }), push: vi.fn(async () => { calls.push('B.push'); return { ok: true, revision: '9' } }) } as any
+    const clientFor = (id?: string) => (id === 'accB' ? clientB : clientA)
+    const { port } = stores({ collections: [col()], environments: [] })
+    const state = new SyncStateStore(dir)
+    const mgr = new SyncManager({ clientFor, accounts: () => ['accA', 'accB'], state, stores: port, email: (id) => `${id}@x.com` })
+
+    await mgr.enable('w1', 'accB')
+    expect((await state.get('w1'))?.accountId).toBe('accB')
+    expect(clientB.enableSync).toHaveBeenCalled()
+    expect(clientA.enableSync).not.toHaveBeenCalled()
+
+    await mgr.push('w1')
+    expect(calls).toContain('B.push')
+    expect(calls).not.toContain('A.push') // used the bound account's client
+  })
+
   it('deleteSync calls client.deleteWorkspace then drops sync locally', async () => {
     const deleteWorkspace = vi.fn(async () => {})
     const client = { deleteWorkspace, push: vi.fn(), pull: vi.fn(), enableSync: vi.fn() } as any

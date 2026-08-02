@@ -7,6 +7,9 @@ export type SyncState = {
   role: 'owner' | 'editor' | 'viewer'
   lastRevision: string
   synced: boolean
+  // Which connected account (AccountStore id) this workspace is bound to. Absent
+  // on pre-multi-account state -> resolves to the sole account as a fallback.
+  accountId?: string
 }
 
 export class SyncStateStore {

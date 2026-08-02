@@ -13,7 +13,7 @@ name: deploy
 # GOOGLE_REDIRECT_URI variables, so dev and prod deploy to their own targets.
 on:
   push:
-    branches: [main, development]
+    branches: [main]
   workflow_dispatch: {}
 
 concurrency:

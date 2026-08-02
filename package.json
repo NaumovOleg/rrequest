@@ -3,7 +3,7 @@
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
   "version": "0.0.1",
-  "publisher": "rrequest",
+  "publisher": "olgert",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -62,6 +62,11 @@
       ]
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NaumovOleg/rrequest"
+  },
+  "icon": "resources/rrequest.png",
   "scripts": {
     "build": "RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build && node esbuild.js",
     "watch": "node esbuild.js --watch",

@@ -245,16 +245,21 @@ then the extension**:
    tag. The bump is `--no-git-tag-version` (only the tag is pushed), so it never
    re-triggers the workflow.
 
-### Two environments (branch → environment → release channel)
+### Two environments (branch → environment → stack → release)
 
 Secrets and variables live in **GitHub Environments**, not at repo level. The
 workflow picks the environment from the branch, so `main` and `development`
-deploy to their own AWS targets with their own credentials:
+deploy to their own AWS targets with their own credentials. `STAGE` selects the
+stack: production keeps the original unprefixed `RrequestStack` (tables `Users`,
+`Workspaces`, `Memberships`); development deploys `DevelopmentRrequestStack` with
+a `development-` prefix on every table name, so both stacks can coexist in one
+AWS account. **Only `main` publishes the extension** — a `development` push
+deploys the AWS stack and stops.
 
-| Branch        | Environment   | Marketplace release            | Tag                 |
-|---------------|---------------|--------------------------------|---------------------|
-| `main`        | `production`  | **stable** (`vsce publish`)    | `vX.Y.Z`            |
-| `development` | `development` | **pre-release** (`--pre-release`) | `vX.Y.Z-pre.<run#>` |
+| Branch        | Environment   | STAGE / stack                       | Extension          |
+|---------------|---------------|-------------------------------------|--------------------|
+| `main`        | `production`  | `production` / `RrequestStack`      | **stable** (`vsce publish`), tag `vX.Y.Z` |
+| `development` | `development` | `development` / `DevelopmentRrequestStack` | none (deploy only) |
 
 ### One-time setup
 

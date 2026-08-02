@@ -27,6 +27,16 @@ describe('EditorApp', () => {
     expect(active.preRequestScript).toBe('pm.environment.set("a","1")')
     expect(active.testScript).toBe('pm.test("t",()=>{})')
   })
+  it('stores the workspaces + authState snapshot (so the Members panel sees role/synced)', () => {
+    render(<EditorApp />)
+    act(() => handler?.({ type: 'workspaces', workspaces: [{ id: 'w1', name: 'W', role: 'owner', synced: true }], activeId: 'w1' }))
+    act(() => handler?.({ type: 'authState', email: 'me@x.com' }))
+    const s = useStore.getState()
+    expect(s.activeWorkspaceId).toBe('w1')
+    expect(s.activeWorkspace()?.role).toBe('owner')
+    expect(s.activeSynced()).toBe(true)
+    expect(s.authEmail).toBe('me@x.com')
+  })
   it('routes a response into the active tab store', () => {
     useStore.getState().openNewTab()
     const id = useStore.getState().tabs[0].id

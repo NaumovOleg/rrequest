@@ -32,6 +32,8 @@ export function EditorApp() {
   const setMembersMode = useStore((s) => s.setMembersMode);
   const setMembersWorkspaceId = useStore((s) => s.setMembersWorkspaceId);
   const setMembers = useStore((s) => s.setMembers);
+  const setWorkspaces = useStore((s) => s.setWorkspaces);
+  const setAuthEmail = useStore((s) => s.setAuthEmail);
   const pushToast = useStore((s) => s.pushToast);
   const active = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId));
   const activeLabel = active ? `${active.method} ${active.name}` : undefined;
@@ -90,6 +92,13 @@ export function EditorApp() {
         setMembersWorkspaceId(m.workspaceId);
       } else if (m.type === "members") {
         setMembers(m.members);
+      } else if (m.type === "workspaces") {
+        // The Members panel needs the active workspace's role + synced state to
+        // decide whether to show the invite form — so the editor must track the
+        // workspace snapshot too, not just the sidebar.
+        setWorkspaces(m.workspaces, m.activeId);
+      } else if (m.type === "authState") {
+        setAuthEmail(m.email);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -155,6 +164,8 @@ export function EditorApp() {
     setMembersMode,
     setMembersWorkspaceId,
     setMembers,
+    setWorkspaces,
+    setAuthEmail,
     pushToast,
   ]);
 

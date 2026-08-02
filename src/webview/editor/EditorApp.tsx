@@ -51,8 +51,8 @@ export function EditorApp() {
     } else if (envMode) {
       postToHost({ type: "setTitle", title: "Environments" });
     } else if (active && activeMethod) {
-      // The tab shows the method as a colored icon (like the sidebar badge) and
-      // the request NAME as the title — so the method isn't duplicated in text.
+      // Tab = colored method badge icon (GET/POST/… fitted with textLength so it
+      // never clips) + the request NAME as the title.
       postToHost({
         type: "setTitle",
         title: `${activeDirty ? "● " : ""}${active.name}`,

@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="#C5C5C5" fill-rule="evenodd" d="M10.5 2.5l3.5 3-3.5 3V6.5H2v-2h8.5v-2zM5.5 13.5l-3.5-3 3.5-3v2H14v2H5.5v2z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#c5c5c5" stroke-width="1.15">
+  <circle cx="8" cy="8" r="6.1"/>
+  <ellipse cx="8" cy="8" rx="2.7" ry="6.1"/>
+  <line x1="1.9" y1="8" x2="14.1" y2="8"/>
+</svg>

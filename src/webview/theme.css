@@ -230,7 +230,9 @@ body {
 .rm-account .rm-btn--ghost:hover { color: var(--rm-fg); }
 
 /* workspace switcher: a trigger that doubles as the popup's search field */
-.rm-ws-switcher { position: relative; display: flex; align-items: center; gap: var(--rm-sp-1); }
+.rm-ws-switcher { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.rm-ws-bar { display: flex; align-items: center; gap: var(--rm-sp-1); }
+.rm-ws-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; padding-left: 2px; }
 .rm-ws-trigger { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
 .rm-ws-trigger-icon { position: absolute; left: 7px; color: var(--rm-muted); pointer-events: none; z-index: 1; }
 .rm-ws-trigger .rm-ws-search { width: 100%; padding-left: 26px; padding-right: 22px; cursor: pointer; }

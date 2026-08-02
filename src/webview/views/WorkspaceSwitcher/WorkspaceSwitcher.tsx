@@ -119,72 +119,80 @@ export function WorkspaceSwitcher() {
     );
   };
 
+  const showMeta = !!active?.role || !!(authEmail && active);
+
   return (
     <div className="rm-ws-switcher" ref={ref}>
-      <div className="rm-ws-trigger">
-        <span
-          className={`codicon codicon-${active ? typeIcon(active) : "account"} rm-ws-trigger-icon`}
-          aria-hidden="true"
-        />
-        <input
-          className="rm-input rm-ws-search"
-          aria-label="Switch workspace"
-          aria-expanded={open}
-          placeholder="Search Workspaces"
-          value={open ? query : active?.name ?? ""}
-          onFocus={openPopup}
-          onClick={openPopup}
-          onChange={(e) => {
-            openPopup();
-            setQuery(e.target.value);
-          }}
-        />
-        <span className="codicon codicon-chevron-down rm-ws-chevron" aria-hidden="true" />
+      {/* Row 1: the workspace picker + inline actions */}
+      <div className="rm-ws-bar">
+        <div className="rm-ws-trigger">
+          <span
+            className={`codicon codicon-${active ? typeIcon(active) : "account"} rm-ws-trigger-icon`}
+            aria-hidden="true"
+          />
+          <input
+            className="rm-input rm-ws-search"
+            aria-label="Switch workspace"
+            aria-expanded={open}
+            placeholder="Search Workspaces"
+            value={open ? query : active?.name ?? ""}
+            onFocus={openPopup}
+            onClick={openPopup}
+            onChange={(e) => {
+              openPopup();
+              setQuery(e.target.value);
+            }}
+          />
+          <span className="codicon codicon-chevron-down rm-ws-chevron" aria-hidden="true" />
+        </div>
+
+        {!isViewer && (
+          <IconButton
+            icon="cloud-download"
+            label="import collection"
+            onClick={() => postToHost({ type: "importCollection" })}
+          />
+        )}
+
+        {isOwner && active && (
+          <IconButton
+            icon="organization"
+            label="members"
+            onClick={() => postToHost({ type: "openMembers", workspaceId: active.id })}
+          />
+        )}
       </div>
 
-      {active?.role && <span className="rm-role-badge">{ROLE_LABEL[active.role]}</span>}
+      {/* Row 2: role + sync status — its own line so nothing overlaps the picker */}
+      {showMeta && (
+        <div className="rm-ws-meta">
+          {active?.role && <span className="rm-role-badge">{ROLE_LABEL[active.role]}</span>}
 
-      {authEmail && active && (
-        synced ? (
-          <div className="rm-sync-status">
-            <span className="codicon codicon-cloud" aria-hidden="true" />
-            <span className="rm-sync-status-text">
-              synced · {ROLE_LABEL[active.role ?? "owner"]}
-            </span>
-            <button
-              type="button"
-              className="rm-sync-now"
-              onClick={() => postToHost({ type: "syncNow", workspaceId: active.id })}
-            >
-              Sync Now
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="rm-btn rm-btn--ghost rm-btn--sm rm-sync-enable"
-            onClick={() => postToHost({ type: "enableSync", workspaceId: active.id })}
-          >
-            <span className="codicon codicon-cloud-upload" aria-hidden="true" />
-            Enable Sync
-          </button>
-        )
-      )}
-
-      {!isViewer && (
-        <IconButton
-          icon="cloud-download"
-          label="import collection"
-          onClick={() => postToHost({ type: "importCollection" })}
-        />
-      )}
-
-      {isOwner && active && (
-        <IconButton
-          icon="organization"
-          label="members"
-          onClick={() => postToHost({ type: "openMembers", workspaceId: active.id })}
-        />
+          {authEmail && active && (
+            synced ? (
+              <div className="rm-sync-status">
+                <span className="codicon codicon-cloud" aria-hidden="true" />
+                <span className="rm-sync-status-text">Synced</span>
+                <button
+                  type="button"
+                  className="rm-sync-now"
+                  onClick={() => postToHost({ type: "syncNow", workspaceId: active.id })}
+                >
+                  Sync Now
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="rm-btn rm-btn--ghost rm-btn--sm rm-sync-enable"
+                onClick={() => postToHost({ type: "enableSync", workspaceId: active.id })}
+              >
+                <span className="codicon codicon-cloud-upload" aria-hidden="true" />
+                Enable Sync
+              </button>
+            )
+          )}
+        </div>
       )}
 
       {open && (

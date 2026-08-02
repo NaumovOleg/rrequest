@@ -7,6 +7,7 @@ export interface DriveClient {
   updateFile(fileId: string, content: string): Promise<{ revision: string }>;
   readFile(fileId: string): Promise<string>;
   getHeadRevision(fileId: string): Promise<string>;
+  listFiles(folderId: string): Promise<{ id: string; name: string; headRevision: string }[]>;
   watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo>;
   stopChannel(opts: { channelId: string; resourceId: string }): Promise<void>;
   createPermission(fileId: string, opts: { email: string; role: "writer" | "reader"; sendNotificationEmail?: boolean }): Promise<{ permissionId: string }>;
@@ -152,6 +153,14 @@ export class GoogleDriveClient implements DriveClient {
     return ((await res.json()) as { headRevisionId?: string }).headRevisionId ?? "";
   }
 
+  async listFiles(folderId: string): Promise<{ id: string; name: string; headRevision: string }[]> {
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const res = await this.fetchWithRetry(`${DRIVE}/files?q=${q}&fields=files(id,name,headRevisionId)&spaces=drive`, { headers: await this.auth() });
+    if (!res.ok) throw new Error(`Drive list failed: ${res.status}`);
+    const j = (await res.json()) as { files?: { id: string; name: string; headRevisionId?: string }[] };
+    return (j.files ?? []).map((f) => ({ id: f.id, name: f.name, headRevision: f.headRevisionId ?? "" }));
+  }
+
   async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
     const body: Record<string, unknown> = { id: opts.channelId, type: "web_hook", address: opts.address, token: opts.token };
     if (opts.ttlSeconds) body.expiration = Date.now() + opts.ttlSeconds * 1000;
@@ -206,7 +215,7 @@ export class GoogleDriveClient implements DriveClient {
 // In-memory DriveClient for tests.
 export class FakeDriveClient implements DriveClient {
   private folders = new Map<string, string>();
-  private files = new Map<string, { content: string; revision: number }>();
+  private files = new Map<string, { content: string; revision: number; folderId: string; name: string }>();
   private channels = new Map<string, { fileId: string; resourceId: string; token: string; expiration: number }>();
   private perms = new Map<string, { permissionId: string; email: string; role: "writer" | "reader" }[]>();
   private seq = 0;
@@ -216,9 +225,9 @@ export class FakeDriveClient implements DriveClient {
     if (!this.folders.has(name)) this.folders.set(name, `folder-${name}`);
     return this.folders.get(name)!;
   }
-  async createFile(_folderId: string, _name: string, content: string): Promise<{ fileId: string; revision: string }> {
+  async createFile(folderId: string, name: string, content: string): Promise<{ fileId: string; revision: string }> {
     const fileId = `file-${++this.seq}`;
-    this.files.set(fileId, { content, revision: 1 });
+    this.files.set(fileId, { content, revision: 1, folderId, name });
     return { fileId, revision: "1" };
   }
   async updateFile(fileId: string, content: string): Promise<{ revision: string }> {
@@ -237,6 +246,11 @@ export class FakeDriveClient implements DriveClient {
     const f = this.files.get(fileId);
     if (!f) throw new Error("file not found");
     return String(f.revision);
+  }
+  async listFiles(folderId: string): Promise<{ id: string; name: string; headRevision: string }[]> {
+    const out: { id: string; name: string; headRevision: string }[] = [];
+    for (const [id, f] of this.files) if (f.folderId === folderId) out.push({ id, name: f.name, headRevision: String(f.revision) });
+    return out;
   }
   async watchFile(fileId: string, opts: WatchOpts): Promise<WatchInfo> {
     const resourceId = `res-${opts.channelId}`;

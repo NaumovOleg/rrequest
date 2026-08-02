@@ -181,6 +181,14 @@ export class SyncManager {
   // came down).
   async adoptRemoteWorkspaces(): Promise<AdoptResult> {
     if (!this.authed()) return { listed: 0, adopted: [], failed: 0 }
+    // Best-effort: rebuild the server index from Drive first, so workspaces
+    // whose DynamoDB row went missing (desync) reappear in listWorkspaces.
+    try {
+      await this.deps.client.recover()
+    } catch {
+      // recover is a recovery aid, not required — proceed with whatever the
+      // server already indexes.
+    }
     let remotes
     try {
       remotes = await this.deps.client.listWorkspaces()

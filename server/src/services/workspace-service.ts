@@ -21,6 +21,7 @@ export type PushResult =
   | { status: 409; body: { snapshot: string; revision: string } }
   | { status: 500 };
 export type DeleteSyncResult = { ok: true } | { status: 403 | 404 };
+export type RecoverResult = { recovered: string[]; total: number } | { status: 401 };
 
 /** The `name` field of a snapshot JSON string, or undefined if unparseable. */
 function snapshotName(snapshot: string): string | undefined {
@@ -135,6 +136,48 @@ export class WorkspaceService {
     const name = snapshotName(clean) ?? ws.name;
     await this.deps.workspaces.upsert({ ...ws, name, revision, updatedAt: Date.now() });
     return { revision };
+  }
+
+  // Rebuild the workspace index from Drive: scan the caller's own sync folder
+  // for workspace files whose DynamoDB row is missing (the desync that happens
+  // when the tables are cleared/recreated but the Drive files survive) and
+  // recreate the rows. Only ADDS rows for the caller's own, un-indexed files —
+  // never touches an existing row or another user's workspace.
+  async recover(user: User): Promise<RecoverResult> {
+    const drive = this.deps.driveFor(user);
+    let hashFolderId: string;
+    let files: Awaited<ReturnType<DriveClient["listFiles"]>>;
+    try {
+      hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
+      files = await drive.listFiles(hashFolderId);
+    } catch (e) {
+      if (e instanceof DriveAuthError) return { status: 401 };
+      throw e;
+    }
+    const recovered: string[] = [];
+    for (const f of files) {
+      if (!f.name.endsWith(".json")) continue;
+      let parsed: { workspaceId?: unknown; name?: unknown };
+      try {
+        parsed = JSON.parse(await drive.readFile(f.id)) as { workspaceId?: unknown; name?: unknown };
+      } catch {
+        continue; // unreadable / not JSON — skip
+      }
+      const wsId = typeof parsed.workspaceId === "string" ? parsed.workspaceId : undefined;
+      if (!wsId) continue;
+      if (await this.deps.workspaces.get(wsId)) continue; // already indexed — leave it
+      await this.deps.workspaces.upsert({
+        id: wsId,
+        name: typeof parsed.name === "string" ? parsed.name : wsId,
+        ownerUserId: user.id,
+        driveFileId: f.id,
+        hashFolderId,
+        revision: f.headRevision || "1",
+        updatedAt: Date.now(),
+      });
+      recovered.push(wsId);
+    }
+    return { recovered, total: files.length };
   }
 
   async deleteSync(user: User, id: string): Promise<DeleteSyncResult> {

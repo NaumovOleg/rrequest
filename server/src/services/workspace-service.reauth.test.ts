@@ -26,6 +26,9 @@ class AuthFailDriveClient implements DriveClient {
   async getHeadRevision(): Promise<string> {
     throw new DriveAuthError();
   }
+  async listFiles(): Promise<{ id: string; name: string; headRevision: string }[]> {
+    throw new DriveAuthError();
+  }
   async watchFile(_fileId: string, _opts: WatchOpts): Promise<WatchInfo> {
     throw new DriveAuthError();
   }

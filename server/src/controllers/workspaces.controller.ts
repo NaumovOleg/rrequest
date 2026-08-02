@@ -23,6 +23,16 @@ export class WorkspacesController {
     return workspaceService.list(user);
   }
 
+  // Rebuild the workspace index from the caller's Drive folder (recovers a
+  // DynamoDB/Drive desync). POST /workspaces/recover — distinct from the
+  // GET /:id pull, so no route ambiguity.
+  @Post("/recover")
+  async recover(@Req() req: Request) {
+    const user = requireUser(req);
+    const result = await workspaceService.recover(user);
+    return toHttpResult(result);
+  }
+
   @Get("/:id")
   async pull(@Req() req: Request, @Params("id") id: string) {
     const user = requireUser(req);

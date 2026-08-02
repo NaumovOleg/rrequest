@@ -141,7 +141,7 @@ describe('SyncManager', () => {
   it('adoptRemoteWorkspaces pulls each server workspace down, ensures it locally, and marks it synced', async () => {
     const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
     const ensured: string[] = []
-    const client = { listWorkspaces: vi.fn(async () => [{ id: 'w1', name: 'W', driveFileId: 'f', revision: '5', role: 'owner' }]), pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '5', role: 'owner' })), push: vi.fn(), enableSync: vi.fn() } as any
+    const client = { recover: vi.fn(async () => ({ recovered: [], total: 0 })), listWorkspaces: vi.fn(async () => [{ id: 'w1', name: 'W', driveFileId: 'f', revision: '5', role: 'owner' }]), pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '5', role: 'owner' })), push: vi.fn(), enableSync: vi.fn() } as any
     const { port, box } = stores({ collections: [], environments: [] })
     ;(port as any).ensureWorkspace = async (id: string) => { ensured.push(id) }
     const state = new SyncStateStore(dir)

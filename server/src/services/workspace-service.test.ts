@@ -218,3 +218,28 @@ describe("WorkspaceService.push", () => {
     expect(result).toEqual({ status: 500 });
   });
 });
+
+describe("WorkspaceService.recover", () => {
+  it("rebuilds a missing workspace row from the surviving Drive file (DynamoDB desync)", async () => {
+    const { service, users, workspaces } = makeService();
+    const owner = await makeUser(users, "owner@x.com");
+    await service.enable(owner, { workspaceId: "w1", name: "Test", snapshot: JSON.stringify({ workspaceId: "w1", name: "Test", collections: [] }) });
+    // Simulate the desync: the Drive file remains, the DynamoDB row is gone.
+    await workspaces.delete("w1");
+    expect(await workspaces.get("w1")).toBeUndefined();
+
+    const res = await service.recover(owner);
+    expect(res).toEqual({ recovered: ["w1"], total: 1 });
+    const ws = await workspaces.get("w1");
+    expect(ws!.name).toBe("Test");
+    expect(ws!.ownerUserId).toBe(owner.id);
+  });
+
+  it("skips workspaces that are already indexed (no duplicate rows)", async () => {
+    const { service, users } = makeService();
+    const owner = await makeUser(users, "owner@x.com");
+    await service.enable(owner, { workspaceId: "w1", name: "Test", snapshot: JSON.stringify({ workspaceId: "w1", name: "Test" }) });
+    const res = await service.recover(owner);
+    expect(res).toEqual({ recovered: [], total: 1 });
+  });
+});

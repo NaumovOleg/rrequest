@@ -74,6 +74,10 @@ export class SyncClient {
   me(): Promise<{ id: string; email: string }> {
     return this.call('/me')
   }
+  /** Rebuild the server workspace index from the user's Drive files (recovers a desync). */
+  recover(): Promise<{ recovered: string[]; total: number }> {
+    return this.call('/workspaces/recover', { method: 'POST' })
+  }
   listWorkspaces(): Promise<RemoteWorkspace[]> {
     return this.call('/workspaces')
   }

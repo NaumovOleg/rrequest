@@ -20,7 +20,8 @@ export function useWorkspace() {
     workspaces,
     activeId,
     active,
-    create: (name: string) => postToHost({ type: "createWorkspace", name }),
+    create: (name: string, accountId?: string) =>
+      postToHost({ type: "createWorkspace", name, accountId }),
     rename: (id: string, name: string) =>
       postToHost({ type: "renameWorkspace", id, name }),
     remove: (id: string) => postToHost({ type: "deleteWorkspace", id }),

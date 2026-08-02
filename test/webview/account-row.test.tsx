@@ -41,6 +41,15 @@ describe('AccountsPanel', () => {
     expect(post).toHaveBeenCalledWith({ type: 'setActiveWorkspace', id: 'w1' })
   })
 
+  it('per-account "New workspace" creates a workspace bound to that account', () => {
+    const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
+    useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
+    render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
+    fireEvent.click(screen.getByRole('button', { name: /new workspace in me@x\.com/i }))
+    expect(post).toHaveBeenCalledWith({ type: 'createWorkspace', name: 'New Workspace', accountId: 'a1' })
+  })
+
   it('a local workspace with one account enables sync bound to that account', () => {
     const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])

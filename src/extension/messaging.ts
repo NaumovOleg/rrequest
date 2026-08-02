@@ -230,6 +230,8 @@ export function createRouter(deps: RouterDeps) {
         deps.setActiveWorkspaceId(created.id)
         // fresh workspace has no environments — clear stale active env selection
         deps.setActiveEnvId(null)
+        // Creating "into" an account immediately enables sync bound to it.
+        if (msg.accountId) await deps.syncControl?.enable(created.id, msg.accountId)
         return await wsSnapshot()
       }
       case 'renameWorkspace':

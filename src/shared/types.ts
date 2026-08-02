@@ -151,7 +151,7 @@ export type WebviewMessage =
   | { type: 'pickFile' }
   | { type: 'openRequest'; request: CollectionItem; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'loadWorkspaces' }
-  | { type: 'createWorkspace'; name: string }
+  | { type: 'createWorkspace'; name: string; accountId?: string }
   | { type: 'renameWorkspace'; id: string; name: string }
   | { type: 'deleteWorkspace'; id: string }
   | { type: 'setActiveWorkspace'; id: string }

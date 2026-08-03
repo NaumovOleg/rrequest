@@ -177,6 +177,34 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.saveCollection(c)
         return { type: 'tree', collections: await deps.collections.list() }
       }
+      case 'duplicateCollection': {
+        const all = await deps.collections.list()
+        const src = all.find((x) => x.id === msg.id)
+        if (!src) return { type: 'tree', collections: all }
+        // Deep clone with fresh ids everywhere (collection, folders, requests)
+        // so the copy is fully independent of the original.
+        const clone: import('../shared/types').Collection = {
+          ...src,
+          id: newId(),
+          name: `${src.name} Copy`,
+          requests: src.requests.map((r) => ({ ...r, id: newId() })),
+          folders: (src.folders ?? []).map((f) => ({ ...f, id: newId(), requests: f.requests.map((r) => ({ ...r, id: newId() })) })),
+        }
+        await deps.collections.saveCollection(clone)
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'duplicateFolder': {
+        const all = await deps.collections.list()
+        const c = all.find((x) => x.id === msg.collectionId)
+        const folders = c?.folders ?? []
+        const i = folders.findIndex((f) => f.id === msg.folderId)
+        if (!c || i < 0) return { type: 'tree', collections: all }
+        const src = folders[i]
+        const clone = { ...src, id: newId(), name: `${src.name} Copy`, requests: src.requests.map((r) => ({ ...r, id: newId() })) }
+        folders.splice(i + 1, 0, clone)
+        await deps.collections.saveCollection({ ...c, folders })
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'setCollectionEnvironment': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
         if (c) await deps.collections.saveCollection({ ...c, environmentId: msg.environmentId ?? undefined })

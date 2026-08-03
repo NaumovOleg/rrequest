@@ -142,6 +142,8 @@ export function Sidebar() {
               <IconButton icon="add" label={`add request to ${f.name}`}
                 onClick={() => { expandCollection(c.id); expandFolder(key); postToHost({ type: 'createRequest', collectionId: c.id, folderId: f.id, request: blankRequest() }) }} />
               <IconButton icon="edit" label={`rename folder ${f.name}`} onClick={() => setRenamingId(f.id)} />
+              <IconButton icon="copy" label={`duplicate folder ${f.name}`}
+                onClick={() => postToHost({ type: 'duplicateFolder', collectionId: c.id, folderId: f.id })} />
               <IconButton icon="trash" label={`delete folder ${f.name}`}
                 onClick={() => postToHost({ type: 'deleteFolder', collectionId: c.id, folderId: f.id })} />
             </div>
@@ -206,6 +208,8 @@ export function Sidebar() {
                     <IconButton icon="add" label={`add request to ${c.name}`}
                       onClick={() => { expandCollection(c.id); postToHost({ type: 'createRequest', collectionId: c.id, folderId: null, request: blankRequest() }) }} />
                     <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
+                    <IconButton icon="copy" label={`duplicate collection ${c.name}`}
+                      onClick={() => postToHost({ type: 'duplicateCollection', id: c.id })} />
                     <IconButton icon="trash" label={`delete collection ${c.name}`}
                       onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
                   </>

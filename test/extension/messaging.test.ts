@@ -203,6 +203,30 @@ describe('createRouter workspace + openRequest', () => {
     expect(saved.requests[1].name).toBe('Orig Copy')
     expect(saved.requests[1].id).not.toBe('r1')
   })
+  it('duplicateCollection deep-clones with fresh ids everywhere', async () => {
+    const d = deps()
+    const req: RestRequest = { id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    const freq: RestRequest = { id: 'r2', name: 'FR', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [req], folders: [{ id: 'f1', name: 'F', requests: [freq] }] }])
+    await router(d)({ type: 'duplicateCollection', id: 'c1' } as any)
+    const saved = (d.collections.saveCollection as any).mock.calls.at(-1)[0]
+    expect(saved.id).not.toBe('c1')
+    expect(saved.name).toBe('C Copy')
+    expect(saved.requests[0].id).not.toBe('r1')
+    expect(saved.folders[0].id).not.toBe('f1')
+    expect(saved.folders[0].requests[0].id).not.toBe('r2')
+  })
+  it('duplicateFolder clones the folder after the original with fresh request ids', async () => {
+    const d = deps()
+    const freq: RestRequest = { id: 'r2', name: 'FR', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [freq] }] }])
+    await router(d)({ type: 'duplicateFolder', collectionId: 'c1', folderId: 'f1' } as any)
+    const saved = (d.collections.saveCollection as any).mock.calls.at(-1)[0]
+    expect(saved.folders).toHaveLength(2)
+    expect(saved.folders[1].name).toBe('F Copy')
+    expect(saved.folders[1].id).not.toBe('f1')
+    expect(saved.folders[1].requests[0].id).not.toBe('r2')
+  })
   it('createRequest persists the request and opens it linked', async () => {
     const d = deps()
     const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }

@@ -348,6 +348,7 @@ body {
   margin-bottom: 0;
 }
 .rm-tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--rm-sp-1);
@@ -377,6 +378,7 @@ body {
    The folder row has a caret + icon column; requests have neither, so add that
    width as extra indent — otherwise a request lines up with its folder. */
 .rm-req-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--rm-sp-2);
@@ -387,11 +389,22 @@ body {
 .rm-req-row:hover {
   background: var(--rm-hover);
 }
-/* row actions surface on hover / keyboard focus to keep the tree calm.
-   Hidden (not just transparent) when idle so they don't overlap the name. */
+/* Row actions surface on hover / keyboard focus to keep the tree calm.
+   They're absolutely positioned (out of flow) so toggling them never reflows
+   the row — the name keeps the full width and items don't jump. When shown
+   they sit over the right edge with a mask matching the hovered row bg
+   (base bg + hover tint), so a long name is cleanly covered, not bled through. */
 .rm-tree-row .rm-actions,
 .rm-req-row .rm-actions {
   display: none;
+  position: absolute;
+  right: var(--rm-sp-1);
+  top: 50%;
+  transform: translateY(-50%);
+  padding-left: var(--rm-sp-3);
+  border-radius: var(--rm-radius);
+  background-color: var(--rm-bg);
+  background-image: linear-gradient(var(--rm-hover), var(--rm-hover));
 }
 .rm-tree-row:hover .rm-actions,
 .rm-req-row:hover .rm-actions,
@@ -498,7 +511,7 @@ body {
   border: none;
   color: var(--rm-fg);
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 0px;
   border-radius: var(--rm-radius);
   display: inline-flex;
   align-items: center;

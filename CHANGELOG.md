@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.7
+
+### Patch Changes
+
+- sync fixes
+
 ## 0.0.6
 
 ### Patch Changes

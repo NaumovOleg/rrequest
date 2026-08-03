@@ -26,6 +26,10 @@ export type RouterDeps = {
   runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman' | 'openapi') => Promise<void>
   pickFile?: () => Promise<{ path: string; filename: string } | null>
   workspaces: WorkspaceStore
+  // Tags each workspace with its sync fields (accountId/accountEmail/role/
+  // synced) so the immediate reply to create/rename/enable already shows the
+  // workspace under its account — not as "local" until the next full refresh.
+  enrichWorkspaces?: (list: import('../shared/types').Workspace[]) => Promise<import('../shared/types').Workspace[]>
   getActiveWorkspaceId: () => string
   setActiveWorkspaceId: (id: string) => void
   runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
@@ -96,7 +100,9 @@ export function createRouter(deps: RouterDeps) {
     return env ? env.variables : []
   }
   async function wsSnapshot(): Promise<HostMessage> {
-    return { type: 'workspaces', workspaces: await deps.workspaces.list(), activeId: deps.getActiveWorkspaceId() }
+    const list = await deps.workspaces.list()
+    const workspaces = deps.enrichWorkspaces ? await deps.enrichWorkspaces(list) : list
+    return { type: 'workspaces', workspaces, activeId: deps.getActiveWorkspaceId() }
   }
   async function persistEnvSets(sets: KeyValue[]): Promise<void> {
     if (!sets.length) return

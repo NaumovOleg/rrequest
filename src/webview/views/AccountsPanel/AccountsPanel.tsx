@@ -25,7 +25,6 @@ export function AccountsPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [typed, setTyped] = useState("");
-  const [enablingId, setEnablingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,11 +44,6 @@ export function AccountsPanel() {
     : null;
 
   const pick = (id: string) => { select(id); setOpen(false); };
-  const enableSync = (workspaceId: string, accountId?: string) => {
-    postToHost({ type: "enableSync", workspaceId, accountId });
-    setEnablingId(null);
-    setOpen(false);
-  };
 
   const rowActions = (w: Workspace, isEditing: boolean) => (
     <span className="rm-acct-ws-actions">
@@ -88,7 +82,6 @@ export function AccountsPanel() {
   const localRow = (w: Workspace) => {
     const isActive = w.id === activeId;
     const isEditing = editingId === w.id;
-    const picking = enablingId === w.id;
     return (
       <div key={w.id} className={`rm-acct-ws${isActive ? " is-active" : ""}`} role="option" aria-selected={isActive}>
         <span className="rm-acct-ws-dot">{isActive && <span className="codicon codicon-circle-filled" />}</span>
@@ -100,28 +93,13 @@ export function AccountsPanel() {
         <span className="rm-acct-ws-actions">
           {!isEditing && (
             <>
-              {accounts.length <= 1 ? (
-                <button type="button" className="rm-btn rm-btn--ghost rm-btn--sm" onClick={() => (accounts.length === 1 ? enableSync(w.id, accounts[0].id) : postToHost({ type: "signIn" }))}>
-                  <span className="codicon codicon-cloud-upload" /> {accounts.length === 1 ? "Sync" : "Sign in"}
-                </button>
-              ) : (
-                <button type="button" className="rm-btn rm-btn--ghost rm-btn--sm" onClick={() => setEnablingId(picking ? null : w.id)}>
-                  <span className="codicon codicon-cloud-upload" /> Sync…
-                </button>
-              )}
+              {/* Local workspaces stay local — to get a synced one, create it
+                  under an account. No sync/enable buttons here. */}
               <IconButton icon="edit" label="Rename" onClick={() => setEditingId(w.id)} />
               <IconButton icon="trash" label="Delete" onClick={() => { setTyped(""); setConfirm({ id: w.id, name: w.name }); }} />
             </>
           )}
         </span>
-        {picking && (
-          <div className="rm-acct-pick">
-            <span className="rm-acct-pick-label">Sync to:</span>
-            {accounts.map((a) => (
-              <button key={a.id} type="button" className="rm-btn rm-btn--ghost rm-btn--sm" onClick={() => enableSync(w.id, a.id)}>{a.email}</button>
-            ))}
-          </div>
-        )}
       </div>
     );
   };

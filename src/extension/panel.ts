@@ -19,7 +19,7 @@ import {
   SyncForbiddenError,
   SyncGoneError,
 } from "./sync/sync-client";
-import { SyncStateStore } from "./sync/sync-state-store";
+import { SyncStateStore, type SyncState } from "./sync/sync-state-store";
 import { AccountStore } from "./sync/account-store";
 import { SyncManager } from "./sync/sync-manager";
 import { makeToastThrottle } from "./sync/toast-throttle";
@@ -34,6 +34,7 @@ import {
   type HostMessage,
   type RestRequest,
   type WebviewMessage,
+  type Workspace,
 } from "../shared/types";
 
 export function buildHtml(
@@ -212,10 +213,31 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       },
     };
 
+    // Tag workspaces with their sync fields. Used both by the hub snapshot and
+    // by the router's immediate replies (enrichWorkspaces) so a freshly
+    // created/enabled workspace shows under its account right away.
+    const tagWorkspaces = (
+      list: Workspace[],
+      states: Record<string, SyncState>,
+    ): Workspace[] =>
+      list.map((w) => {
+        const st = states[w.id];
+        return {
+          ...w,
+          role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
+          synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
+          accountId: st?.accountId,
+          accountEmail: accounts.emailOf(st?.accountId),
+        };
+      });
+    const enrichWorkspaces = async (list: Workspace[]): Promise<Workspace[]> =>
+      tagWorkspaces(list, isAuthed() ? await syncState.all() : {});
+
     const route = createRouter({
       send: sendRequest,
       collections,
       history,
+      enrichWorkspaces,
       environments,
       getActiveEnvId: () =>
         context.globalState.get<string | null>("rrequest.activeEnvId", null),
@@ -332,16 +354,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         },
         {
           type: "workspaces",
-          workspaces: (await workspaces.list()).map((w) => {
-            const st = states[w.id];
-            return {
-              ...w,
-              role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
-              synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
-              accountId: st?.accountId,
-              accountEmail: accounts.emailOf(st?.accountId),
-            };
-          }),
+          workspaces: tagWorkspaces(await workspaces.list(), states),
           activeId: ws,
         },
         { type: "history", entries: hist },

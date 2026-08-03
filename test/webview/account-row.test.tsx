@@ -50,14 +50,15 @@ describe('AccountsPanel', () => {
     expect(post).toHaveBeenCalledWith({ type: 'createWorkspace', name: 'New Workspace', accountId: 'a1' })
   })
 
-  it('a local workspace with one account enables sync bound to that account', () => {
-    const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
+  it('a local workspace has no sync/enable buttons (sync = create under an account)', () => {
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
     useStore.getState().setWorkspaces([{ id: 'wl', name: 'LocalWs' }], 'wl')
     render(<AccountsPanel />)
     fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
     const localRow = screen.getByRole('button', { name: 'LocalWs' }).closest('.rm-acct-ws') as HTMLElement
-    fireEvent.click(within(localRow).getByRole('button', { name: /sync/i }))
-    expect(post).toHaveBeenCalledWith({ type: 'enableSync', workspaceId: 'wl', accountId: 'a1' })
+    expect(within(localRow).queryByRole('button', { name: /sync/i })).toBeNull()
+    expect(within(localRow).queryByRole('button', { name: /sign in/i })).toBeNull()
+    // rename + delete stay
+    expect(within(localRow).getByRole('button', { name: /rename/i })).toBeTruthy()
   })
 })

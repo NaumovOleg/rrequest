@@ -3,6 +3,9 @@ dist/
 media/
 *.vsix
 
+# This repo uses yarn (yarn.lock). Don't let a stray `npm install` commit a lock.
+package-lock.json
+
 # Local env (single root source: SYNC_SERVER_URL, GOOGLE_*, secrets…) — never commit
 .env
 .env.*

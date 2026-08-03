@@ -4,6 +4,7 @@
   "description": "A Postman-style REST client for VS Code",
   "version": "0.0.4",
   "publisher": "olgert",
+  "packageManager": "yarn@1.22.22",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -74,7 +75,7 @@
     "test": "vitest run",
     "test:server": "vitest run -c vitest.server.config.ts",
     "test:infra": "vitest run --root infra",
-    "test:all": "npm run test && npm run test:server && npm run test:infra",
+    "test:all": "yarn test && yarn test:server && yarn test:infra",
     "typecheck:server": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p test/server/tsconfig.json",
     "typecheck:infra": "tsc --noEmit -p infra/tsconfig.json",
     "deploy": "cd infra && cdk deploy --all --require-approval never",

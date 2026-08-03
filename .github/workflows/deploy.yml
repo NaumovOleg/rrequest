@@ -43,6 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: yarn
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,7 +55,7 @@ jobs:
       # One node_modules at the repo root now carries the extension, server and
       # infra (incl. aws-cdk + esbuild for Lambda bundling).
       - name: Install deps
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       # STAGE selects the stack (RrequestStack / DevelopmentRrequestStack); --all
       # deploys whichever single stack bin/app.ts synthesizes for this STAGE.
@@ -76,19 +77,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # full history for the Conventional-Commit bump + tag
+          fetch-depth: 0 # need existing tags to skip an already-published version
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: yarn
 
       - name: Install deps + build
         run: |
-          npm ci
-          npm run build
+          yarn install --frozen-lockfile
+          yarn build
 
       # The version is chosen by the developer, not CI: add a changeset
-      # (`npm run changeset`), apply it (`npm run changeset:version`), and commit
+      # (`yarn changeset`), apply it (`yarn changeset:version`), and commit
       # the bumped package.json. CI publishes exactly that version and tags it —
       # it never bumps the version itself.
       - name: Read package version

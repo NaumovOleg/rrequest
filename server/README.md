@@ -162,13 +162,12 @@ server anymore. Always point it at the deployed Function URL + `api`.)
 There is no local server process to run (`npm run dev` no longer exists —
 the old Fastify entrypoint is gone). Everything runs as Lambda handlers.
 
-- **Unit + integration tests** (no AWS account needed):
+- **Unit + integration tests** (no AWS account needed), from the repo root:
   ```sh
-  cd server
-  npm test
+  yarn test:server
   ```
   Dynamo-backed store tests spin up an in-process `dynalite` instance
-  (`server/src/test-support/dynalite.ts`) for a real (embedded) DynamoDB
+  (`test/server/test-support/dynalite.ts`) for a real (embedded) DynamoDB
   wire protocol; the API-handler smoke test
   (`src/handlers/api.smoke.test.ts`) sets the env vars directly
   (`JWT_SECRET`, `TOKEN_ENC_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
@@ -224,8 +223,8 @@ All paths below are relative to the deployed API's `/api` base.
 ## Tests
 
 ```sh
-cd server && npm test
-cd infra && npx vitest run
+yarn test:server   # backend unit + integration tests
+yarn test:infra    # CDK synth tests
 ```
 
 ## CI/CD (GitHub Actions)

@@ -241,7 +241,12 @@ export const useStore = create<State>((set, get) => ({
       const loc = locateInTree(tree, t.id)
       if (!loc || itemKind(loc.item) !== 'http') return t
       if (t.dirty) return { ...t, collectionId: loc.collectionId, folderId: loc.folderId }
-      return { ...t, ...(loc.item as RestRequest), collectionId: loc.collectionId, folderId: loc.folderId }
+      // A clean tab adopts the tree's version — but reconcile url<->params so a
+      // stored query-less url doesn't overwrite the query the user sees. (This
+      // adopt was quietly reverting the URL bar back to a param-less url.)
+      const item = loc.item as RestRequest
+      const r = reconcileUrlParams(item.url, item.params ?? [])
+      return { ...t, ...item, url: r.url, params: r.params, collectionId: loc.collectionId, folderId: loc.folderId }
     }),
   })),
 

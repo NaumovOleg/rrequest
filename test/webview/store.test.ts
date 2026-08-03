@@ -206,6 +206,14 @@ describe('store setTree tab reconciliation', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'Renamed', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }])
     expect(useStore.getState().tabs.find((t) => t.id === 'r1')?.name).toBe('Renamed')
   })
+  it('keeps the query in a clean tab url when a tree broadcast adopts it', () => {
+    // Open a request whose stored url is query-less but has params (import shape).
+    useStore.getState().openLinkedTab({ id: 'r1', name: 'R', method: 'GET', url: '{{host}}/x', params: [{ key: 'skip', value: '0' } as any], headers: [], body: { mode: 'none' } }, 'c1', null)
+    // A tree broadcast (sync pull / initial load) with the same query-less url.
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [{ id: 'r1', name: 'R', method: 'GET', url: '{{host}}/x', params: [{ key: 'skip', value: '0' } as any], headers: [], body: { mode: 'none' } }] }])
+    const t = useStore.getState().tabs.find((x) => x.id === 'r1')
+    expect(t?.url).toBe('{{host}}/x?skip=0') // not reverted to the param-less url
+  })
   it('relocates an open tab when its request moves into a folder', () => {
     useStore.getState().openLinkedTab({ id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }, 'c1', null)
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [{ id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }] }] }])

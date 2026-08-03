@@ -358,12 +358,10 @@ export function RequestPanel() {
   // --- keep params list and the URL query string in sync (both directions) ---
   const onUrlChange = (url: string) => {
     const { params } = parseParamsFromUrl(url);
-    console.log("url change:", url, params);
     update({ url, params });
   };
   const onParamsChange = (params: KeyValue[]) => {
     const base = active.url.split("?")[0];
-    console.log("params change:", { params, base, active });
     update({ params, url: buildUrlFromParams(base, params) });
   };
   // Changing the body keeps the Content-Type header in step with it.
@@ -476,8 +474,6 @@ export function RequestPanel() {
     linkedCollection && active.folderId
       ? (linkedCollection.folders ?? []).find((f) => f.id === active.folderId)
       : undefined;
-
-  console.log("active request:", active);
 
   return (
     <div className="rm-reqpane">

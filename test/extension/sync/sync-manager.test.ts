@@ -277,8 +277,10 @@ describe('SyncManager', () => {
     port.applyPulled = applyPulled
     const state = new SyncStateStore(dir)
     await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true })
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o@x.com', role: 'owner', lastRevision: '1', synced: true, accountId: 'accX' })
     await new SyncManager({ client, state, stores: port, email: () => 'me', onAuthLost, onSyncError }).push('w1')
     expect(onAuthLost).toHaveBeenCalledTimes(1)
+    expect(onAuthLost).toHaveBeenCalledWith('accX') // host warns once for THAT account
     expect((await state.get('w1'))?.synced).toBe(true) // NOT dropped — account-wide auth loss, not per-workspace
     expect(applyPulled).not.toHaveBeenCalled()
     expect(onSyncError).not.toHaveBeenCalled()

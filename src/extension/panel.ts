@@ -418,6 +418,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // otherwise nag on every launch. A 401 during an EXPLICIT user action
     // (syncNow/enable) still toasts (throttled to once).
     let authToastSilent = false;
+    // Accounts whose token the server has rejected this session. We warn ONCE
+    // per account (the poll retries every 45s and would otherwise nag forever
+    // while the account still shows connected). Re-signing-in an account clears
+    // its flag (see signIn), so a fresh sign-in can warn again if it fails.
+    const authWarned = new Set<string>();
     const manager = new SyncManager({
       clientFor,
       accounts: () => accounts.ids(),
@@ -426,12 +431,19 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       email: (accountId) => accounts.emailOf(accountId) ?? "me",
       isAuthed,
       hasToken: (accountId) => !!accounts.getToken(accountId),
-      onAuthLost: async () => {
-        // Multi-account: we can't tell which account's token expired here, so
-        // don't remove anything — just (once) prompt a re-sign-in, and never
-        // during the silent startup sweep.
+      onAuthLost: async (accountId) => {
+        // Never nag during the silent startup sweep, and only once per account.
         if (authToastSilent) return;
-        throttledToast("error", "A sync sign-in expired — sign in again to resume syncing.");
+        const key = accountId ?? "__default__";
+        if (authWarned.has(key)) return;
+        authWarned.add(key);
+        const email = accounts.emailOf(accountId);
+        throttledToast(
+          "error",
+          email
+            ? `Sync sign-in for ${email} expired — sign in with that account again to resume syncing.`
+            : "A sync sign-in expired — sign in again to resume syncing.",
+        );
       },
       onSyncError: (_workspaceId, error) => {
         if (error instanceof SyncGoneError) {
@@ -545,6 +557,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           const who = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => token });
           const me = await who.me();
           await accounts.add({ id: me.id, email: me.email }, token);
+          authWarned.delete(me.id); // fresh token -> allow a future warning again
           clientCache.delete(me.id);
           clientCache.delete("__default__");
           hub.authState(currentAccounts());

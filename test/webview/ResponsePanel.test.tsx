@@ -30,7 +30,7 @@ describe('ResponsePanel', () => {
 
   it('previews an HTML response in a JS-free sandboxed iframe, with a Raw toggle', () => {
     useStore.getState().setResponse(activeId(), {
-      status: 200, statusText: 'OK', headers: [{ key: 'Content-Type', value: 'text/html; charset=utf-8' }],
+      status: 200, statusText: 'OK', headers: [{ key: 'Content-Type', value: 'text/html; charset=utf-8', enabled: true }],
       body: '<h1>Hi</h1><script>alert(1)</script>', bodyTruncated: false, timeMs: 3, sizeBytes: 30, cookies: [],
     })
     render(<ResponsePanel />)

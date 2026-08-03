@@ -46,7 +46,9 @@ export class SyncManager {
       // request instead of sending an empty `Bearer` that 401s and pops a
       // spurious "sign-in expired" toast while the account still shows synced.
       hasToken?: (accountId?: string) => boolean
-      onAuthLost?: () => void | Promise<void>
+      // Called with the account whose token the server rejected (401), so the
+      // host can warn once for THAT account instead of on every poll.
+      onAuthLost?: (accountId?: string) => void | Promise<void>
       onSyncError?: (workspaceId: string, error: unknown) => void
     },
   ) {}
@@ -106,10 +108,10 @@ export class SyncManager {
   }
 
   /** Shared catch taxonomy for push/pull. */
-  private async handleSyncError(workspaceId: string, e: unknown): Promise<void> {
+  private async handleSyncError(workspaceId: string, e: unknown, accountId?: string): Promise<void> {
     if (e instanceof SyncForbiddenError) { await this.dropSync(workspaceId); return }
     if (e instanceof SyncGoneError) { await this.dropSync(workspaceId); this.deps.onSyncError?.(workspaceId, e); return }
-    if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); return }
+    if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(accountId); return }
     this.deps.onSyncError?.(workspaceId, e)
   }
 
@@ -184,7 +186,7 @@ export class SyncManager {
         for (const id of applied) this.pendingDeletes.delete(id)
       }
     } catch (e) {
-      await this.handleSyncError(workspaceId, e)
+      await this.handleSyncError(workspaceId, e, accountId)
     }
   }
 
@@ -208,7 +210,7 @@ export class SyncManager {
       await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
       await this.deps.state.set(workspaceId, { ...state, lastRevision: revision, role: role ?? state.role })
     } catch (e) {
-      await this.handleSyncError(workspaceId, e)
+      await this.handleSyncError(workspaceId, e, accountId)
     }
   }
 
@@ -234,7 +236,7 @@ export class SyncManager {
       try {
         remotes = await this.cli(accountId).listWorkspaces()
       } catch (e) {
-        if (e instanceof SyncAuthError) await this.deps.onAuthLost?.()
+        if (e instanceof SyncAuthError) await this.deps.onAuthLost?.(accountId)
         error = String((e as Error)?.message ?? e)
         continue
       }
@@ -274,7 +276,7 @@ export class SyncManager {
         remote = await this.cli(accountId).listWorkspaces()
       } catch (e) {
         if (e instanceof SyncForbiddenError) continue
-        if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(); continue }
+        if (e instanceof SyncAuthError) { await this.deps.onAuthLost?.(accountId); continue }
         this.deps.onSyncError?.('*', e)
         continue
       }

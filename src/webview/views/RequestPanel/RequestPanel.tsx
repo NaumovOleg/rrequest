@@ -284,6 +284,7 @@ export function RequestPanel() {
   const [splitPct, setSplitPct] = useState(50);
   const [showAuto, setShowAuto] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
+  const bodyCache = useRef<{ id: string | null; byMode: Partial<Record<RequestBody["mode"], RequestBody>> }>({ id: null, byMode: {} });
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const isViewer = useStore((s) => s.isViewer());
   const update = useStore((s) => s.updateActive);
@@ -347,6 +348,28 @@ export function RequestPanel() {
   // Changing the body keeps the Content-Type header in step with it.
   const setBody = (body: RequestBody) =>
     update({ body, headers: upsertContentType(active.headers, contentTypeFor(body)) });
+
+  // The body model only holds the active mode, so switching mode would drop the
+  // other modes' content. `bodyCache` (declared with the other refs, above the
+  // early return) stashes each mode's body keyed by the active tab so e.g.
+  // raw → none → raw restores what was there instead of wiping it.
+  const switchBodyMode = (mode: RequestBody["mode"]) => {
+    if (!active || mode === active.body.mode) return;
+    const cache = bodyCache.current;
+    if (cache.id !== active.id) { cache.id = active.id; cache.byMode = {}; }
+    cache.byMode[active.body.mode] = active.body; // remember the mode we're leaving
+    // GraphQL is POSTed as JSON; default the method to POST.
+    if (mode === "graphql" && active.method === "GET") update({ method: "POST" });
+    const restored = cache.byMode[mode];
+    if (restored) { setBody(restored); return; }
+    switch (mode) {
+      case "none": setBody({ mode: "none" }); break;
+      case "raw": setBody({ mode: "raw", type: "json", text: "" }); break;
+      case "urlencoded": setBody({ mode: "urlencoded", items: [] }); break;
+      case "formdata": setBody({ mode: "formdata", items: [] }); break;
+      case "graphql": setBody({ mode: "graphql", query: "", variables: "" }); break;
+    }
+  };
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -584,48 +607,9 @@ export function RequestPanel() {
                     className="rm-select"
                     aria-label="body mode"
                     value={active.body.mode}
-                    onChange={(e) => {
-                      const mode = e.target.value;
-                      if (mode === "none") setBody({ mode: "none" });
-                      else if (mode === "raw")
-                        setBody({
-                          mode: "raw",
-                          type: "json",
-                          text:
-                            active.body.mode === "raw" ? active.body.text : "",
-                        });
-                      else if (mode === "urlencoded")
-                        setBody({
-                          mode: "urlencoded",
-                          items:
-                            active.body.mode === "urlencoded"
-                              ? active.body.items
-                              : [],
-                        });
-                      else if (mode === "formdata")
-                        setBody({
-                          mode: "formdata",
-                          items:
-                            active.body.mode === "formdata"
-                              ? active.body.items
-                              : [],
-                        });
-                      else if (mode === "graphql") {
-                        // GraphQL is POSTed as JSON; default the method to POST.
-                        if (active.method === "GET") update({ method: "POST" });
-                        setBody({
-                          mode: "graphql",
-                          query:
-                            active.body.mode === "graphql"
-                              ? active.body.query
-                              : "",
-                          variables:
-                            active.body.mode === "graphql"
-                              ? active.body.variables
-                              : "",
-                        });
-                      }
-                    }}
+                    onChange={(e) =>
+                      switchBodyMode(e.target.value as RequestBody["mode"])
+                    }
                   >
                     <option value="none">none</option>
                     <option value="raw">raw</option>

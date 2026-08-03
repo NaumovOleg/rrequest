@@ -99,6 +99,19 @@ describe('RequestPanel', () => {
     expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
   })
 
+  it('restores raw body text after switching body mode away and back', () => {
+    render(<RequestPanel />)
+    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'raw' } })
+    fireEvent.change(screen.getByLabelText('body'), { target: { value: '{"a":1}' } })
+    expect(useStore.getState().tabs[0].body).toEqual({ mode: 'raw', type: 'json', text: '{"a":1}' })
+    // raw -> none -> raw must bring the text back, not wipe it
+    fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'none' } })
+    expect(useStore.getState().tabs[0].body).toEqual({ mode: 'none' })
+    fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'raw' } })
+    expect(useStore.getState().tabs[0].body).toEqual({ mode: 'raw', type: 'json', text: '{"a":1}' })
+  })
+
   it('the Save collection dropdown initializes from pendingSaveCollectionId', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C1', workspaceId: 'w1', requests: [] }, { id: 'c2', name: 'C2', workspaceId: 'w1', requests: [] }])
     useStore.getState().setPendingSaveCollectionId('c2')

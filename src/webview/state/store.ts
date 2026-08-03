@@ -1,10 +1,13 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest, type GrpcRequest } from '../../shared/types'
 
-// Payload for opening the (single, reused) WebSocket editor panel. `request`
-// null = a fresh "New WebSocket" request. `seq` bumps on every open so the
-// panel re-applies even when the same request is opened twice in a row.
+// Payload for opening the WebSocket / gRPC editor panels. `request` null = a
+// fresh "New" request. `seq` bumps on every open so the panel re-applies even
+// when the same request is opened twice in a row. EditorApp stashes this in the
+// store BEFORE the panel mounts, avoiding the race where the panel's own
+// message listener subscribes too late and misses the payload.
 export type WsOpen = { seq: number; request: WsRequest | null; collectionId: string | null; folderId: string | null }
+export type GrpcOpen = { seq: number; request: GrpcRequest | null; collectionId: string | null; folderId: string | null }
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -63,6 +66,7 @@ type State = {
   envMode: boolean
   envEditId: string | null
   grpcMode: boolean
+  grpcOpen: GrpcOpen | null
   members: Member[]
   membersMode: boolean
   membersWorkspaceId: string | null
@@ -90,6 +94,7 @@ type State = {
   setPendingSaveFolderId(id: string | null): void
   setWsMode(v: boolean): void
   openWs(request: WsRequest | null, collectionId: string | null, folderId: string | null): void
+  openGrpc(request: GrpcRequest | null, collectionId: string | null, folderId: string | null): void
   setWsUrl(v: string): void
   setWsHeaders(v: KeyValue[]): void
   setWsInput(v: string): void
@@ -139,6 +144,7 @@ export const useStore = create<State>((set, get) => ({
   envMode: false,
   envEditId: null,
   grpcMode: false,
+  grpcOpen: null,
   members: [],
   membersMode: false,
   membersWorkspaceId: null,
@@ -238,6 +244,8 @@ export const useStore = create<State>((set, get) => ({
   setWsMode: (wsMode) => set({ wsMode }),
   openWs: (request, collectionId, folderId) =>
     set((s) => ({ wsMode: true, wsOpen: { seq: (s.wsOpen?.seq ?? 0) + 1, request, collectionId, folderId } })),
+  openGrpc: (request, collectionId, folderId) =>
+    set((s) => ({ grpcMode: true, grpcOpen: { seq: (s.grpcOpen?.seq ?? 0) + 1, request, collectionId, folderId } })),
   setWsUrl: (wsUrl) => set({ wsUrl }),
   setWsHeaders: (wsHeaders) => set({ wsHeaders }),
   setWsInput: (wsInput) => set({ wsInput }),
@@ -264,5 +272,5 @@ export const useStore = create<State>((set, get) => ({
   setSyncLoading: (syncLoading) => set({ syncLoading }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: false }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: false }),
 }))

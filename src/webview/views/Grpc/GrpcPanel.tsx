@@ -57,24 +57,41 @@ export function GrpcPanel() {
       if (m.type === "grpcResponse" && m.requestId === reqId.current) {
         setPending(false);
         setResult({ ok: m.ok, message: m.message, error: m.error, timeMs: m.timeMs });
-      } else if (m.type === "openGrpcRequest") {
-        const r = m.request;
-        setId(r.id);
-        setName(r.name);
-        setAddress(r.address);
-        setPlaintext(r.plaintext);
-        setProto(r.proto);
-        setService(r.service);
-        setMethod(r.method);
-        setMessage(r.message);
-        setMetadata(metaToText(r.metadata ?? []));
-        setLinkedCollectionId(m.targetCollectionId ?? null);
-        setLinkedFolderId(m.targetFolderId ?? null);
-        setSaveCollectionId(m.targetCollectionId ?? "");
-        setSaveFolderId(m.targetFolderId ?? "");
       }
     });
   }, []);
+
+  // The opened request is stashed in the store by EditorApp before this panel
+  // mounts (see WsOpen/GrpcOpen) — read it here rather than racing the message.
+  const grpcOpen = useStore((s) => s.grpcOpen);
+  useEffect(() => {
+    if (!grpcOpen) return;
+    const r = grpcOpen.request;
+    if (r) {
+      setId(r.id);
+      setName(r.name);
+      setAddress(r.address);
+      setPlaintext(r.plaintext);
+      setProto(r.proto);
+      setService(r.service);
+      setMethod(r.method);
+      setMessage(r.message);
+      setMetadata(metaToText(r.metadata ?? []));
+      setLinkedCollectionId(grpcOpen.collectionId);
+      setLinkedFolderId(grpcOpen.folderId);
+      setSaveCollectionId(grpcOpen.collectionId ?? "");
+      setSaveFolderId(grpcOpen.folderId ?? "");
+    } else {
+      // Fresh "New gRPC" request.
+      setId(newId());
+      setName("New gRPC Request");
+      setLinkedCollectionId(null);
+      setLinkedFolderId(null);
+      setSaveCollectionId("");
+      setSaveFolderId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grpcOpen?.seq]);
 
   useEffect(() => {
     postToHost({ type: "setTitle", title: `gRPC ${name}` });

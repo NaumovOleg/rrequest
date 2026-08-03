@@ -92,8 +92,10 @@ export function EditorApp() {
         // Existing WS request — stash the payload in the store so the panel
         // (which mounts only now) reads it, instead of racing the message.
         useStore.getState().openWs(m.request, m.targetCollectionId ?? null, m.targetFolderId ?? null);
-      } else if (m.type === "showGrpc" || m.type === "openGrpcRequest") {
-        setGrpcMode(true);
+      } else if (m.type === "showGrpc") {
+        useStore.getState().openGrpc(null, null, null);
+      } else if (m.type === "openGrpcRequest") {
+        useStore.getState().openGrpc(m.request, m.targetCollectionId ?? null, m.targetFolderId ?? null);
       } else if (m.type === "showMembers") {
         setMembersMode(true);
         setMembersWorkspaceId(m.workspaceId);

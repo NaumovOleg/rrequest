@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "../theme.css";
 import { useStore } from "../state/store";
 import { onHostMessage, postToHost } from "../ipc";
-import { newId, type RestRequest } from "../../shared/types";
+import { newId, type RestRequest, type WsRequest, type GrpcRequest } from "../../shared/types";
 import {
   SidebarHeader,
   type SidebarTab,
@@ -25,6 +25,17 @@ function blankRequest(): RestRequest {
     preRequestScript: "",
     testScript: "",
   };
+}
+
+// New WS/gRPC requests open through openRequest (kinded) so the host keys the
+// panel by id (ws:<id> / grpc:<id>) — the SAME key used when the saved request
+// is reopened from the sidebar. Opening the singleton "New" panel instead left
+// a second panel behind, so clicking the saved item spawned a duplicate tab.
+function blankWs(): WsRequest {
+  return { id: newId(), name: "New WebSocket Request", kind: "ws", url: "", headers: [] };
+}
+function blankGrpc(): GrpcRequest {
+  return { id: newId(), name: "New gRPC Request", kind: "grpc", address: "", proto: "", service: "", method: "", message: "", metadata: [], plaintext: true };
 }
 
 export function SidebarApp() {
@@ -67,8 +78,8 @@ export function SidebarApp() {
         onNewHttp={() =>
           postToHost({ type: "openRequest", request: blankRequest() })
         }
-        onNewWs={() => postToHost({ type: "openWebSocket" })}
-        onNewGrpc={() => postToHost({ type: "openGrpc" })}
+        onNewWs={() => postToHost({ type: "openRequest", request: blankWs() })}
+        onNewGrpc={() => postToHost({ type: "openRequest", request: blankGrpc() })}
       />
       <div className="rm-scroll rm-sbbody">
         {tab === "collections" ? (

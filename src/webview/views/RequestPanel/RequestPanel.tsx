@@ -108,7 +108,7 @@ const KeyValueTable = ({
             <td>
               <input
                 type="checkbox"
-                checked={r.enabled}
+                checked={r.enabled !== false}
                 onChange={(e) =>
                   i < rows.length && update(i, { enabled: e.target.checked })
                 }

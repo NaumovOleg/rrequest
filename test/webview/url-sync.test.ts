@@ -34,6 +34,18 @@ describe('url-sync', () => {
       const r = reconcileUrlParams('https://x/y', [{ key: 'a', value: '1', enabled: true }])
       expect(r.url).toBe('https://x/y?a=1')
     })
+    it('treats params with no enabled flag as enabled (imported/legacy data)', () => {
+      const r = reconcileUrlParams('{{host}}api/v1/payment/invoices', [
+        { key: 'skip', value: '0' } as any,
+        { key: 'limit', value: '10' } as any,
+      ])
+      expect(r.url).toBe('{{host}}api/v1/payment/invoices?skip=0&limit=10')
+      expect(r.params.every((p) => p.enabled === true)).toBe(true) // normalised
+    })
+    it('keeps an explicitly-disabled param out of the url', () => {
+      const r = reconcileUrlParams('https://x/y', [{ key: 'a', value: '1', enabled: false }])
+      expect(r.url).toBe('https://x/y') // nothing enabled -> unchanged
+    })
     it('parses params back when url has a query but params are empty', () => {
       const r = reconcileUrlParams('https://x/y?a=1&b=2', [])
       expect(r.params).toEqual([

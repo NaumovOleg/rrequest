@@ -157,6 +157,11 @@ export class SyncManager {
       // items are preserved; explicitly-deleted ids are pruned back out.
       const remote = await this.tryPull(workspaceId, accountId)
       let merged = remote ? mergeSnapshots(local, remote.snapshot) : local
+      // Clear ONLY the deletes this push actually applies — not the whole set.
+      // A delete recorded while this push is in flight isn't in `applied`, so a
+      // blanket clear() would wipe its tombstone before it ever propagated and
+      // the next pull's union would resurrect it (item reappears seconds later).
+      let applied = new Set(this.pendingDeletes)
       merged = pruneDeleted(merged, this.pendingDeletes)
       const baseRevision = remote ? remote.revision : state.lastRevision
 
@@ -164,18 +169,19 @@ export class SyncManager {
       if (first.ok) {
         if (remote) await this.applyMergedLocally(workspaceId, merged)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: first.revision })
-        this.pendingDeletes.clear()
+        for (const id of applied) this.pendingDeletes.delete(id)
         return
       }
       // conflict: remote moved between our pull and push — union the newer
       // remote under our merged (local still wins), prune again, retry once.
       const remote2 = JSON.parse(first.snapshot) as WorkspaceSnapshot
+      applied = new Set(this.pendingDeletes)
       const merged2 = pruneDeleted(mergeSnapshots(merged, remote2), this.pendingDeletes)
       const retry = await this.cli(accountId).push(workspaceId, JSON.stringify(merged2), first.revision)
       if (retry.ok) {
         await this.applyMergedLocally(workspaceId, merged2)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
-        this.pendingDeletes.clear()
+        for (const id of applied) this.pendingDeletes.delete(id)
       }
     } catch (e) {
       await this.handleSyncError(workspaceId, e)

@@ -108,6 +108,26 @@ describe('SyncManager', () => {
     expect(client.push).not.toHaveBeenCalled()
   })
 
+  it('push clears only the deletes it applied — a delete recorded mid-push survives', async () => {
+    const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [], environments: [], updatedAt: 1, updatedBy: 'other' })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f1', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '1', synced: true })
+    const { port } = stores({ collections: [], environments: [] })
+    let mgr: SyncManager
+    const client = {
+      pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '3' })),
+      // Simulate a concurrent delete landing while this push is in flight.
+      push: vi.fn(async () => { mgr.recordDeletion(['rMid']); return { ok: true, revision: '4' } }),
+      enableSync: vi.fn(),
+    } as any
+    mgr = new SyncManager({ client, state, stores: port, email: () => 'a@x.com' })
+    mgr.recordDeletion(['rBefore'])
+    await mgr.push('w1')
+    const pending = (mgr as any).pendingDeletes as Set<string>
+    expect(pending.has('rBefore')).toBe(false) // applied + cleared
+    expect(pending.has('rMid')).toBe(true)      // recorded mid-push -> NOT wiped
+  })
+
   it('push merges and retries on conflict, then records the new revision', async () => {
     const localCol = { id: 'c-local', name: 'Local', workspaceId: 'w1', requests: [] }
     const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'RealName', collections: [{ id: 'c-remote', name: 'Remote', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })

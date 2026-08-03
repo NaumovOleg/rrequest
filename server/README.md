@@ -34,7 +34,7 @@ Secret VALUES (GOOGLE_CLIENT_SECRET / JWT_SECRET / TOKEN_ENC_KEY) ─► baked i
   short-circuit the request under Helios).
 - **`pollFn`** (`server/src/handlers/poll.ts` → `handlers/poll-app.ts`) — a
   plain (non-Helios) Lambda invoked by an EventBridge rule every 1 minute
-  (`server/infra/lib/rrequest-stack.ts`). For every workspace it reads the
+  (`infra/lib/rrequest-stack.ts`). For every workspace it reads the
   Drive file's current head revision (using the *owner's* stored refresh
   token) and, if it has moved since the last stored value, calls
   `setRevision` — this is how edits made directly in Google Drive (outside
@@ -98,12 +98,11 @@ DynamoDB, EventBridge, and IAM resources, and know the target account/region.
 ## Deploy
 
 ```sh
-cd server
-npm install   # aws-cdk / aws-cdk-lib / constructs live here; server/infra has
-              # no package-lock.json of its own and resolves them via Node's
-              # normal parent-directory node_modules lookup.
+npm install   # one node_modules at the repo ROOT carries everything (extension,
+              # server, and infra — aws-cdk / aws-cdk-lib / constructs are root
+              # devDependencies).
 
-cd infra
+cd infra      # CDK app lives at the repo root now (was server/infra)
 export CDK_DEFAULT_ACCOUNT=<your-account-id>
 export CDK_DEFAULT_REGION=<your-region>          # e.g. us-east-1
 export GOOGLE_CLIENT_ID=<oauth-client-id>
@@ -177,7 +176,7 @@ the old Fastify entrypoint is gone). Everything runs as Lambda handlers.
   them in `process.env`.
 - **CDK synth check** (no deploy, no AWS account):
   ```sh
-  cd server/infra
+  cd infra
   npx vitest run   # test/synth.test.ts
   ```
 - **Running a handler locally by hand**: import `server/src/handlers/api-app.ts`
@@ -226,7 +225,7 @@ All paths below are relative to the deployed API's `/api` base.
 
 ```sh
 cd server && npm test
-cd server/infra && npx vitest run
+cd infra && npx vitest run
 ```
 
 ## CI/CD (GitHub Actions)

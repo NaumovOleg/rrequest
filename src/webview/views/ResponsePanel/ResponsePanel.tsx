@@ -32,10 +32,16 @@ function isJson(resp: HttpResponse): boolean {
   return ct.includes('json')
 }
 
+function isHtml(resp: HttpResponse): boolean {
+  const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
+  return ct.includes('html')
+}
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
   const [filter, setFilter] = useState<ResultFilter>('all')
   const [bodyView, setBodyView] = useState<'pretty' | 'raw'>('pretty')
+  const [htmlView, setHtmlView] = useState<'preview' | 'raw'>('preview')
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
   if (!resp) return (
     <div className="rm-panel rm-response-blank">
@@ -79,8 +85,27 @@ export function ResponsePanel() {
                 onClick={() => setBodyView('raw')}>Raw</button>
             </div>
           )}
+          {isHtml(resp) && (
+            <div className="rm-body-toolbar">
+              <button className={`rm-btn rm-btn--sm ${htmlView === 'preview' ? 'is-active' : ''}`}
+                onClick={() => setHtmlView('preview')}>Preview</button>
+              <button className={`rm-btn rm-btn--sm ${htmlView === 'raw' ? 'is-active' : ''}`}
+                onClick={() => setHtmlView('raw')}>Raw</button>
+            </div>
+          )}
           {resp.bodyTruncated && <div>Response too large — showing a truncated preview.</div>}
-          <pre className="rm-code">{bodyView === 'raw' ? resp.body : prettyBody(resp)}</pre>
+          {isHtml(resp) && htmlView === 'preview' ? (
+            // Sandboxed with NO tokens => scripts disabled (JS-free preview), and
+            // default-src 'none' in the page CSP blocks any external resources.
+            <iframe
+              className="rm-html-preview"
+              title="HTML response preview"
+              sandbox=""
+              srcDoc={resp.body}
+            />
+          ) : (
+            <pre className="rm-code">{bodyView === 'raw' ? resp.body : prettyBody(resp)}</pre>
+          )}
         </>
       )}
       {sub === 'headers' && (

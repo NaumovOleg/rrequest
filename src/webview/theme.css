@@ -474,6 +474,14 @@ body {
   margin: var(--rm-sp-2);
   font-family: var(--vscode-editor-font-family, monospace);
 }
+.rm-html-preview {
+  width: calc(100% - 2 * var(--rm-sp-2));
+  height: 60vh;
+  margin: var(--rm-sp-2);
+  border: 1px solid var(--rm-border);
+  border-radius: var(--rm-radius);
+  background: #fff; /* html pages usually assume a white canvas */
+}
 
 /* websocket log */
 .rm-log {

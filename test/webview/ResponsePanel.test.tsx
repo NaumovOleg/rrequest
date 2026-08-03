@@ -28,6 +28,21 @@ describe('ResponsePanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/fetch failed/)
   })
 
+  it('previews an HTML response in a JS-free sandboxed iframe, with a Raw toggle', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [{ key: 'Content-Type', value: 'text/html; charset=utf-8' }],
+      body: '<h1>Hi</h1><script>alert(1)</script>', bodyTruncated: false, timeMs: 3, sizeBytes: 30, cookies: [],
+    })
+    render(<ResponsePanel />)
+    const frame = document.querySelector('iframe.rm-html-preview') as HTMLIFrameElement
+    expect(frame).toBeTruthy()
+    expect(frame.getAttribute('sandbox')).toBe('') // no allow-scripts -> JS disabled
+    expect(frame.getAttribute('srcdoc')).toContain('<h1>Hi</h1>')
+    // Raw switches back to the code view
+    fireEvent.click(screen.getByRole('button', { name: /^raw$/i }))
+    expect(document.querySelector('iframe.rm-html-preview')).toBeNull()
+  })
+
   it('shows a truncation note when bodyTruncated', () => {
     useStore.getState().setResponse(activeId(), {
       status: 200, statusText: 'OK', headers: [], body: 'xxxx',

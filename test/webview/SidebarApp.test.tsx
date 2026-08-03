@@ -4,6 +4,8 @@ import { useStore } from '../../src/webview/state/store'
 let handler: ((m: any) => void) | undefined
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({
+  getUiState: (_k: string, fb: any) => fb,
+  setUiState: () => {},
   postToHost: (m: any) => posted.push(m),
   onHostMessage: (cb: (m: any) => void) => { handler = cb; return () => { handler = undefined } },
 }))

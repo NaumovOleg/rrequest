@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 const posted: any[] = []
-vi.mock('../../src/webview/ipc', () => ({ postToHost: (m: any) => posted.push(m), onHostMessage: () => () => {} }))
+vi.mock('../../src/webview/ipc', () => ({ postToHost: (m: any) => posted.push(m), onHostMessage: () => () => {}, getUiState: (_k: string, fb: any) => fb, setUiState: () => {} }))
 import { SidebarEnvironments } from '../../src/webview/views/SidebarEnvironments/SidebarEnvironments'
 beforeEach(() => { useStore.getState().__reset(); posted.length = 0 })
 

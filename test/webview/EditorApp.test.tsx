@@ -6,6 +6,8 @@ const handlers = new Set<(m: any) => void>()
 const handler = (m: any) => handlers.forEach((h) => h(m))
 const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({
+  getUiState: (_k: string, fb: any) => fb,
+  setUiState: () => {},
   postToHost: (m: any) => posted.push(m),
   onHostMessage: (cb: (m: any) => void) => { handlers.add(cb); return () => { handlers.delete(cb) } },
 }))

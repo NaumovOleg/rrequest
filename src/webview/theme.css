@@ -349,7 +349,7 @@ body {
 .rm-blank-icon { font-size: 28px; opacity: 0.6; margin-bottom: var(--rm-sp-1); }
 .rm-blank-title { font-weight: 600; color: var(--rm-fg); }
 .rm-blank-hint { font-size: 0.9em; max-width: 260px; }
-.rm-curlrow { display: flex; gap: var(--rm-sp-2); align-items: center; padding: var(--rm-sp-2); border-top: 1px solid var(--rm-border); margin-top: var(--rm-sp-2); }
+.rm-curlrow { display: flex; gap: var(--rm-sp-2); align-items: center; padding: var(--rm-sp-2); border-top: 1px solid var(--rm-border); flex: 0 0 auto; }
 @media (max-width: 760px) {
   .rm-req-split { flex-direction: column; }
   .rm-req-config { flex: 1 1 auto !important; border-bottom: 1px solid var(--rm-border); }

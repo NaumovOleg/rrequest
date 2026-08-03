@@ -7,6 +7,8 @@ const posted: any[] = []
 vi.mock('../../src/webview/ipc', () => ({
   postToHost: (m: any) => posted.push(m),
   onHostMessage: () => () => {},
+  getUiState: (_k: string, fallback: any) => fallback,
+  setUiState: () => {},
 }))
 
 import { Sidebar } from '../../src/webview/views/Sidebar/Sidebar'

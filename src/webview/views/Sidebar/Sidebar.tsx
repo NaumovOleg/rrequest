@@ -1,6 +1,6 @@
 import { useState, useEffect, type DragEvent } from 'react'
 import { useStore } from '../../state/store'
-import { postToHost } from '../../ipc'
+import { postToHost, getUiState, setUiState } from '../../ipc'
 import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Folder, type RestRequest } from '../../../shared/types'
 import { MethodBadge } from '../../elements/MethodBadge'
 import { IconButton } from '../../elements/IconButton'
@@ -19,8 +19,17 @@ export function Sidebar() {
   const tree = useStore((s) => s.tree)
   const environments = useStore((s) => s.environments)
   const isViewer = useStore((s) => s.isViewer())
-  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  // Restore which nodes were expanded last session (persisted per webview).
+  // Node ids are unique across workspaces, so a single set is workspace-safe:
+  // ids that don't belong to the active tree simply don't render.
+  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
+    () => new Set(getUiState<string[]>('expandedCollections', [])),
+  )
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set(getUiState<string[]>('expandedFolders', [])),
+  )
+  useEffect(() => { setUiState('expandedCollections', [...expandedCollections]) }, [expandedCollections])
+  useEffect(() => { setUiState('expandedFolders', [...expandedFolders]) }, [expandedFolders])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [ctx, setCtx] = useState<{ x: number; y: number; collectionId: string; folderId: string | null; request: CollectionItem } | null>(null)

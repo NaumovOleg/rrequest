@@ -735,35 +735,37 @@ export function RequestPanel() {
                 onChange={(e) => update({ testScript: e.target.value })}
               />
             )}
+          </div>
 
-            <div className="rm-curlrow">
-              <button
-                className="rm-btn"
-                onClick={() => {
-                  void navigator.clipboard.writeText(toCurl(active));
-                }}
-              >
-                Copy as cURL
-              </button>
-              <input
-                className="rm-input"
-                aria-label="curl command"
-                placeholder="Paste curl command"
-                value={curlText}
-                onChange={(e) => setCurlText(e.target.value)}
-              />
-              <button
-                className="rm-btn"
-                onClick={() => {
-                  const p = parseCurl(curlText);
-                  openNewTab();
-                  update(p);
-                  setCurlText("");
-                }}
-              >
-                Import from cURL
-              </button>
-            </div>
+          {/* Pinned to the bottom of the config pane: sibling of the scrolling
+              config-body, so it stays visible even when the tab above is empty. */}
+          <div className="rm-curlrow">
+            <button
+              className="rm-btn"
+              onClick={() => {
+                void navigator.clipboard.writeText(toCurl(active));
+              }}
+            >
+              Copy as cURL
+            </button>
+            <input
+              className="rm-input"
+              aria-label="curl command"
+              placeholder="Paste curl command"
+              value={curlText}
+              onChange={(e) => setCurlText(e.target.value)}
+            />
+            <button
+              className="rm-btn"
+              onClick={() => {
+                const p = parseCurl(curlText);
+                openNewTab();
+                update(p);
+                setCurlText("");
+              }}
+            >
+              Import from cURL
+            </button>
           </div>
         </section>
 

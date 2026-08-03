@@ -12,8 +12,13 @@ export class TrashStore {
 
   async add(entry: Omit<TrashEntry, 'id' | 'at'>): Promise<TrashEntry> {
     const full: TrashEntry = { ...entry, id: newId(), at: Date.now() }
-    const next = [full, ...(await this.list())]
-    await writeJsonAtomic(this.file, next)
+    // Dedupe by the deleted item's own id + workspace + kind: deleting the same
+    // underlying item again (e.g. after a sync briefly resurrects it) replaces
+    // its trash entry instead of stacking duplicates.
+    const existing = (await this.list()).filter(
+      (e) => !(e.workspaceId === entry.workspaceId && e.kind === entry.kind && (e.data as { id?: string }).id === (entry.data as { id?: string }).id),
+    )
+    await writeJsonAtomic(this.file, [full, ...existing])
     return full
   }
 

@@ -178,7 +178,11 @@ export class SyncManager {
       const { snapshot, revision, role } = await this.cli(accountId).pull(workspaceId)
       const remote = JSON.parse(snapshot) as WorkspaceSnapshot
       const local = await this.buildLocalSnapshot(workspaceId, accountId)
-      const merged = mergeSnapshots(remote, local)
+      // Keep explicitly-deleted ids out of the local merge until the push has
+      // actually removed them from the remote — otherwise a poll between the
+      // delete and the push resurrects the item locally (user deletes again ->
+      // duplicate trash entries). pendingDeletes is cleared only by push.
+      const merged = pruneDeleted(mergeSnapshots(remote, local), this.pendingDeletes)
       const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
       const environments = mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs)
       await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
@@ -221,7 +225,7 @@ export class SyncManager {
           if (!pulled) { failed++; continue }
           await this.deps.stores.ensureWorkspace?.(w.id, pulled.snapshot.name || w.name || w.id)
           const local = await this.buildLocalSnapshot(w.id, accountId)
-          const merged = mergeSnapshots(pulled.snapshot, local)
+          const merged = pruneDeleted(mergeSnapshots(pulled.snapshot, local), this.pendingDeletes)
           await this.applyMergedLocally(w.id, merged)
           await this.deps.state.set(w.id, {
             driveFileId: w.driveFileId ?? '',

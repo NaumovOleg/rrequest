@@ -72,6 +72,23 @@ describe('SyncManager', () => {
     expect((await state.get('w1'))?.lastRevision).toBe('9')
   })
 
+  it('pull does not resurrect a pending-deleted request (no duplicate-trash loop)', async () => {
+    // Local already has the request removed; remote still has it; the id is
+    // pending deletion. Pull must NOT bring it back locally before push runs.
+    const remoteCollection: Collection = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [req('rDel'), req('rKeep')] }
+    const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [remoteCollection], environments: [], updatedAt: 1, updatedBy: 'other' })
+    const client = { pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '9' })), enableSync: vi.fn(), push: vi.fn() } as any
+    const localCollection: Collection = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [req('rKeep')] }
+    const { port, box } = stores({ collections: [localCollection], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f1', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '1', synced: true })
+    const mgr = new SyncManager({ client, state, stores: port, email: () => 'a@x.com' })
+    mgr.recordDeletion(['rDel'])
+    await mgr.pull('w1')
+    const appliedCol = box.applied.collections.find((c: Collection) => c.id === 'c1')
+    expect(appliedCol.requests.map((r: any) => r.id).sort()).toEqual(['rKeep']) // rDel stays gone
+  })
+
   it('push is a no-op when the workspace is not synced', async () => {
     const client = { push: vi.fn(), enableSync: vi.fn(), pull: vi.fn() } as any
     const { port } = stores({ collections: [], environments: [] })

@@ -6,7 +6,7 @@
 // need. None of the tests in this file rely on DOM globals, so running them
 // under Node's native fetch/FormData/Blob/File is both necessary and safe.
 import { describe, it, expect } from 'vitest'
-import { sendRequest } from '../../src/extension/http-client'
+import { sendRequest } from '../../src/extension/net/http-client'
 import type { RestRequest } from '../../src/shared/types'
 import * as fsp from 'node:fs/promises'
 import * as ospath from 'node:path'

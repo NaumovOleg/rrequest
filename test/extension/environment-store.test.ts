@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { EnvironmentStore } from '../../src/extension/environment-store'
+import { EnvironmentStore } from '../../src/extension/stores/environment-store'
 
 let dir: string
 let store: EnvironmentStore

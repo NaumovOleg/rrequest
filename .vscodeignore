@@ -24,7 +24,7 @@ docs/**
 # --- Build/config + repo cruft ---
 esbuild.js
 vite.config.*
-vitest.config.*
+vitest*.config.*
 tsconfig*.json
 .eslintrc*
 .prettierrc*

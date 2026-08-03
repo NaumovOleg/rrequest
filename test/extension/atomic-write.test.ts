@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { writeJsonAtomic, readJsonSafe } from '../../src/extension/atomic-write'
+import { writeJsonAtomic, readJsonSafe } from '../../src/extension/stores/atomic-write'
 
 let dir: string
 beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-')) })

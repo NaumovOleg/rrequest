@@ -11,5 +11,7 @@
     "resolveJsonModule": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "// note": "test/server holds the backend's own tests — checked by test/server/tsconfig.json (server compiler options: decorators, node types).",
+  "exclude": ["test/server"]
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { grpcInvoke } from '../../src/extension/grpc-client'
+import { grpcInvoke } from '../../src/extension/net/grpc-client'
 
 const PROTO = `syntax = "proto3";
 package hello;

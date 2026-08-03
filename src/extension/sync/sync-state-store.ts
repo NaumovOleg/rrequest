@@ -1,5 +1,5 @@
 import * as path from 'node:path'
-import { readJsonSafe, writeJsonAtomic } from '../atomic-write'
+import { readJsonSafe, writeJsonAtomic } from '../stores/atomic-write'
 
 export type SyncState = {
   driveFileId: string

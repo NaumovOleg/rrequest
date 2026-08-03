@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { interpolate } from '../../src/extension/interpolate'
+import { interpolate } from '../../src/extension/scripting/interpolate'
 import type { KeyValue } from '../../src/shared/types'
 
 const vars: KeyValue[] = [

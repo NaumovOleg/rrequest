@@ -1,0 +1,12 @@
+{
+  // Backend tests live here (moved out of server/src). They compile with the
+  // server's own options (decorators, node types, its module resolution), not
+  // the root/webview tsconfig, so they get a project of their own that reuses
+  // server/tsconfig.json and widens rootDir to reach ../../server/src.
+  "extends": "../../server/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "noEmit": true
+  },
+  "include": [".", "../../server/src/types"]
+}

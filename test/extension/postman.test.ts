@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toNative, fromNative } from '../../src/extension/postman'
+import { toNative, fromNative } from '../../src/extension/formats/postman'
 import type { Collection } from '../../src/shared/types'
 
 const pm = {

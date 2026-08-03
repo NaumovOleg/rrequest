@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { TrashStore } from '../../src/extension/trash-store'
+import { TrashStore } from '../../src/extension/stores/trash-store'
 
 let dir: string
 beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rrequest-tr-')) })

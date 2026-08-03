@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { CollectionStore } from '../../src/extension/collection-store'
+import { CollectionStore } from '../../src/extension/stores/collection-store'
 import { newId, type RestRequest } from '../../src/shared/types'
 
 let dir: string

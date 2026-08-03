@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectFormat, parseImport, serializeExport } from '../../src/extension/import-export'
+import { detectFormat, parseImport, serializeExport } from '../../src/extension/formats/import-export'
 import type { Collection } from '../../src/shared/types'
 
 const native: Collection = { id: 'c1', name: 'N', workspaceId: '', requests: [

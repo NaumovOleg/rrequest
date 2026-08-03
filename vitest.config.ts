@@ -17,6 +17,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+    // Server tests run under their own node-env config (vitest.server.config.ts).
+    exclude: ['test/server/**', '**/node_modules/**'],
     setupFiles: ['./test/setup.ts'],
   },
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runPreScript, runTestScript } from '../../src/extension/sandbox'
+import { runPreScript, runTestScript } from '../../src/extension/scripting/sandbox'
 import type { HttpResponse, RestRequest } from '../../src/shared/types'
 
 function req(over: Partial<RestRequest> = {}): RestRequest {

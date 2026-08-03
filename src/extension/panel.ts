@@ -3,17 +3,17 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import WebSocket from "ws";
 import { createRouter } from "./messaging";
-import { sendRequest } from "./http-client";
-import { grpcInvoke } from "./grpc-client";
-import { runPreScript, runTestScript } from "./sandbox";
-import { CollectionStore } from "./collection-store";
-import { HistoryStore } from "./history-store";
-import { EnvironmentStore } from "./environment-store";
-import { WorkspaceStore } from "./workspace-store";
-import { TrashStore } from "./trash-store";
-import { parseImport, serializeExport } from "./import-export";
+import { sendRequest } from "./net/http-client";
+import { grpcInvoke } from "./net/grpc-client";
+import { runPreScript, runTestScript } from "./scripting/sandbox";
+import { CollectionStore } from "./stores/collection-store";
+import { HistoryStore } from "./stores/history-store";
+import { EnvironmentStore } from "./stores/environment-store";
+import { WorkspaceStore } from "./stores/workspace-store";
+import { TrashStore } from "./stores/trash-store";
+import { parseImport, serializeExport } from "./formats/import-export";
 import { Hub } from "./hub";
-import { WsManager, type WsFactory } from "./ws-manager";
+import { WsManager, type WsFactory } from "./net/ws-manager";
 import {
   SyncClient,
   SyncForbiddenError,
@@ -138,7 +138,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     const wsFactory: WsFactory = (url, opts) =>
       new WebSocket(url, {
         headers: opts.headers,
-      }) as unknown as import("./ws-manager").WsSocket;
+      }) as unknown as import("./net/ws-manager").WsSocket;
     let hubRef: Hub | undefined;
     const wsManager = new WsManager((m) => hubRef?.emitTo("ws", m), wsFactory);
 

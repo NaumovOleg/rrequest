@@ -8,12 +8,12 @@ function openItemMsg(item: CollectionItem, targetCollectionId?: string, targetFo
   if (kind === 'ws') return { type: 'openWsRequest', request: item as WsRequest, targetCollectionId, targetFolderId }
   return { type: 'openInEditor', request: item as RestRequest, targetCollectionId, targetFolderId }
 }
-import type { sendRequest as SendFn } from './http-client'
-import type { CollectionStore } from './collection-store'
-import type { HistoryStore } from './history-store'
-import type { EnvironmentStore } from './environment-store'
-import type { WorkspaceStore } from './workspace-store'
-import type { WsManager } from './ws-manager'
+import type { sendRequest as SendFn } from './net/http-client'
+import type { CollectionStore } from './stores/collection-store'
+import type { HistoryStore } from './stores/history-store'
+import type { EnvironmentStore } from './stores/environment-store'
+import type { WorkspaceStore } from './stores/workspace-store'
+import type { WsManager } from './net/ws-manager'
 
 export type RouterDeps = {
   send: typeof SendFn
@@ -31,8 +31,8 @@ export type RouterDeps = {
   runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
   runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
   ws?: WsManager
-  grpcInvoke?: (p: import('./grpc-client').GrpcParams) => Promise<import('./grpc-client').GrpcResult>
-  trash?: import('./trash-store').TrashStore
+  grpcInvoke?: (p: import('./net/grpc-client').GrpcParams) => Promise<import('./net/grpc-client').GrpcResult>
+  trash?: import('./stores/trash-store').TrashStore
   isReadOnly?: (workspaceId: string) => boolean
   members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
   syncControl?: { signIn(): Promise<void>; signOut(accountId?: string): Promise<void>; enable(workspaceId: string, accountId?: string): Promise<void>; syncNow(workspaceId: string): Promise<void> }

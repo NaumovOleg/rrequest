@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { WsManager, type WsSocket, type WsFactory } from '../../src/extension/ws-manager'
+import { WsManager, type WsSocket, type WsFactory } from '../../src/extension/net/ws-manager'
 import type { HostMessage } from '../../src/shared/types'
 
 function fakeSocket() {

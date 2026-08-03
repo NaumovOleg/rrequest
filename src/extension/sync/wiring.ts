@@ -1,7 +1,7 @@
 import type { Collection, Environment } from '../../shared/types'
-import type { CollectionStore } from '../collection-store'
-import type { EnvironmentStore } from '../environment-store'
-import type { WorkspaceStore } from '../workspace-store'
+import type { CollectionStore } from '../stores/collection-store'
+import type { EnvironmentStore } from '../stores/environment-store'
+import type { WorkspaceStore } from '../stores/workspace-store'
 import type { StoresPort } from './sync-manager'
 
 export function buildStoresPort(collections: CollectionStore, environments: EnvironmentStore, workspaces: WorkspaceStore): StoresPort {

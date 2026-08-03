@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { WorkspaceStore } from '../../src/extension/workspace-store'
+import { WorkspaceStore } from '../../src/extension/stores/workspace-store'
 
 let dir: string, store: WorkspaceStore
 beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rm-ws-')); store = new WorkspaceStore(dir) })

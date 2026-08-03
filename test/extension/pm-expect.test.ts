@@ -1,5 +1,5 @@
 import { describe, it, expect as vExpect } from 'vitest'
-import { expect } from '../../src/extension/pm-expect'
+import { expect } from '../../src/extension/scripting/pm-expect'
 
 describe('pm.expect', () => {
   it('equal passes and fails', () => {

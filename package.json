@@ -72,10 +72,10 @@
     "build": "RM_ENTRY=editor vite build && RM_ENTRY=sidebar vite build && node esbuild.js",
     "watch": "node esbuild.js --watch",
     "test": "vitest run",
-    "test:server": "vitest run --root server",
+    "test:server": "vitest run -c vitest.server.config.ts",
     "test:infra": "vitest run --root infra",
     "test:all": "npm run test && npm run test:server && npm run test:infra",
-    "typecheck:server": "tsc --noEmit -p server/tsconfig.json",
+    "typecheck:server": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p test/server/tsconfig.json",
     "typecheck:infra": "tsc --noEmit -p infra/tsconfig.json",
     "deploy": "cd infra && cdk deploy --all --require-approval never"
   },

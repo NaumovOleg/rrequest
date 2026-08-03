@@ -79,6 +79,9 @@ type State = {
   closeTab(id: string): void
   setActive(id: string): void
   updateActive(patch: Partial<RestRequest>): void
+  // Make the active tab's url show its query params (does NOT mark dirty — it's
+  // a display reconcile, not a user edit). No-op when the url already has them.
+  reconcileActiveUrl(): void
   openOrReplaceBlank(patch: Partial<Tab>): void
   openLinkedTab(request: RestRequest, collectionId?: string, folderId?: string | null): void
   setTabBody(tabId: string, body: RestRequest['body']): void
@@ -172,6 +175,14 @@ export const useStore = create<State>((set, get) => ({
     // sidebar/tree until the user Saves.
     tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch, dirty: true } : t)),
   })),
+
+  reconcileActiveUrl: () => set((s) => {
+    const t = s.tabs.find((x) => x.id === s.activeTabId)
+    if (!t) return {}
+    const r = reconcileUrlParams(t.url, t.params ?? [])
+    if (r.url === t.url) return {} // already consistent — don't touch dirty
+    return { tabs: s.tabs.map((x) => (x.id === t.id ? { ...x, url: r.url, params: r.params } : x)) }
+  }),
 
   openOrReplaceBlank: (patch) => set((s) => {
     const active = s.tabs.find((t) => t.id === s.activeTabId)

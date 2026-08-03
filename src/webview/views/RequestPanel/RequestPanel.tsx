@@ -46,11 +46,16 @@ const SUBTABS: { id: SubTab; label: string }[] = [
 // Upsert (or remove) the Content-Type header without touching other headers.
 function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
   const rest = headers.filter((h) => h.key.toLowerCase() !== "content-type");
-  return ct ? [...rest, { key: "Content-Type", value: ct, enabled: true }] : rest;
+  return ct
+    ? [...rest, { key: "Content-Type", value: ct, enabled: true }]
+    : rest;
 }
 // Headers the transport fills in automatically (shown greyed, like Postman).
 // User-Agent is omitted here because it's an editable default header already.
-function autoHeaders(url: string, body: RequestBody): { key: string; value: string }[] {
+function autoHeaders(
+  url: string,
+  body: RequestBody,
+): { key: string; value: string }[] {
   let host = "";
   try {
     host = new URL(url).host;
@@ -72,8 +77,8 @@ function contentTypeFor(body: RequestBody): string | null {
     return body.type === "json"
       ? "application/json"
       : body.type === "xml"
-        ? "application/xml"
-        : "text/plain";
+      ? "application/xml"
+      : "text/plain";
   if (body.mode === "urlencoded") return "application/x-www-form-urlencoded";
   if (body.mode === "graphql") return "application/json";
   return null; // none, formdata (client sets the multipart boundary)
@@ -284,10 +289,14 @@ export function RequestPanel() {
   const [splitPct, setSplitPct] = useState(50);
   const [showAuto, setShowAuto] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
-  const bodyCache = useRef<{ id: string | null; byMode: Partial<Record<RequestBody["mode"], RequestBody>> }>({ id: null, byMode: {} });
+  const bodyCache = useRef<{
+    id: string | null;
+    byMode: Partial<Record<RequestBody["mode"], RequestBody>>;
+  }>({ id: null, byMode: {} });
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const isViewer = useStore((s) => s.isViewer());
   const update = useStore((s) => s.updateActive);
+  const reconcileActiveUrl = useStore((s) => s.reconcileActiveUrl);
   const markTabSaved = useStore((s) => s.markTabSaved);
   const openNewTab = useStore((s) => s.openNewTab);
   const tree = useStore((s) => s.tree);
@@ -299,6 +308,12 @@ export function RequestPanel() {
       (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key),
     );
   });
+  // On load, make the URL bar reflect the request's params (a saved request may
+  // carry params but a query-less url). Keyed on the request id so it runs once
+  // per opened request and never marks the tab dirty.
+  useEffect(() => {
+    reconcileActiveUrl();
+  }, [active?.id, reconcileActiveUrl]);
   useEffect(() => {
     setSaveCollectionId(pendingSaveCollectionId ?? "");
   }, [pendingSaveCollectionId]);
@@ -313,7 +328,11 @@ export function RequestPanel() {
   const saveRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "s") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "s"
+      ) {
         e.preventDefault();
         saveRef.current();
       }
@@ -339,15 +358,20 @@ export function RequestPanel() {
   // --- keep params list and the URL query string in sync (both directions) ---
   const onUrlChange = (url: string) => {
     const { params } = parseParamsFromUrl(url);
+    console.log("url change:", url, params);
     update({ url, params });
   };
   const onParamsChange = (params: KeyValue[]) => {
     const base = active.url.split("?")[0];
+    console.log("params change:", { params, base, active });
     update({ params, url: buildUrlFromParams(base, params) });
   };
   // Changing the body keeps the Content-Type header in step with it.
   const setBody = (body: RequestBody) =>
-    update({ body, headers: upsertContentType(active.headers, contentTypeFor(body)) });
+    update({
+      body,
+      headers: upsertContentType(active.headers, contentTypeFor(body)),
+    });
 
   // The body model only holds the active mode, so switching mode would drop the
   // other modes' content. `bodyCache` (declared with the other refs, above the
@@ -356,18 +380,35 @@ export function RequestPanel() {
   const switchBodyMode = (mode: RequestBody["mode"]) => {
     if (!active || mode === active.body.mode) return;
     const cache = bodyCache.current;
-    if (cache.id !== active.id) { cache.id = active.id; cache.byMode = {}; }
+    if (cache.id !== active.id) {
+      cache.id = active.id;
+      cache.byMode = {};
+    }
     cache.byMode[active.body.mode] = active.body; // remember the mode we're leaving
     // GraphQL is POSTed as JSON; default the method to POST.
-    if (mode === "graphql" && active.method === "GET") update({ method: "POST" });
+    if (mode === "graphql" && active.method === "GET")
+      update({ method: "POST" });
     const restored = cache.byMode[mode];
-    if (restored) { setBody(restored); return; }
+    if (restored) {
+      setBody(restored);
+      return;
+    }
     switch (mode) {
-      case "none": setBody({ mode: "none" }); break;
-      case "raw": setBody({ mode: "raw", type: "json", text: "" }); break;
-      case "urlencoded": setBody({ mode: "urlencoded", items: [] }); break;
-      case "formdata": setBody({ mode: "formdata", items: [] }); break;
-      case "graphql": setBody({ mode: "graphql", query: "", variables: "" }); break;
+      case "none":
+        setBody({ mode: "none" });
+        break;
+      case "raw":
+        setBody({ mode: "raw", type: "json", text: "" });
+        break;
+      case "urlencoded":
+        setBody({ mode: "urlencoded", items: [] });
+        break;
+      case "formdata":
+        setBody({ mode: "formdata", items: [] });
+        break;
+      case "graphql":
+        setBody({ mode: "graphql", query: "", variables: "" });
+        break;
     }
   };
 
@@ -405,13 +446,18 @@ export function RequestPanel() {
 
   const save = () => {
     if (isViewer) return;
-    const { collectionId: linkC, folderId: linkF, dirty: _dirty, ...request } = active;
+    const {
+      collectionId: linkC,
+      folderId: linkF,
+      dirty: _dirty,
+      ...request
+    } = active;
     const collectionId = linkC || saveCollectionId;
     if (!collectionId) return;
     postToHost({
       type: "saveRequest",
       collectionId,
-      folderId: linkC ? (linkF ?? null) : saveFolderId || null,
+      folderId: linkC ? linkF ?? null : saveFolderId || null,
       request,
     });
     // Committed to the tree -> tab is clean again (clears the dirty dot and
@@ -430,6 +476,8 @@ export function RequestPanel() {
     linkedCollection && active.folderId
       ? (linkedCollection.folders ?? []).find((f) => f.id === active.folderId)
       : undefined;
+
+  console.log("active request:", active);
 
   return (
     <div className="rm-reqpane">
@@ -494,7 +542,9 @@ export function RequestPanel() {
         <label>
           <span style={{ display: "none" }}>method</span>
           <select
-            className={`rm-select rm-method-select ${methodClass(active.method)}`}
+            className={`rm-select rm-method-select ${methodClass(
+              active.method,
+            )}`}
             aria-label="method"
             value={active.method}
             onChange={(e) => update({ method: e.target.value as HttpMethod })}
@@ -523,10 +573,7 @@ export function RequestPanel() {
       </div>
 
       <div className="rm-req-split" ref={splitRef}>
-        <section
-          className="rm-req-config"
-          style={{ flex: `0 0 ${splitPct}%` }}
-        >
+        <section className="rm-req-config" style={{ flex: `0 0 ${splitPct}%` }}>
           <div className="rm-subtab-bar">
             <select
               className="rm-select rm-subtab-select"
@@ -569,7 +616,9 @@ export function RequestPanel() {
                         onClick={() => setShowAuto((v) => !v)}
                       >
                         <span
-                          className={`codicon codicon-chevron-${showAuto ? "down" : "right"}`}
+                          className={`codicon codicon-chevron-${
+                            showAuto ? "down" : "right"
+                          }`}
                         />{" "}
                         {showAuto ? "Hide" : "Show"} auto-generated headers (
                         {auto.length})
@@ -680,9 +729,7 @@ export function RequestPanel() {
                         setBody({ ...active.body, query: e.target.value })
                       }
                     />
-                    <label className="rm-graphql-label">
-                      Variables (JSON)
-                    </label>
+                    <label className="rm-graphql-label">Variables (JSON)</label>
                     <textarea
                       className="rm-input rm-code-input"
                       aria-label="graphql variables"

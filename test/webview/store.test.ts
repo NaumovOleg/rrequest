@@ -20,6 +20,26 @@ describe('webview store', () => {
     expect(active.method).toBe('POST')
   })
 
+  it('reconcileActiveUrl rebuilds the url from params without marking dirty', () => {
+    const st = useStore.getState()
+    st.openNewTab()
+    // A tab that carries params but a query-less url (e.g. an import).
+    st.updateActive({ url: '{{host}}/x', params: [{ key: 'skip', value: '0' } as any] })
+    useStore.getState().markTabSaved(useStore.getState().tabs[0].id) // clean slate
+    useStore.getState().reconcileActiveUrl()
+    const t = useStore.getState().tabs[0]
+    expect(t.url).toBe('{{host}}/x?skip=0')
+    expect(t.dirty).toBe(false) // display reconcile, not a user edit
+  })
+  it('reconcileActiveUrl is a no-op when the url already has the query', () => {
+    const st = useStore.getState()
+    st.openNewTab()
+    st.updateActive({ url: 'https://x?a=1', params: [{ key: 'a', value: '1', enabled: true }] })
+    useStore.getState().markTabSaved(useStore.getState().tabs[0].id)
+    useStore.getState().reconcileActiveUrl()
+    expect(useStore.getState().tabs[0].dirty).toBe(false)
+  })
+
   it('closeTab removes it and picks a new active', () => {
     const st = useStore.getState()
     st.openNewTab(); st.openNewTab()

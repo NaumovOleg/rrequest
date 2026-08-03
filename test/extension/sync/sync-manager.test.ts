@@ -89,6 +89,18 @@ describe('SyncManager', () => {
     expect(appliedCol.requests.map((r: any) => r.id).sort()).toEqual(['rKeep']) // rDel stays gone
   })
 
+  it('push/pull skip (no request) when the account has no resolvable token', async () => {
+    const client = { push: vi.fn(), pull: vi.fn(), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '1', synced: true, accountId: 'gone' })
+    const mgr = new SyncManager({ client, state, stores: port, email: () => 'a@x.com', hasToken: () => false })
+    await mgr.push('w1')
+    await mgr.pull('w1')
+    expect(client.push).not.toHaveBeenCalled()
+    expect(client.pull).not.toHaveBeenCalled() // no empty-Bearer request -> no spurious 401
+  })
+
   it('push is a no-op when the workspace is not synced', async () => {
     const client = { push: vi.fn(), enableSync: vi.fn(), pull: vi.fn() } as any
     const { port } = stores({ collections: [], environments: [] })

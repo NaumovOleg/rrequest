@@ -40,6 +40,12 @@ export class SyncManager {
       // on startup). Network methods no-op then, so an empty `Bearer` never
       // fires and onAuthLost can't wipe a token.
       isAuthed?: () => boolean
+      // Whether a usable token exists for this workspace's account. When it
+      // doesn't (a legacy synced workspace whose accountId no longer resolves,
+      // or an unbound accountId with several accounts connected), we skip the
+      // request instead of sending an empty `Bearer` that 401s and pops a
+      // spurious "sign-in expired" toast while the account still shows synced.
+      hasToken?: (accountId?: string) => boolean
       onAuthLost?: () => void | Promise<void>
       onSyncError?: (workspaceId: string, error: unknown) => void
     },
@@ -57,6 +63,12 @@ export class SyncManager {
 
   private authed(): boolean {
     return this.deps.isAuthed?.() ?? true
+  }
+
+  // A synced workspace we can't get a token for: skip its network calls so an
+  // empty Bearer never 401s. Defaults to true when no checker is wired.
+  private tokenReady(accountId?: string): boolean {
+    return this.deps.hasToken ? this.deps.hasToken(accountId) : true
   }
 
   /** The SyncClient for an account (falls back to the legacy single client). */
@@ -137,6 +149,7 @@ export class SyncManager {
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     const accountId = state.accountId
+    if (!this.tokenReady(accountId)) return
     try {
       const local = await this.buildLocalSnapshot(workspaceId, accountId)
       // Union local over the CURRENT remote before writing, so a stale/empty
@@ -174,6 +187,7 @@ export class SyncManager {
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     const accountId = state.accountId
+    if (!this.tokenReady(accountId)) return
     try {
       const { snapshot, revision, role } = await this.cli(accountId).pull(workspaceId)
       const remote = JSON.parse(snapshot) as WorkspaceSnapshot

@@ -421,6 +421,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       stores: buildStoresPort(collections, environments, workspaces),
       email: (accountId) => accounts.emailOf(accountId) ?? "me",
       isAuthed,
+      hasToken: (accountId) => !!accounts.getToken(accountId),
       onAuthLost: async () => {
         // Multi-account: we can't tell which account's token expired here, so
         // don't remove anything — just (once) prompt a re-sign-in, and never

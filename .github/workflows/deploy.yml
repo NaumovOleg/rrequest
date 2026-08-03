@@ -1,7 +1,11 @@
 name: deploy
 
-# Push to development -> deploy the AWS backend ONLY (dev stack), no extension release.
-# Push to main        -> deploy the AWS backend (prod stack) THEN publish the extension.
+# Push to development -> deploy the AWS backend on EVERY push (dev stack), no release.
+# Push to main        -> ONLY when the version was bumped (v<version> not yet tagged):
+#                        deploy the AWS backend (prod stack) THEN publish the extension.
+#                        A main push that didn't bump the version does nothing.
+# The version is chosen by the developer via changesets (yarn changeset ->
+# yarn changeset:version), committed to package.json; CI publishes + tags it.
 #
 # Secrets and variables are read from a GitHub *Environment*, chosen by branch:
 #   main        -> environment "production"   (STAGE=production,  stack RrequestStack)
@@ -45,7 +49,29 @@ jobs:
           node-version: 20
           cache: yarn
 
+      # development: deploy on every push. main: deploy only when the version
+      # was bumped (v<version> not yet tagged) — same release trigger as the
+      # extension publish, so a docs/refactor push to main redeploys nothing.
+      - name: Decide whether to deploy
+        id: gate
+        run: |
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "development branch — always deploy."
+          else
+            VER=$(node -p "require('./package.json').version")
+            git fetch --tags --quiet
+            if git rev-parse -q --verify "refs/tags/v$VER" >/dev/null; then
+              echo "deploy=false" >> "$GITHUB_OUTPUT"
+              echo "main: v$VER already tagged — skip AWS deploy."
+            else
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+              echo "main: v$VER not yet released — deploy."
+            fi
+          fi
+
       - name: Configure AWS credentials
+        if: steps.gate.outputs.deploy == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -55,11 +81,13 @@ jobs:
       # One node_modules at the repo root now carries the extension, server and
       # infra (incl. aws-cdk + esbuild for Lambda bundling).
       - name: Install deps
+        if: steps.gate.outputs.deploy == 'true'
         run: yarn install --frozen-lockfile
 
       # STAGE selects the stack (RrequestStack / DevelopmentRrequestStack); --all
       # deploys whichever single stack bin/app.ts synthesizes for this STAGE.
       - name: CDK deploy
+        if: steps.gate.outputs.deploy == 'true'
         working-directory: infra
         run: npx cdk deploy --all --require-approval never
 

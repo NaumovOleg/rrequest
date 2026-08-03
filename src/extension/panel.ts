@@ -369,10 +369,14 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // by request id so re-opening focuses the existing tab; env/ws are singletons.
     hub.setOpen((m) => {
       if (m.type === "openInEditor") {
+        // Title = request name only; the method is shown by the colored tab
+        // icon (set via setTitle from the webview). Keep this in step with
+        // EditorApp's setTitle so the tab doesn't flip between "name" and
+        // "METHOD name" on first open vs. re-click.
         RrequestPanel.openOrReveal(
           context,
           `req:${m.request.id}`,
-          `${m.request.method} ${m.request.name}`,
+          m.request.name,
           m,
         );
       } else if (m.type === "openGrpcRequest") {
@@ -682,7 +686,9 @@ export class RrequestPanel {
   ) {
     const existing = RrequestPanel.panels.get(key);
     if (existing) {
-      existing.panel.title = title;
+      // Don't overwrite the title on reveal — the webview owns it (name +
+      // method icon + unsaved dot) via setTitle. Re-setting it here made the
+      // tab flip to "METHOD name" and dropped the ● dot on re-click.
       existing.panel.reveal();
       if (initial) existing.deliver(initial);
       return;

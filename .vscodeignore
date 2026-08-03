@@ -6,6 +6,7 @@
 
 # --- Backend broker: hosted separately by the operator; NEVER ships to users ---
 server/**
+infra/**
 
 # --- Any env / secret files, anywhere (keep the example) ---
 **/.env

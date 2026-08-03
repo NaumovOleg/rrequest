@@ -57,7 +57,7 @@ export type ApiFunctionProps = {
 export function apiFunction(scope: Construct, props: ApiFunctionProps): NodejsFunction {
   const { tables, secrets, config } = props;
   const fn = new NodejsFunction(scope, "ApiFunction", {
-    entry: path.join(__dirname, "../../src/handlers/api-app.ts"),
+    entry: path.join(__dirname, "../../server/src/handlers/api-app.ts"),
     handler: "handler",
     runtime: Runtime.NODEJS_22_X,
     timeout: Duration.seconds(29),
@@ -90,7 +90,7 @@ export type PollFunctionProps = {
 export function pollFunction(scope: Construct, props: PollFunctionProps): NodejsFunction {
   const { tables, secrets, config } = props;
   const fn = new NodejsFunction(scope, "PollFunction", {
-    entry: path.join(__dirname, "../../src/handlers/poll-app.ts"),
+    entry: path.join(__dirname, "../../server/src/handlers/poll-app.ts"),
     handler: "handler",
     runtime: Runtime.NODEJS_22_X,
     timeout: Duration.seconds(60),

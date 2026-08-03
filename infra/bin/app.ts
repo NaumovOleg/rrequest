@@ -7,7 +7,7 @@ import { RrequestStack } from "../lib/rrequest-stack";
 // environment directly, which wins over the file. `ENV_FILE=.env.prod cdk
 // deploy` selects prod values. (tsx runs this as CommonJS, so `require` is
 // available; the loader resolves the repo root from its own location.)
-require("../../../scripts/load-root-env.cjs")();
+require("../../scripts/load-root-env.cjs")();
 
 // Deploys the backend as a single stack: DynamoDB tables + the Helios Lambda
 // (behind a Lambda Function URL) + the EventBridge-scheduled poll Lambda.

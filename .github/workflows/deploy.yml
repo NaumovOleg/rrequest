@@ -51,16 +51,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Install server deps (+ esbuild for Lambda bundling)
-        working-directory: server
-        run: |
-          npm ci
-          npm i --no-save esbuild
+      # One node_modules at the repo root now carries the extension, server and
+      # infra (incl. aws-cdk + esbuild for Lambda bundling).
+      - name: Install deps
+        run: npm ci
 
       # STAGE selects the stack (RrequestStack / DevelopmentRrequestStack); --all
       # deploys whichever single stack bin/app.ts synthesizes for this STAGE.
       - name: CDK deploy
-        working-directory: server/infra
+        working-directory: infra
         run: npx cdk deploy --all --require-approval never
 
   # Only main publishes the extension. A development push stops after deploy-api.

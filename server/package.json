@@ -1,32 +1,5 @@
 {
   "name": "rrequest-sync-server",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.665.0",
-    "@aws-sdk/lib-dynamodb": "^3.665.0",
-    "@heliosjs/aws": "^10.0.1",
-    "@heliosjs/core": "^3.0.0",
-    "google-auth-library": "^9.14.0",
-    "jsonwebtoken": "^9.0.2",
-    "reflect-metadata": "^0.2.2"
-  },
-  "devDependencies": {
-    "@types/aws-lambda": "^8.10.145",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.14.0",
-    "aws-cdk": "^2.1133.0",
-    "aws-cdk-lib": "^2.161.0",
-    "constructs": "^10.3.0",
-    "dynalite": "^3.2.2",
-    "tsx": "^4.16.0",
-    "typescript": "^5.5.0",
-    "vitest": "^1.6.0"
-  }
+  "type": "module"
 }

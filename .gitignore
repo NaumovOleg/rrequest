@@ -7,3 +7,5 @@ media/
 .env
 .env.*
 !.env.example
+infra/cdk.out/
+cdk.out/

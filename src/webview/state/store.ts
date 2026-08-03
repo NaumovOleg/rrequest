@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { reconcileUrlParams } from './url-sync'
 import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest, type GrpcRequest } from '../../shared/types'
 
 // Payload for opening the WebSocket / gRPC editor panels. `request` null = a
@@ -195,7 +196,10 @@ export const useStore = create<State>((set, get) => ({
         tabs: s.tabs.map((t) => (t.id === request.id ? { ...t, collectionId, folderId: folderId ?? null } : t)),
       }
     }
-    const tab: Tab = { ...request, collectionId, folderId: folderId ?? null }
+    // Make the URL bar show the query params on first open, not only after the
+    // user touches a param (a saved request may have params but a query-less url).
+    const reconciled = reconcileUrlParams(request.url, request.params ?? [])
+    const tab: Tab = { ...request, url: reconciled.url, params: reconciled.params, collectionId, folderId: folderId ?? null }
     // Consume a single pristine blank tab (the one opened on mount) instead of
     // leaving it behind; every non-blank request still gets its own tab.
     const blank = s.tabs.find((t) => isPristineBlank(t))

@@ -285,8 +285,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // deferred-closure thunk over syncControlRef — same pattern as isReadOnly.
       syncControl: {
         signIn: () => syncControlRef!.signIn(),
-        signOut: () => syncControlRef!.signOut(),
-        enable: (id: string) => syncControlRef!.enable(id),
+        // Forward accountId — dropping it broke per-account sign-out and bound
+        // enabled workspaces to the wrong/undefined account (so they never
+        // pulled for the account that was actually picked).
+        signOut: (accountId?: string) => syncControlRef!.signOut(accountId),
+        enable: (id: string, accountId?: string) => syncControlRef!.enable(id, accountId),
         syncNow: (id: string) => syncControlRef!.syncNow(id),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced

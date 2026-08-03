@@ -191,13 +191,16 @@ export class SyncManager {
   // Pull every server workspace down (across ALL connected accounts) after
   // login so its collections/requests appear locally, bound to the account that
   // owns/shares them. Read-only (no push), remote-wins union — never overwrites.
-  async adoptRemoteWorkspaces(): Promise<AdoptResult> {
+  // onlyAccountId: adopt just that one account (the per-account "force sync"),
+  // otherwise sweep every connected account.
+  async adoptRemoteWorkspaces(onlyAccountId?: string): Promise<AdoptResult> {
     if (!this.authed()) return { listed: 0, adopted: [], failed: 0 }
     const adopted: string[] = []
     let listed = 0
     let failed = 0
     let error: string | undefined
-    for (const accountId of this.accountScope()) {
+    const scope = onlyAccountId ? [onlyAccountId] : this.accountScope()
+    for (const accountId of scope) {
       try {
         await this.cli(accountId).recover()
       } catch {

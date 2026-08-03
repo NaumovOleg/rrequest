@@ -181,6 +181,7 @@ export type WebviewMessage =
   | { type: 'removeMember'; workspaceId: string; memberId: string }
   | { type: 'signIn' }
   | { type: 'signOut'; accountId?: string }
+  | { type: 'syncAccount'; accountId: string }
   | { type: 'enableSync'; workspaceId: string; accountId?: string }
   | { type: 'syncNow'; workspaceId: string }
 

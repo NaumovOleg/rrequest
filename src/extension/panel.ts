@@ -96,6 +96,7 @@ type SyncControlPort = {
   signOut(accountId?: string): Promise<void>;
   enable(workspaceId: string, accountId?: string): Promise<void>;
   syncNow(workspaceId: string): Promise<void>;
+  syncAccount(accountId: string): Promise<void>;
 };
 let syncControlRef: SyncControlPort | undefined;
 export function getSyncControl(): SyncControlPort | undefined {
@@ -291,6 +292,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         signOut: (accountId?: string) => syncControlRef!.signOut(accountId),
         enable: (id: string, accountId?: string) => syncControlRef!.enable(id, accountId),
         syncNow: (id: string) => syncControlRef!.syncNow(id),
+        syncAccount: (accountId: string) => syncControlRef!.syncAccount(accountId),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
       // workspace when it's deleted; never blocks the local delete (see below).
@@ -586,6 +588,23 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         } catch (e: any) {
           hub.toast("error", `Sync failed: ${e?.message ?? e}`);
         }
+      },
+      // Force sync ONE account now: re-index its Drive (recover) + pull every
+      // workspace bound to it, without waiting for the poll loop.
+      syncAccount: async (accountId: string) => {
+        const email = accounts.emailOf(accountId) ?? "account";
+        hub.syncStatus(true);
+        try {
+          const res = await manager.adoptRemoteWorkspaces(accountId);
+          await runtime.refreshRoleCache();
+          if (res.error) hub.toast("error", `Couldn't fetch ${email}: ${res.error}`);
+          else if (res.listed === 0) hub.toast("info", `${email}: no workspaces on the server.`);
+          else hub.toast("info", `${email}: synced ${res.adopted.length}/${res.listed} workspace(s).`);
+        } catch (e: any) {
+          hub.toast("error", `Force sync failed: ${e?.message ?? e}`);
+        }
+        hub.syncStatus(false);
+        await runtime.refresh();
       },
     };
     syncControlRef = syncControlPort;

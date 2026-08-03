@@ -269,6 +269,24 @@ describe('SyncManager', () => {
     expect(calls).not.toContain('A.push') // used the bound account's client
   })
 
+  it('adoptRemoteWorkspaces(onlyAccountId) sweeps just that account (force sync)', async () => {
+    const snap = JSON.stringify({ version: 1, workspaceId: 'wB', name: 'WB', collections: [], environments: [], updatedAt: 1, updatedBy: 'me' })
+    const listedA = vi.fn(async () => [{ id: 'wA', name: 'WA', driveFileId: 'fa', revision: '1', role: 'owner' }])
+    const listedB = vi.fn(async () => [{ id: 'wB', name: 'WB', driveFileId: 'fb', revision: '1', role: 'owner' }])
+    const clientA = { recover: vi.fn(async () => ({})), listWorkspaces: listedA, pull: vi.fn(async () => ({ snapshot: snap, revision: '1', role: 'owner' })) } as any
+    const clientB = { recover: vi.fn(async () => ({})), listWorkspaces: listedB, pull: vi.fn(async () => ({ snapshot: snap, revision: '1', role: 'owner' })) } as any
+    const clientFor = (id?: string) => (id === 'accB' ? clientB : clientA)
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    const mgr = new SyncManager({ clientFor, accounts: () => ['accA', 'accB'], state, stores: port, email: (id) => `${id}@x.com` })
+
+    const res = await mgr.adoptRemoteWorkspaces('accB')
+    expect(listedB).toHaveBeenCalled()
+    expect(listedA).not.toHaveBeenCalled() // scoped: account A untouched
+    expect(res.adopted).toEqual(['wB'])
+    expect((await state.get('wB'))?.accountId).toBe('accB')
+  })
+
   it('deleteSync calls client.deleteWorkspace then drops sync locally', async () => {
     const deleteWorkspace = vi.fn(async () => {})
     const client = { deleteWorkspace, push: vi.fn(), pull: vi.fn(), enableSync: vi.fn() } as any

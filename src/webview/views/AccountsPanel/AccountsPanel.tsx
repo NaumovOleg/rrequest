@@ -152,6 +152,7 @@ export function AccountsPanel() {
                   <div className="rm-acct-head">
                     <span className="codicon codicon-account" />
                     <span className="rm-acct-email" title={a.email}>{a.email}</span>
+                    <IconButton icon="sync" label={`Force sync ${a.email} — pull all its workspaces now`} onClick={() => postToHost({ type: "syncAccount", accountId: a.id })} />
                     <IconButton icon="add" label={`New workspace in ${a.email}`} onClick={() => { create("New Workspace", a.id); setOpen(false); }} />
                     <IconButton icon="sign-out" label={`Sign out ${a.email}`} onClick={() => postToHost({ type: "signOut", accountId: a.id })} />
                   </div>

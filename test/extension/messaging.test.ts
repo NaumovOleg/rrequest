@@ -562,6 +562,7 @@ describe('createRouter sync control routes', () => {
       signOut: async () => { calls.push('signOut') },
       enable: async (id: string) => { calls.push('enable:' + id) },
       syncNow: async (id: string) => { calls.push('syncNow:' + id) },
+      syncAccount: async (id: string) => { calls.push('syncAccount:' + id) },
     }
     const d = deps()
     const route = createRouter({ send: d.send, collections: d.collections, history: d.history,
@@ -572,7 +573,8 @@ describe('createRouter sync control routes', () => {
     expect(await route({ type: 'enableSync', workspaceId: 'w1' } as any)).toBeUndefined()
     await route({ type: 'signOut' } as any)
     await route({ type: 'syncNow', workspaceId: 'w2' } as any)
-    expect(calls).toEqual(['signIn', 'enable:w1', 'signOut', 'syncNow:w2'])
+    await route({ type: 'syncAccount', accountId: 'acc1' } as any)
+    expect(calls).toEqual(['signIn', 'enable:w1', 'signOut', 'syncNow:w2', 'syncAccount:acc1'])
   })
 })
 

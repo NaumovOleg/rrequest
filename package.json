@@ -2,7 +2,7 @@
   "name": "rrequest",
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "olgert",
   "packageManager": "yarn@1.22.22",
   "engines": {
@@ -27,8 +27,22 @@
       {
         "command": "rrequest.syncNow",
         "title": "RREQUEST: Sync now"
+      },
+      {
+        "command": "rrequest.openSettings",
+        "title": "RREQUEST: Settings",
+        "icon": "$(gear)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "rrequest.openSettings",
+          "when": "view == rrequest.sidebar",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "RREQUEST",
       "properties": {

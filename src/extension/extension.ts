@@ -5,6 +5,10 @@ import { SidebarViewProvider } from './sidebar-view'
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('rrequest.open', () => { RrequestPanel.createOrShow(context) }),
+    // Gear in the sidebar view title bar -> open the two rrequest settings.
+    vscode.commands.registerCommand('rrequest.openSettings', () => {
+      void vscode.commands.executeCommand('workbench.action.openSettings', 'rrequest');
+    }),
     vscode.window.registerWebviewViewProvider('rrequest.sidebar', new SidebarViewProvider(context)),
   )
 

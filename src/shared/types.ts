@@ -182,6 +182,7 @@ export type WebviewMessage =
   | { type: 'addMember'; workspaceId: string; email: string; role: 'editor' | 'viewer' }
   | { type: 'removeMember'; workspaceId: string; memberId: string }
   | { type: 'signIn' }
+  | { type: 'emptyTrash' }
   | { type: 'signOut'; accountId?: string }
   | { type: 'syncAccount'; accountId: string }
   | { type: 'enableSync'; workspaceId: string; accountId?: string }

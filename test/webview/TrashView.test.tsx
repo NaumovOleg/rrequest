@@ -11,6 +11,20 @@ describe('TrashView', () => {
     render(<TrashView />)
     expect(screen.getByText(/trash is empty/i)).toBeInTheDocument()
   })
+  it('Empty trash asks to confirm, then posts emptyTrash', () => {
+    useStore.getState().setTrash([
+      { id: 'e1', at: 1, workspaceId: 'w1', kind: 'request', data: { id: 'r1', name: 'Get', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } } as any, path: { collectionId: 'c1', collectionName: 'C' } },
+    ])
+    render(<TrashView />)
+    fireEvent.click(screen.getByRole('button', { name: /empty trash/i }))
+    expect(posted).not.toContainEqual({ type: 'emptyTrash' }) // confirm first
+    fireEvent.click(screen.getByRole('button', { name: /empty all/i }))
+    expect(posted).toContainEqual({ type: 'emptyTrash' })
+  })
+  it('has no Empty trash button when the trash is empty', () => {
+    render(<TrashView />)
+    expect(screen.queryByRole('button', { name: /empty trash/i })).toBeNull()
+  })
   it('nests a trashed request under its collection/folder and restores/purges it', () => {
     useStore.getState().setTrash([
       { id: 'e1', at: 1, workspaceId: 'w1', kind: 'request', data: { id: 'r1', name: 'Get', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } } as any, path: { collectionId: 'c1', collectionName: 'C', folderId: 'f1', folderName: 'F' } },

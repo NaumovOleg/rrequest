@@ -362,6 +362,10 @@ export function createRouter(deps: RouterDeps) {
       case 'purgeTrash':
         await deps.trash?.remove(msg.entryId)
         return await trashSnapshot()
+      case 'emptyTrash':
+        // Batch purge: drop every trash entry for the active workspace at once.
+        await deps.trash?.dropByWorkspace(deps.getActiveWorkspaceId())
+        return await trashSnapshot()
       case 'restoreTrash': {
         const e = await deps.trash?.get(msg.entryId)
         if (!e) return await trashSnapshot()

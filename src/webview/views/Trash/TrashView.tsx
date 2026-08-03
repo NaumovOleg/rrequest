@@ -73,8 +73,10 @@ export function TrashView() {
     setExpanded((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const open = (k: string) => expanded.has(k);
 
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
   const restore = (t: Restore) => postToHost({ type: "restoreTrash", ...t });
   const purge = (entryId: string) => postToHost({ type: "purgeTrash", entryId });
+  const emptyTrash = () => { postToHost({ type: "emptyTrash" }); setConfirmEmpty(false); };
 
   const reqRow = (r: ReqNode) => (
     <div key={r.item.id} className="rm-req-row">
@@ -135,6 +137,16 @@ export function TrashView() {
     <div className="rm-tree">
       <div className="rm-tree-head">
         <span className="rm-section-title">Trash</span>
+        {!isEmpty && (
+          confirmEmpty ? (
+            <span className="rm-row">
+              <button type="button" className="rm-btn rm-btn--sm" onClick={() => setConfirmEmpty(false)}>Cancel</button>
+              <button type="button" className="rm-btn rm-btn--sm rm-btn--danger" onClick={emptyTrash}>Empty all</button>
+            </span>
+          ) : (
+            <IconButton icon="trash" label="Empty trash" onClick={() => setConfirmEmpty(true)} />
+          )
+        )}
       </div>
       {isEmpty ? (
         <div className="rm-empty">Trash is empty.</div>

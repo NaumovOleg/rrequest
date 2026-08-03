@@ -190,14 +190,19 @@ export const useStore = create<State>((set, get) => ({
   // Open a request in its own tab. If it is already open, just focus it (and
   // refresh its link) instead of adding a duplicate.
   openLinkedTab: (request, collectionId, folderId) => set((s) => {
+    // Make the URL bar show the query params (a saved request may have params
+    // but a query-less url — e.g. an OpenAPI/Postman import). Reconcile on both
+    // paths so an already-open / restored tab gets fixed on reactivation too.
     if (s.tabs.some((t) => t.id === request.id)) {
       return {
         activeTabId: request.id,
-        tabs: s.tabs.map((t) => (t.id === request.id ? { ...t, collectionId, folderId: folderId ?? null } : t)),
+        tabs: s.tabs.map((t) => {
+          if (t.id !== request.id) return t
+          const r = reconcileUrlParams(t.url, t.params ?? [])
+          return { ...t, url: r.url, params: r.params, collectionId, folderId: folderId ?? null }
+        }),
       }
     }
-    // Make the URL bar show the query params on first open, not only after the
-    // user touches a param (a saved request may have params but a query-less url).
     const reconciled = reconcileUrlParams(request.url, request.params ?? [])
     const tab: Tab = { ...request, url: reconciled.url, params: reconciled.params, collectionId, folderId: folderId ?? null }
     // Consume a single pristine blank tab (the one opened on mount) instead of

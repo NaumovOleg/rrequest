@@ -20,6 +20,7 @@ docs/**
 .superpowers/**
 .vscode/**
 .github/**
+.changeset/**
 
 # --- Build/config + repo cruft ---
 esbuild.js

@@ -87,19 +87,37 @@ jobs:
           npm ci
           npm run build
 
-      - name: Determine semver bump (Conventional Commits)
-        id: bump
-        run: echo "level=$(npx --yes conventional-recommended-bump -p angular 2>/dev/null || echo patch)" >> "$GITHUB_OUTPUT"
+      # The version is chosen by the developer, not CI: add a changeset
+      # (`npm run changeset`), apply it (`npm run changeset:version`), and commit
+      # the bumped package.json. CI publishes exactly that version and tags it —
+      # it never bumps the version itself.
+      - name: Read package version
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # A push to main that didn't change the version (docs, refactors, etc.)
+      # must not re-publish or re-tag. If v<version> already exists, skip.
+      - name: Skip if this version is already tagged
+        id: tagged
+        run: |
+          git fetch --tags --quiet
+          if git rev-parse -q --verify "refs/tags/v${{ steps.ver.outputs.version }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.ver.outputs.version }} already tagged — nothing to publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Publish to Marketplace
-        run: npx --yes @vscode/vsce publish ${{ steps.bump.outputs.level }} -p "$VSCE_PAT" --no-git-tag-version
+        if: steps.tagged.outputs.exists == 'false'
+        run: npx --yes @vscode/vsce publish -p "$VSCE_PAT" --no-git-tag-version
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Tag the release
+        if: steps.tagged.outputs.exists == 'false'
         run: |
           git config user.email "ci@rrequest.dev"
           git config user.name "rrequest ci"
-          NEW=$(node -p "require('./package.json').version")
-          git tag "v$NEW"
-          git push origin "v$NEW"
+          git tag "v${{ steps.ver.outputs.version }}"
+          git push origin "v${{ steps.ver.outputs.version }}"

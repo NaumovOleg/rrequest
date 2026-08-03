@@ -77,11 +77,15 @@
     "test:all": "npm run test && npm run test:server && npm run test:infra",
     "typecheck:server": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p test/server/tsconfig.json",
     "typecheck:infra": "tsc --noEmit -p infra/tsconfig.json",
-    "deploy": "cd infra && cdk deploy --all --require-approval never"
+    "deploy": "cd infra && cdk deploy --all --require-approval never",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:status": "changeset status"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.665.0",
     "@aws-sdk/lib-dynamodb": "^3.665.0",
+    "@changesets/cli": "^2.31.1",
     "@heliosjs/aws": "^10.0.1",
     "@heliosjs/core": "^3.0.0",
     "@testing-library/jest-dom": "^6.9.1",

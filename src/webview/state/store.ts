@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest } from '../../shared/types'
+
+// Payload for opening the (single, reused) WebSocket editor panel. `request`
+// null = a fresh "New WebSocket" request. `seq` bumps on every open so the
+// panel re-applies even when the same request is opened twice in a row.
+export type WsOpen = { seq: number; request: WsRequest | null; collectionId: string | null; folderId: string | null }
 
 // A tab is a request plus an optional link back to the collection/folder it was
 // opened from, so edits can round-trip to the tree (and tree renames back).
@@ -48,6 +53,7 @@ type State = {
   pendingSaveCollectionId: string | null
   pendingSaveFolderId: string | null
   wsMode: boolean
+  wsOpen: WsOpen | null
   wsUrl: string
   wsHeaders: KeyValue[]
   wsInput: string
@@ -83,6 +89,7 @@ type State = {
   setPendingSaveCollectionId(id: string | null): void
   setPendingSaveFolderId(id: string | null): void
   setWsMode(v: boolean): void
+  openWs(request: WsRequest | null, collectionId: string | null, folderId: string | null): void
   setWsUrl(v: string): void
   setWsHeaders(v: KeyValue[]): void
   setWsInput(v: string): void
@@ -122,6 +129,7 @@ export const useStore = create<State>((set, get) => ({
   pendingSaveCollectionId: null,
   pendingSaveFolderId: null,
   wsMode: false,
+  wsOpen: null,
   wsUrl: '',
   wsHeaders: [],
   wsInput: '',
@@ -228,6 +236,8 @@ export const useStore = create<State>((set, get) => ({
   setPendingSaveCollectionId: (pendingSaveCollectionId) => set({ pendingSaveCollectionId }),
 
   setWsMode: (wsMode) => set({ wsMode }),
+  openWs: (request, collectionId, folderId) =>
+    set((s) => ({ wsMode: true, wsOpen: { seq: (s.wsOpen?.seq ?? 0) + 1, request, collectionId, folderId } })),
   setWsUrl: (wsUrl) => set({ wsUrl }),
   setWsHeaders: (wsHeaders) => set({ wsHeaders }),
   setWsInput: (wsInput) => set({ wsInput }),

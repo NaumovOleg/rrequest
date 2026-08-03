@@ -69,4 +69,21 @@ describe('WebSocketPanel', () => {
     expect(document.querySelector('.rm-status-pill.is-2xx')).toBeTruthy()
     expect(document.querySelector('.rm-log-row.is-in')).toBeTruthy()
   })
+  it('loads an existing WS request opened before mount (name + url + linked collection)', () => {
+    // Simulates EditorApp stashing the payload, then the panel mounting after.
+    useStore.getState().openWs({ id: 'w9', name: 'My Socket', kind: 'ws', url: 'wss://api/x', headers: [] }, 'c1', null)
+    render(<WebSocketPanel />)
+    expect((screen.getByLabelText('websocket name') as HTMLInputElement).value).toBe('My Socket')
+    expect((screen.getByLabelText('websocket url') as HTMLInputElement).value).toBe('wss://api/x')
+    // linked to a collection -> shows the target, not the "save to" picker
+    expect(screen.queryByLabelText('save to collection')).toBeNull()
+  })
+  it('reopening as a fresh New WebSocket resets the panel', () => {
+    useStore.getState().openWs({ id: 'w9', name: 'My Socket', kind: 'ws', url: 'wss://api/x', headers: [] }, 'c1', null)
+    const { rerender } = render(<WebSocketPanel />)
+    useStore.getState().openWs(null, null, null)
+    rerender(<WebSocketPanel />)
+    expect((screen.getByLabelText('websocket name') as HTMLInputElement).value).toBe('New WebSocket Request')
+    expect(screen.getByLabelText('save to collection')).toBeTruthy()
+  })
 })

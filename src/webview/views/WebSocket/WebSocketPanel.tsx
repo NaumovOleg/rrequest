@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../../state/store'
-import { postToHost, onHostMessage } from '../../ipc'
+import { postToHost } from '../../ipc'
 import { newId, type KeyValue, type WsRequest } from '../../../shared/types'
 
 function WsHeadersTable({ rows, onChange }: {
@@ -54,21 +54,36 @@ export function WebSocketPanel() {
   const [saveCollectionId, setSaveCollectionId] = useState('')
   const [saveFolderId, setSaveFolderId] = useState('')
 
+  // The WS editor panel is a single reused view; EditorApp stashes the opened
+  // request in the store (wsOpen) BEFORE this panel mounts, so read from there
+  // rather than a live message that we'd race and miss on first open. `seq`
+  // re-applies even when the same request is reopened.
+  const wsOpen = useStore((s) => s.wsOpen)
   useEffect(() => {
-    return onHostMessage((m) => {
-      if (m.type === 'openWsRequest') {
-        const r = m.request
-        setId(r.id)
-        setName(r.name)
-        setWsUrl(r.url)
-        setWsHeaders(r.headers ?? [])
-        setLinkedCollectionId(m.targetCollectionId ?? null)
-        setLinkedFolderId(m.targetFolderId ?? null)
-        setSaveCollectionId(m.targetCollectionId ?? '')
-        setSaveFolderId(m.targetFolderId ?? '')
-      }
-    })
-  }, [setWsUrl, setWsHeaders])
+    if (!wsOpen) return
+    const r = wsOpen.request
+    if (r) {
+      setId(r.id)
+      setName(r.name)
+      setWsUrl(r.url)
+      setWsHeaders(r.headers ?? [])
+      setLinkedCollectionId(wsOpen.collectionId)
+      setLinkedFolderId(wsOpen.folderId)
+      setSaveCollectionId(wsOpen.collectionId ?? '')
+      setSaveFolderId(wsOpen.folderId ?? '')
+    } else {
+      // Fresh "New WebSocket" request.
+      setId(newId())
+      setName('New WebSocket Request')
+      setWsUrl('')
+      setWsHeaders([])
+      setLinkedCollectionId(null)
+      setLinkedFolderId(null)
+      setSaveCollectionId('')
+      setSaveFolderId('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsOpen?.seq])
 
   useEffect(() => {
     postToHost({ type: 'setTitle', title: `WS ${name}` })

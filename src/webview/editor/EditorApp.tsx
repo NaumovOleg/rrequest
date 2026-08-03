@@ -85,8 +85,13 @@ export function EditorApp() {
       } else if (m.type === "showEnvironments") {
         setEnvMode(true);
         setEnvEditId(m.id ?? null);
-      } else if (m.type === "showWebSocket" || m.type === "openWsRequest") {
-        setWsMode(true);
+      } else if (m.type === "showWebSocket") {
+        // "New WebSocket" — open a blank panel.
+        useStore.getState().openWs(null, null, null);
+      } else if (m.type === "openWsRequest") {
+        // Existing WS request — stash the payload in the store so the panel
+        // (which mounts only now) reads it, instead of racing the message.
+        useStore.getState().openWs(m.request, m.targetCollectionId ?? null, m.targetFolderId ?? null);
       } else if (m.type === "showGrpc" || m.type === "openGrpcRequest") {
         setGrpcMode(true);
       } else if (m.type === "showMembers") {

@@ -36,8 +36,24 @@ describe('Sidebar', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: '', requests: [] }])
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
-    fireEvent.click(screen.getByText(/export postman/i))
+    // "Export" is the section header; the rows are just the formats.
+    expect(screen.getByText('Export')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Postman'))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })
+  })
+
+  it('gear menu marks the bound environment and offers None to unbind', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], environmentId: 'e2' }])
+    useStore.getState().setEnvironments([
+      { id: 'e1', name: 'Dev', workspaceId: 'w1', variables: [] },
+      { id: 'e2', name: 'Prod', workspaceId: 'w1', variables: [] },
+    ])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    expect(screen.getByRole('menuitem', { name: /Prod/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitem', { name: /Dev/ })).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByText('None'))
+    expect(posted).toContainEqual({ type: 'setCollectionEnvironment', collectionId: 'c1', environmentId: null })
   })
 
   it('gear menu lists the other writable workspaces and posts moveCollection', () => {
@@ -50,8 +66,10 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
     expect(screen.queryByText(/ReadOnly/)).not.toBeInTheDocument() // viewer workspace isn't a target
-    expect(screen.queryByText(/^\s*Local/)).not.toBeInTheDocument() // nor the current one
-    fireEvent.click(screen.getByText(/Team — me@x\.com/))
+    expect(screen.queryByText(/^\s*Local$/)).not.toBeInTheDocument() // nor the current one
+    // destination name is the label, its account a muted hint beside it
+    expect(screen.getByText('me@x.com')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Team'))
     expect(posted).toContainEqual({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'w2' })
   })
 
@@ -148,7 +166,7 @@ describe('Sidebar', () => {
     useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [] }])
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
-    fireEvent.click(screen.getByText(/export native/i))
+    fireEvent.click(screen.getByText('Native'))
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'native' })
   })
   it('rename collection icon enters inline rename mode', () => {

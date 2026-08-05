@@ -58,7 +58,10 @@ export function AccountsPanel() {
     }
     return (
       <PopupMenu icon="cloud-upload" label={`Sync “${w.name}” to an account`}
-        items={accounts.map((a) => ({ label: a.email, icon: "account", onClick: () => enable(a.id) }))} />
+        items={[
+          { kind: "header", label: "Sync to account" },
+          ...accounts.map((a) => ({ label: a.email, icon: "account", onClick: () => enable(a.id) })),
+        ]} />
     );
   };
 

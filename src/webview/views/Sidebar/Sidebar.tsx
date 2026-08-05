@@ -4,7 +4,7 @@ import { postToHost, getUiState, setUiState } from '../../ipc'
 import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Folder, type RestRequest } from '../../../shared/types'
 import { MethodBadge } from '../../elements/MethodBadge'
 import { IconButton } from '../../elements/IconButton'
-import { PopupMenu } from '../../elements/PopupMenu'
+import { PopupMenu, type PopupMenuItem } from '../../elements/PopupMenu'
 import { RenameInput } from '../../elements/RenameInput'
 
 function blankRequest(): RestRequest {
@@ -97,6 +97,49 @@ export function Sidebar() {
     if (k === 'grpc') return <span className="rm-method rm-method--OTHER">gRPC</span>
     if (k === 'ws') return <span className="rm-method rm-method--OTHER">WS</span>
     return <MethodBadge method={(r as RestRequest).method} />
+  }
+
+  // The gear menu, as three labelled sections rather than one flat list:
+  // Environment is a radio group (check gutter marks the bound one, "None"
+  // unbinds), Move to workspace names the destination with its account as a
+  // muted hint, Export lists just the formats — the word "Export" lives in the
+  // header instead of being repeated on every row.
+  const collectionMenu = (c: Collection): PopupMenuItem[] => {
+    const setEnv = (environmentId: string | null) =>
+      postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId })
+    const items: PopupMenuItem[] = [{ kind: 'header', label: 'Environment' }]
+    if (environments.length === 0) {
+      items.push({ label: 'No environments yet', icon: 'info', disabled: true, onClick: () => {} })
+    } else {
+      items.push(
+        ...environments.map((e) => ({
+          label: e.name,
+          checked: c.environmentId === e.id,
+          onClick: () => setEnv(e.id),
+        })),
+        { label: 'None', checked: !c.environmentId, onClick: () => setEnv(null) },
+      )
+    }
+    if (moveTargets.length && !isViewer) {
+      items.push(
+        { kind: 'separator' },
+        { kind: 'header', label: 'Move to workspace' },
+        ...moveTargets.map((w) => ({
+          label: w.name,
+          icon: w.synced ? 'cloud' : 'device-desktop',
+          hint: w.accountEmail ?? 'local',
+          onClick: () => postToHost({ type: 'moveCollection', id: c.id, toWorkspaceId: w.id }),
+        })),
+      )
+    }
+    items.push(
+      { kind: 'separator' },
+      { kind: 'header', label: 'Export' },
+      { label: 'Native', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'native' }) },
+      { label: 'Postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
+      { label: 'OpenAPI', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'openapi' }) },
+    )
+    return items
   }
 
   const renderRequestRow = (r: CollectionItem, collectionId: string, folderId: string | null) => {
@@ -220,28 +263,7 @@ export function Sidebar() {
                       onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
                   </>
                 )}
-                <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={[
-                  { label: `Environment: ${environments.find((e) => e.id === c.environmentId)?.name ?? 'None'}`, icon: 'globe', onClick: () => {} },
-                  ...environments.map((e) => ({
-                    label: `${c.environmentId === e.id ? '✓ ' : '   '}${e.name}`,
-                    icon: 'circle-small' as const,
-                    onClick: () => postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId: e.id }),
-                  })),
-                  { label: c.environmentId ? '   Unbind environment' : '', icon: 'close' as const, onClick: () => postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId: null }) },
-                  ...(moveTargets.length && !isViewer
-                    ? [
-                        { label: 'Move to workspace', icon: 'arrow-right' as const, onClick: () => {} },
-                        ...moveTargets.map((w) => ({
-                          label: `   ${w.name}${w.accountEmail ? ` — ${w.accountEmail}` : ' — local'}`,
-                          icon: w.synced ? 'cloud' : 'device-desktop',
-                          onClick: () => postToHost({ type: 'moveCollection', id: c.id, toWorkspaceId: w.id }),
-                        })),
-                      ]
-                    : []),
-                  { label: 'Export native', icon: 'cloud-download', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'native' }) },
-                  { label: 'Export Postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
-                  { label: 'Export OpenAPI', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'openapi' }) },
-                ].filter((it) => it.label !== '')} />
+                <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={collectionMenu(c)} />
               </div>
             </div>
             {isExpanded && (

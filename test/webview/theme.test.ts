@@ -21,6 +21,17 @@ describe('theme.css', () => {
     expect(css).toContain('.rm-log-row')
   })
 
+  it('styles the popup menu as sections: headers, separators, an icon/check gutter and indented rows', () => {
+    const css = fs.readFileSync('src/webview/theme.css', 'utf8')
+    expect(css).toContain('.rm-popup-header')
+    expect(css).toContain('.rm-popup-sep')
+    expect(css).toContain('.rm-popup-gutter')
+    expect(css).toContain('.rm-popup-hint')
+    expect(css).toContain('.rm-popup-item--sub')
+    // long env / workspace lists scroll inside the menu instead of overflowing
+    expect(/\.rm-popup-menu\s*{[^}]*overflow-y:\s*auto/s.test(css)).toBe(true)
+  })
+
   it('lifts an open row menu above the later rows that would otherwise paint over it', () => {
     const css = fs.readFileSync('src/webview/theme.css', 'utf8')
     // .rm-actions is transformed (own stacking context), so the popup's own

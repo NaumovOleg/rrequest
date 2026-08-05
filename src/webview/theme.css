@@ -890,23 +890,44 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* popup menu */
+/* popup menu — sectioned: small muted headers, hairline separators, and a
+   shared 16px gutter that carries either the row's icon or its check mark, so
+   every label starts on the same x whether or not the row is selectable. */
 .rm-popup-menu {
   position: absolute;
   right: 0;
   top: 100%;
   z-index: 10;
-  min-width: 160px;
+  min-width: 200px;
+  max-width: 320px;
+  /* Long environment / workspace lists scroll inside the menu instead of
+     running off the bottom of the sidebar. */
+  max-height: 320px;
+  overflow-y: auto;
   background: var(--rm-panel-bg);
   border: 1px solid var(--rm-border);
   border-radius: var(--rm-radius);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  padding: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+}
+.rm-popup-header {
+  padding: 5px 8px 3px;
+  font-size: 0.68em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rm-muted);
+  white-space: nowrap;
+}
+.rm-popup-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--rm-border);
 }
 .rm-popup-item {
   display: flex;
   align-items: center;
-  gap: var(--rm-sp-1);
+  gap: var(--rm-sp-2);
   width: 100%;
   text-align: left;
   background: transparent;
@@ -916,8 +937,47 @@ body {
   cursor: pointer;
   border-radius: var(--rm-radius);
 }
+/* Rows that belong to a section sit one step in from its header. */
+.rm-popup-item--sub {
+  padding-left: 16px;
+}
+.rm-popup-gutter {
+  flex: none;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+  color: var(--rm-muted);
+}
+.rm-popup-item.is-checked .rm-popup-gutter {
+  color: var(--rm-accent);
+}
+.rm-popup-item.is-checked .rm-popup-label {
+  font-weight: 600;
+}
+.rm-popup-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Secondary detail (the account a workspace belongs to) — present, not loud. */
+.rm-popup-hint {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+  color: var(--rm-muted);
+}
 .rm-popup-item:hover {
   background: var(--rm-hover);
+}
+.rm-popup-item:disabled {
+  cursor: default;
+  color: var(--rm-muted);
+  background: transparent;
 }
 .rm-drop-over {
   outline: 1px dashed var(--rm-accent);

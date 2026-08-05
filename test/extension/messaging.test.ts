@@ -227,6 +227,34 @@ describe('createRouter workspace + openRequest', () => {
     expect(saved.folders[1].id).not.toBe('f1')
     expect(saved.folders[1].requests[0].id).not.toBe('r2')
   })
+  it('moveCollection re-parents the collection into the target workspace, ids intact', async () => {
+    const d = deps()
+    const req: RestRequest = { id: 'r1', name: 'R', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }
+    d.workspaces.list = vi.fn(async () => [{ id: 'w1', name: 'Local' }, { id: 'w2', name: 'Synced' }])
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [req], folders: [{ id: 'f1', name: 'F', requests: [] }] }])
+    await router(d)({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'w2' } as any)
+    const saved = (d.collections.saveCollection as any).mock.calls.at(-1)[0]
+    expect(saved.id).toBe('c1')
+    expect(saved.workspaceId).toBe('w2')
+    expect(saved.requests[0].id).toBe('r1')
+    expect(saved.folders[0].id).toBe('f1')
+  })
+  it('moveCollection drops the environment binding (the environment stays behind)', async () => {
+    const d = deps()
+    d.workspaces.list = vi.fn(async () => [{ id: 'w1', name: 'Local' }, { id: 'w2', name: 'Synced' }])
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], environmentId: 'e1' }])
+    await router(d)({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'w2' } as any)
+    const saved = (d.collections.saveCollection as any).mock.calls.at(-1)[0]
+    expect(saved.environmentId).toBeUndefined()
+  })
+  it('moveCollection is a no-op for an unknown target workspace or a same-workspace move', async () => {
+    const d = deps()
+    d.workspaces.list = vi.fn(async () => [{ id: 'w1', name: 'Local' }])
+    d.collections.list = vi.fn(async () => [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }])
+    await router(d)({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'nope' } as any)
+    await router(d)({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'w1' } as any)
+    expect(d.collections.saveCollection).not.toHaveBeenCalled()
+  })
   it('createRequest persists the request and opens it linked', async () => {
     const d = deps()
     const req: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'u', params: [], headers: [], body: { mode: 'none' } }

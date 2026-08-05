@@ -40,6 +40,29 @@ describe('Sidebar', () => {
     expect(posted).toContainEqual({ type: 'exportCollection', id: 'c1', format: 'postman' })
   })
 
+  it('gear menu lists the other writable workspaces and posts moveCollection', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }])
+    useStore.getState().setWorkspaces([
+      { id: 'w1', name: 'Local' },
+      { id: 'w2', name: 'Team', synced: true, accountEmail: 'me@x.com' },
+      { id: 'w3', name: 'ReadOnly', synced: true, role: 'viewer' },
+    ], 'w1')
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    expect(screen.queryByText(/ReadOnly/)).not.toBeInTheDocument() // viewer workspace isn't a target
+    expect(screen.queryByText(/^\s*Local/)).not.toBeInTheDocument() // nor the current one
+    fireEvent.click(screen.getByText(/Team — me@x\.com/))
+    expect(posted).toContainEqual({ type: 'moveCollection', id: 'c1', toWorkspaceId: 'w2' })
+  })
+
+  it('gear menu hides the move section when there is nowhere to move to', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }])
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Local' }], 'w1')
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: /collection settings C/i }))
+    expect(screen.queryByText(/move to workspace/i)).not.toBeInTheDocument()
+  })
+
   it('collections collapse/expand: requests hidden until the collection is clicked', () => {
     const request = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [request] }])

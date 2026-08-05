@@ -412,6 +412,16 @@ body {
 .rm-req-row:focus-within .rm-actions {
   display: flex;
 }
+/* `transform` above makes every .rm-actions its own stacking context, so the
+   gear popup's z-index is trapped inside it and later rows (their own hover
+   action strips, opaque by design) paint over the open menu. While a menu is
+   open, lift that row's strip above the rest of the tree — and keep it shown
+   even after the pointer leaves the row, so the menu survives the trip down. */
+.rm-tree-row .rm-actions:has(.rm-popup-menu),
+.rm-req-row .rm-actions:has(.rm-popup-menu) {
+  display: flex;
+  z-index: 40;
+}
 
 /* response status */
 .rm-statusline {

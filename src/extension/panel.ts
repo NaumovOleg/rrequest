@@ -16,6 +16,7 @@ import { Hub } from "./hub";
 import { WsManager, type WsFactory } from "./net/ws-manager";
 import {
   SyncClient,
+  SyncAuthError,
   SyncForbiddenError,
   SyncGoneError,
 } from "./sync/sync-client";
@@ -98,6 +99,12 @@ type SyncControlPort = {
   enable(workspaceId: string, accountId?: string): Promise<void>;
   syncNow(workspaceId: string): Promise<void>;
   syncAccount(accountId: string): Promise<void>;
+  // Connected accounts, so the command-palette path can ask WHICH one to sync
+  // to instead of giving up when more than one is signed in.
+  accounts(): Account[];
+  // Human-readable health report (server URL, per-account token + /me, the
+  // sync state of every workspace) written to the RREQUEST output channel.
+  diagnostics(): Promise<void>;
 };
 let syncControlRef: SyncControlPort | undefined;
 export function getSyncControl(): SyncControlPort | undefined {
@@ -107,6 +114,34 @@ export function getSyncControl(): SyncControlPort | undefined {
 // runtime exists, so deleteWorkspace's sync hook is a closure over this ref,
 // assigned once the SyncManager + SyncStateStore are constructed below.
 let onWorkspaceDeletedRef: ((id: string) => Promise<void>) | undefined;
+// One shared output channel. Sync failures used to exist only as a webview
+// toast, which is easy to miss (the accounts popup closes on the same click) and
+// carries no detail — "it just went local" with nothing to go on. Everything
+// interesting is logged here as well.
+let logChannel: vscode.OutputChannel | undefined;
+export function syncLog(): vscode.OutputChannel {
+  logChannel ??= vscode.window.createOutputChannel("RREQUEST");
+  return logChannel;
+}
+function logLine(message: string): void {
+  syncLog().appendLine(`[${new Date().toISOString()}] ${message}`);
+}
+
+// Turns a sync error into something the user can act on. The raw messages
+// ("unauthorized", "gone") say nothing about what to do next.
+export function explainSyncError(e: unknown): string {
+  const name = (e as { name?: string })?.name;
+  const message = (e as { message?: string })?.message ?? String(e);
+  if (name === "SyncAuthError")
+    return "your session expired — sign in again (RREQUEST: Sign in to sync)";
+  if (name === "SyncForbiddenError")
+    return "the server refused it — that workspace id belongs to another account";
+  if (name === "SyncGoneError") return "the server no longer has that workspace";
+  if (/fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network/i.test(message))
+    return `couldn't reach the sync server (${message})`;
+  return message;
+}
+
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise;
   bootstrapPromise = (async () => {
@@ -487,11 +522,21 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // Explicit deletes are recorded so the next push prunes them from the
       // remote (sync is otherwise a pure union that never drops remote data).
       const del = deletedIdsFromMessage(msg);
-      if (del.length) manager.recordDeletion(del);
+      if (del.length) manager.recordDeletion(del, activeWsId());
       // Renaming a workspace must push THAT workspace (its name lives in the
       // snapshot / Drive file), not the active one.
       if (msg.type === "renameWorkspace") {
         runtime.schedulePush(msg.id);
+        return;
+      }
+      // Moving a collection touches two workspaces: the source loses it (a
+      // tombstone scoped to that workspace only, so the destination push keeps
+      // it) and the destination gains it. Both need a push.
+      if (msg.type === "moveCollection") {
+        manager.clearDeletion([msg.id], msg.toWorkspaceId);
+        manager.recordDeletion([msg.id], activeWsId());
+        runtime.schedulePush(activeWsId());
+        runtime.schedulePush(msg.toWorkspaceId);
         return;
       }
       if (isMutating(msg.type)) runtime.schedulePush(activeWsId());
@@ -558,6 +603,45 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     pollLoop.start();
 
     const syncControlPort: SyncControlPort = {
+      accounts: currentAccounts,
+      // "It just went local" is unactionable without knowing WHICH leg failed.
+      // This probes each one and dumps the result into the output channel.
+      diagnostics: async () => {
+        const out = syncLog();
+        out.show(true);
+        logLine("--- sync diagnostics ---");
+        logLine(`server: ${syncBaseUrl()}`);
+        const list = accounts.list();
+        logLine(`accounts: ${list.length ? list.map((a) => a.email).join(", ") : "(none — sign in first)"}`);
+        for (const a of list) {
+          const token = accounts.getToken(a.id);
+          if (!token) {
+            logLine(`  ${a.email}: NO TOKEN in secret storage — sign in again`);
+            continue;
+          }
+          try {
+            const me = await clientFor(a.id).me();
+            logLine(`  ${a.email}: token ok, /me -> ${me.email} (${me.id})`);
+          } catch (e) {
+            logLine(`  ${a.email}: /me FAILED: ${explainSyncError(e)}`);
+            continue;
+          }
+          try {
+            const remotes = await clientFor(a.id).listWorkspaces();
+            logLine(`  ${a.email}: ${remotes.length} workspace(s) on the server`);
+          } catch (e) {
+            logLine(`  ${a.email}: listWorkspaces FAILED: ${explainSyncError(e)}`);
+          }
+        }
+        const states = await syncState.all();
+        for (const w of await workspaces.list()) {
+          const st = states[w.id];
+          logLine(
+            `workspace ${w.name} (${w.id}): ${st?.synced ? `synced -> ${accounts.emailOf(st.accountId) ?? st.accountId ?? "unbound account"} (${st.role})` : "local"}`,
+          );
+        }
+        logLine("--- end diagnostics ---");
+      },
       // Each control ends with runtime.refresh() (= hub.refresh, re-broadcast the
       // snapshot) so the UI updates even on the command-palette path, which calls
       // the port directly rather than through hub.dispatch (which broadcasts on
@@ -635,12 +719,48 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           );
           return;
         }
+        const email = accounts.emailOf(acct) ?? acct;
+        // A workspace that fails to sync is left local on purpose (its data is
+        // safe either way) — but the user asked for a synced one, so say so
+        // loudly: a native notification (the webview toast is easy to miss,
+        // the accounts popup closes on the same click) plus the full error in
+        // the RREQUEST output channel.
+        const failed = (reason: string, raw?: unknown): void => {
+          logLine(
+            `enable(${id}) -> ${email} FAILED: ${reason}${raw ? `\n${(raw as Error)?.stack ?? String(raw)}` : ""}`,
+          );
+          const msg = `RREQUEST: couldn't sync this workspace to ${email} — ${reason}. It stayed local; use “Sync to account” on the workspace to retry.`;
+          hub.toast("error", msg);
+          // A stored token that the server rejects looks identical to being
+          // signed in (the account list lives in globalState and is never
+          // revalidated), so offer the fix inline rather than just naming it.
+          const isAuth = (raw as { name?: string })?.name === "SyncAuthError";
+          const actions = isAuth ? ["Sign in again", "Show log"] : ["Show log"];
+          void vscode.window
+            .showErrorMessage(msg, ...actions)
+            .then((pick) => {
+              if (pick === "Show log") syncLog().show(true);
+              if (pick === "Sign in again") void syncControlRef?.signIn();
+            });
+        };
+        if (!accounts.getToken(acct)) {
+          failed("no saved credentials for that account — sign in again", new SyncAuthError());
+          return;
+        }
         try {
+          logLine(`enable(${id}) -> ${email} via ${syncBaseUrl()}`);
           await manager.enable(id, acct);
           await runtime.refreshRoleCache();
           await runtime.refresh();
+          // manager.enable can also bail without throwing, which used to leave
+          // the workspace sitting in "Local" with no explanation at all.
+          if (!(await syncState.get(id))?.synced) {
+            failed("the server accepted nothing back");
+            return;
+          }
+          logLine(`enable(${id}) -> ${email} OK`);
         } catch (e: any) {
-          hub.toast("error", `Enable sync failed: ${e?.message ?? e}`);
+          failed(explainSyncError(e), e);
         }
       },
       syncNow: async (id: string) => {

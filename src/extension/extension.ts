@@ -29,7 +29,26 @@ export function activate(context: vscode.ExtensionContext) {
       await ensureBootstrap(context)
       const rt = getSyncRuntime()
       if (!rt) return void vscode.window.showWarningMessage('RREQUEST: sync not ready')
-      await getSyncControl()?.enable(id)
+      const control = getSyncControl()
+      if (!control) return
+      // With several accounts connected, enable() can't guess which one owns
+      // this workspace — ask, instead of failing with "choose an account".
+      const accounts = control.accounts()
+      if (accounts.length === 0) return void vscode.window.showWarningMessage('RREQUEST: sign in with Google first')
+      let accountId = accounts[0].id
+      if (accounts.length > 1) {
+        const picked = await vscode.window.showQuickPick(
+          accounts.map((a) => ({ label: a.email, id: a.id })),
+          { title: 'Sync this workspace to which account?' },
+        )
+        if (!picked) return
+        accountId = picked.id
+      }
+      await control.enable(id, accountId)
+    }),
+    vscode.commands.registerCommand('rrequest.syncDiagnostics', async () => {
+      await ensureBootstrap(context)
+      await getSyncControl()?.diagnostics()
     }),
     vscode.commands.registerCommand('rrequest.syncNow', async () => {
       const id = activeWorkspaceId()

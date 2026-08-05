@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { IconButton } from "../../elements";
+import { IconButton, PopupMenu } from "../../elements";
 import { RenameInput } from "../../elements/RenameInput";
 import { useStore } from "../../state/store";
 import { useWorkspace } from "../../state/useWorkspace";
@@ -45,8 +45,28 @@ export function AccountsPanel() {
 
   const pick = (id: string) => { select(id); setOpen(false); };
 
+  // Binds an existing workspace to an account (the recovery path when creating
+  // "in" an account left it local, and the only way to promote a workspace that
+  // started out local). One account -> a single button; several -> a picker.
+  const syncToAccount = (w: Workspace) => {
+    const enable = (accountId: string) => postToHost({ type: "enableSync", workspaceId: w.id, accountId });
+    if (accounts.length === 0) return null;
+    if (accounts.length === 1) {
+      return (
+        <IconButton icon="cloud-upload" label={`Sync “${w.name}” to ${accounts[0].email}`} onClick={() => enable(accounts[0].id)} />
+      );
+    }
+    return (
+      <PopupMenu icon="cloud-upload" label={`Sync “${w.name}” to an account`}
+        items={accounts.map((a) => ({ label: a.email, icon: "account", onClick: () => enable(a.id) }))} />
+    );
+  };
+
   const rowActions = (w: Workspace, isEditing: boolean) => (
     <span className="rm-acct-ws-actions">
+      {/* A workspace listed under an account but not actually synced (enable
+          failed, or sync was dropped on sign-out) can be re-bound from here. */}
+      {!w.synced && w.role !== "viewer" && !isEditing && syncToAccount(w)}
       {w.synced && w.role === "owner" && (
         <IconButton icon="organization" label="Share / invite people" onClick={() => { postToHost({ type: "openMembers", workspaceId: w.id }); setOpen(false); }} />
       )}
@@ -93,8 +113,9 @@ export function AccountsPanel() {
         <span className="rm-acct-ws-actions">
           {!isEditing && (
             <>
-              {/* Local workspaces stay local — to get a synced one, create it
-                  under an account. No sync/enable buttons here. */}
+              {/* A local workspace can be promoted into any connected account —
+                  this is also the retry when create-in-account left it local. */}
+              {syncToAccount(w)}
               <IconButton icon="edit" label="Rename" onClick={() => setEditingId(w.id)} />
               <IconButton icon="trash" label="Delete" onClick={() => { setTyped(""); setConfirm({ id: w.id, name: w.name }); }} />
             </>

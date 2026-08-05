@@ -176,6 +176,40 @@ describe('SyncManager', () => {
     expect(pushed.collections.map((c: any) => c.id)).toEqual(['c-keep']) // deleted dropped from remote, other kept
   })
 
+  it('a workspace-scoped tombstone prunes only that workspace (a moved collection survives in the destination)', async () => {
+    // c-moved went from w1 to w2: w1's push must drop it, w2's push must keep it.
+    const snapFor = (ws: string) => JSON.stringify({ version: 1, workspaceId: ws, name: 'RealName', collections: [{ id: 'c-moved', name: 'M', workspaceId: ws, requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
+    const pushed: Record<string, any> = {}
+    const client = {
+      pull: vi.fn(async (id: string) => ({ snapshot: snapFor(id), revision: '3' })),
+      push: vi.fn(async (id: string, snap: string) => { pushed[id] = JSON.parse(snap); return { ok: true, revision: '4' } }),
+      enableSync: vi.fn(),
+    } as any
+    const { port } = stores({ collections: [{ id: 'c-moved', name: 'M', workspaceId: 'w2', requests: [] }], environments: [] })
+    const state = new SyncStateStore(dir)
+    for (const ws of ['w1', 'w2']) await state.set(ws, { driveFileId: 'f', ownerEmail: 'o', role: 'owner', lastRevision: '1', synced: true })
+    const mgr = new SyncManager({ client, state, stores: port, email: () => 'me' })
+    mgr.recordDeletion(['c-moved'], 'w1')
+    await mgr.push('w2')
+    await mgr.push('w1')
+    expect(pushed.w2.collections.map((c: any) => c.id)).toEqual(['c-moved'])
+    expect(pushed.w1.collections).toEqual([])
+  })
+
+  it('clearDeletion revives an id whose tombstone has not been pushed yet (move back)', async () => {
+    const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'RealName', collections: [{ id: 'c-back', name: 'B', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
+    let pushed: any
+    const client = { pull: vi.fn(async () => ({ snapshot: remoteSnap, revision: '3' })), push: vi.fn(async (_id: string, snap: string) => { pushed = JSON.parse(snap); return { ok: true, revision: '4' } }), enableSync: vi.fn() } as any
+    const { port } = stores({ collections: [{ id: 'c-back', name: 'B', workspaceId: 'w1', requests: [] }], environments: [] })
+    const state = new SyncStateStore(dir)
+    await state.set('w1', { driveFileId: 'f', ownerEmail: 'o', role: 'owner', lastRevision: '1', synced: true })
+    const mgr = new SyncManager({ client, state, stores: port, email: () => 'me' })
+    mgr.recordDeletion(['c-back'], 'w1')
+    mgr.clearDeletion(['c-back'], 'w1')
+    await mgr.push('w1')
+    expect(pushed.collections.map((c: any) => c.id)).toEqual(['c-back'])
+  })
+
   it('enable adopts an existing remote (union) instead of overwriting it', async () => {
     const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [{ id: 'c-remote', name: 'R', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
     let written: any

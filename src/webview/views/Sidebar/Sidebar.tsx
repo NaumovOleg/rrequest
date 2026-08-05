@@ -18,7 +18,13 @@ type DragPayload =
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
   const environments = useStore((s) => s.environments)
+  const workspaces = useStore((s) => s.workspaces)
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
   const isViewer = useStore((s) => s.isViewer())
+  // Where a collection can be moved: any other workspace we can write to —
+  // a local one, or one bound to a signed-in account (that's how a collection
+  // gets from "local" into an account without moving the whole workspace).
+  const moveTargets = workspaces.filter((w) => w.id !== activeWorkspaceId && w.role !== 'viewer')
   // Restore which nodes were expanded last session (persisted per webview).
   // Node ids are unique across workspaces, so a single set is workspace-safe:
   // ids that don't belong to the active tree simply don't render.
@@ -222,6 +228,16 @@ export function Sidebar() {
                     onClick: () => postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId: e.id }),
                   })),
                   { label: c.environmentId ? '   Unbind environment' : '', icon: 'close' as const, onClick: () => postToHost({ type: 'setCollectionEnvironment', collectionId: c.id, environmentId: null }) },
+                  ...(moveTargets.length && !isViewer
+                    ? [
+                        { label: 'Move to workspace', icon: 'arrow-right' as const, onClick: () => {} },
+                        ...moveTargets.map((w) => ({
+                          label: `   ${w.name}${w.accountEmail ? ` — ${w.accountEmail}` : ' — local'}`,
+                          icon: w.synced ? 'cloud' : 'device-desktop',
+                          onClick: () => postToHost({ type: 'moveCollection', id: c.id, toWorkspaceId: w.id }),
+                        })),
+                      ]
+                    : []),
                   { label: 'Export native', icon: 'cloud-download', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'native' }) },
                   { label: 'Export Postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
                   { label: 'Export OpenAPI', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'openapi' }) },

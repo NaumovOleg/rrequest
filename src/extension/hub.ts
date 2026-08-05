@@ -50,7 +50,7 @@ export class Hub {
   async dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
     const reply = await this.route(msg)
     if (reply) {
-      if (reply.type === 'response' || reply.type === 'pickedFile' || reply.type === 'grpcResponse' || reply.type === 'members') this.postTo(fromId, reply)
+      if (reply.type === 'response' || reply.type === 'pickedFile' || reply.type === 'grpcResponse' || reply.type === 'members' || reply.type === 'toast') this.postTo(fromId, reply)
       else if (reply.type === 'openInEditor' || reply.type === 'openGrpcRequest' || reply.type === 'openWsRequest' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc' || reply.type === 'showMembers') {
         this.onOpen?.(reply)
       }

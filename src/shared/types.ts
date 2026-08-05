@@ -139,6 +139,7 @@ export type WebviewMessage =
   | { type: 'createRequest'; collectionId: string; folderId: string | null; request: CollectionItem }
   | { type: 'duplicateRequest'; collectionId: string; folderId: string | null; requestId: string }
   | { type: 'duplicateCollection'; id: string }
+  | { type: 'moveCollection'; id: string; toWorkspaceId: string }
   | { type: 'duplicateFolder'; collectionId: string; folderId: string }
   | { type: 'setCollectionEnvironment'; collectionId: string; environmentId: string | null }
   | { type: 'createCollection'; name: string }

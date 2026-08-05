@@ -58,9 +58,38 @@ export class SyncManager {
   // never drops remote data, so this set is the ONLY way a delete reaches the
   // remote: pruned out of the pushed snapshot, then cleared once the push lands.
   private pendingDeletes = new Set<string>()
+  // Tombstones that must apply to ONE workspace only. A collection moved from
+  // workspace A to B is "deleted" in A's remote while still living in B's — an
+  // unscoped tombstone would prune it out of B's push too, losing the move.
+  private scopedDeletes = new Map<string, Set<string>>()
 
-  recordDeletion(ids: string[]): void {
-    for (const id of ids) if (id) this.pendingDeletes.add(id)
+  recordDeletion(ids: string[], workspaceId?: string): void {
+    let set = this.pendingDeletes
+    if (workspaceId) {
+      set = this.scopedDeletes.get(workspaceId) ?? new Set<string>()
+      this.scopedDeletes.set(workspaceId, set)
+    }
+    for (const id of ids) if (id) set.add(id)
+  }
+
+  // Tombstones in effect for one workspace: the unscoped set plus its own.
+  // Always a COPY — a delete recorded while a push is in flight must not be
+  // cleared by that push, or its tombstone dies before it ever propagated.
+  private deletesFor(workspaceId: string): Set<string> {
+    return new Set([...this.pendingDeletes, ...(this.scopedDeletes.get(workspaceId) ?? [])])
+  }
+
+  /** Forget tombstones for ids that came back to a workspace (e.g. a move back). */
+  clearDeletion(ids: string[], workspaceId: string): void {
+    const scoped = this.scopedDeletes.get(workspaceId)
+    for (const id of ids) { this.pendingDeletes.delete(id); scoped?.delete(id) }
+  }
+
+  /** Drop the tombstones a landed push actually applied, from both sets. */
+  private clearApplied(workspaceId: string, applied: Set<string>): void {
+    const scoped = this.scopedDeletes.get(workspaceId)
+    for (const id of applied) { this.pendingDeletes.delete(id); scoped?.delete(id) }
+    if (scoped && scoped.size === 0) this.scopedDeletes.delete(workspaceId)
   }
 
   private authed(): boolean {
@@ -163,27 +192,27 @@ export class SyncManager {
       // A delete recorded while this push is in flight isn't in `applied`, so a
       // blanket clear() would wipe its tombstone before it ever propagated and
       // the next pull's union would resurrect it (item reappears seconds later).
-      let applied = new Set(this.pendingDeletes)
-      merged = pruneDeleted(merged, this.pendingDeletes)
+      let applied = this.deletesFor(workspaceId)
+      merged = pruneDeleted(merged, applied)
       const baseRevision = remote ? remote.revision : state.lastRevision
 
       const first = await this.cli(accountId).push(workspaceId, JSON.stringify(merged), baseRevision)
       if (first.ok) {
         if (remote) await this.applyMergedLocally(workspaceId, merged)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: first.revision })
-        for (const id of applied) this.pendingDeletes.delete(id)
+        this.clearApplied(workspaceId, applied)
         return
       }
       // conflict: remote moved between our pull and push — union the newer
       // remote under our merged (local still wins), prune again, retry once.
       const remote2 = JSON.parse(first.snapshot) as WorkspaceSnapshot
-      applied = new Set(this.pendingDeletes)
-      const merged2 = pruneDeleted(mergeSnapshots(merged, remote2), this.pendingDeletes)
+      applied = this.deletesFor(workspaceId)
+      const merged2 = pruneDeleted(mergeSnapshots(merged, remote2), applied)
       const retry = await this.cli(accountId).push(workspaceId, JSON.stringify(merged2), first.revision)
       if (retry.ok) {
         await this.applyMergedLocally(workspaceId, merged2)
         await this.deps.state.set(workspaceId, { ...state, lastRevision: retry.revision })
-        for (const id of applied) this.pendingDeletes.delete(id)
+        this.clearApplied(workspaceId, applied)
       }
     } catch (e) {
       await this.handleSyncError(workspaceId, e, accountId)
@@ -204,7 +233,7 @@ export class SyncManager {
       // actually removed them from the remote — otherwise a poll between the
       // delete and the push resurrects the item locally (user deletes again ->
       // duplicate trash entries). pendingDeletes is cleared only by push.
-      const merged = pruneDeleted(mergeSnapshots(remote, local), this.pendingDeletes)
+      const merged = pruneDeleted(mergeSnapshots(remote, local), this.deletesFor(workspaceId))
       const localEnvs = await this.deps.stores.getEnvironments(workspaceId)
       const environments = mergeEnvironmentsPreservingSecrets(merged.environments, localEnvs)
       await this.deps.stores.applyPulled(workspaceId, merged.collections, environments)
@@ -247,7 +276,7 @@ export class SyncManager {
           if (!pulled) { failed++; continue }
           await this.deps.stores.ensureWorkspace?.(w.id, pulled.snapshot.name || w.name || w.id)
           const local = await this.buildLocalSnapshot(w.id, accountId)
-          const merged = pruneDeleted(mergeSnapshots(pulled.snapshot, local), this.pendingDeletes)
+          const merged = pruneDeleted(mergeSnapshots(pulled.snapshot, local), this.deletesFor(w.id))
           await this.applyMergedLocally(w.id, merged)
           await this.deps.state.set(w.id, {
             driveFileId: w.driveFileId ?? '',

@@ -50,15 +50,48 @@ describe('AccountsPanel', () => {
     expect(post).toHaveBeenCalledWith({ type: 'createWorkspace', name: 'New Workspace', accountId: 'a1' })
   })
 
-  it('a local workspace has no sync/enable buttons (sync = create under an account)', () => {
+  it('a local workspace can be synced to the single connected account', () => {
+    const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
     useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
     useStore.getState().setWorkspaces([{ id: 'wl', name: 'LocalWs' }], 'wl')
     render(<AccountsPanel />)
     fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
     const localRow = screen.getByRole('button', { name: 'LocalWs' }).closest('.rm-acct-ws') as HTMLElement
-    expect(within(localRow).queryByRole('button', { name: /sync/i })).toBeNull()
-    expect(within(localRow).queryByRole('button', { name: /sign in/i })).toBeNull()
+    fireEvent.click(within(localRow).getByRole('button', { name: /sync .*to me@x\.com/i }))
+    expect(post).toHaveBeenCalledWith({ type: 'enableSync', workspaceId: 'wl', accountId: 'a1' })
     // rename + delete stay
     expect(within(localRow).getByRole('button', { name: /rename/i })).toBeTruthy()
+  })
+
+  it('with several accounts a local workspace offers a picker, and enables for the chosen one', () => {
+    const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
+    useStore.getState().setAccounts([{ id: 'a1', email: 'one@x.com' }, { id: 'a2', email: 'two@x.com' }])
+    useStore.getState().setWorkspaces([{ id: 'wl', name: 'LocalWs' }], 'wl')
+    render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
+    const localRow = screen.getByRole('button', { name: 'LocalWs' }).closest('.rm-acct-ws') as HTMLElement
+    fireEvent.click(within(localRow).getByRole('button', { name: /sync .*to an account/i }))
+    fireEvent.click(within(localRow).getByText('two@x.com'))
+    expect(post).toHaveBeenCalledWith({ type: 'enableSync', workspaceId: 'wl', accountId: 'a2' })
+  })
+
+  it('signed out, a local workspace offers no sync control at all', () => {
+    useStore.getState().setAccounts([])
+    useStore.getState().setWorkspaces([{ id: 'wl', name: 'LocalWs' }], 'wl')
+    render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
+    const localRow = screen.getByRole('button', { name: 'LocalWs' }).closest('.rm-acct-ws') as HTMLElement
+    expect(within(localRow).queryByRole('button', { name: /sync/i })).toBeNull()
+  })
+
+  it('a workspace under an account that never finished enabling offers a retry', () => {
+    const post = vi.spyOn(ipc, 'postToHost').mockImplementation(() => {})
+    useStore.getState().setAccounts([{ id: 'a1', email: 'me@x.com' }])
+    useStore.getState().setWorkspaces([{ id: 'w1', name: 'Stuck', accountId: 'a1', synced: false, role: 'owner' }], 'w1')
+    render(<AccountsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /switch account/i }))
+    const row = screen.getByRole('button', { name: 'Stuck' }).closest('.rm-acct-ws') as HTMLElement
+    fireEvent.click(within(row).getByRole('button', { name: /sync .*to me@x\.com/i }))
+    expect(post).toHaveBeenCalledWith({ type: 'enableSync', workspaceId: 'w1', accountId: 'a1' })
   })
 })

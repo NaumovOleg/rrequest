@@ -20,4 +20,12 @@ describe('theme.css', () => {
     expect(css).toContain('.rm-status-pill')
     expect(css).toContain('.rm-log-row')
   })
+
+  it('lifts an open row menu above the later rows that would otherwise paint over it', () => {
+    const css = fs.readFileSync('src/webview/theme.css', 'utf8')
+    // .rm-actions is transformed (own stacking context), so the popup's own
+    // z-index can't escape it — the strip itself has to be raised.
+    expect(/\.rm-actions:has\(\.rm-popup-menu\)[^}]*z-index/s.test(css)).toBe(true)
+    expect(/\.rm-actions:has\(\.rm-popup-menu\)[^}]*display:\s*flex/s.test(css)).toBe(true)
+  })
 })

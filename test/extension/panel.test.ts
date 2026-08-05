@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { buildHtml } from '../../src/extension/panel'
+import { buildHtml, explainSyncError } from '../../src/extension/panel'
+import { SyncAuthError, SyncForbiddenError, SyncGoneError } from '../../src/extension/sync/sync-client'
+
+describe('explainSyncError', () => {
+  it('turns each sync failure into something the user can act on', () => {
+    expect(explainSyncError(new SyncAuthError())).toMatch(/sign in again/i)
+    expect(explainSyncError(new SyncForbiddenError())).toMatch(/another account/i)
+    expect(explainSyncError(new SyncGoneError())).toMatch(/no longer has/i)
+    expect(explainSyncError(new TypeError('fetch failed'))).toMatch(/couldn't reach the sync server/i)
+    expect(explainSyncError(new Error('sync request failed: 500'))).toBe('sync request failed: 500')
+  })
+})
 
 describe('buildHtml', () => {
   it('embeds the script + stylesheet uris and a strict CSP with the nonce', () => {

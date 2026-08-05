@@ -193,6 +193,23 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.saveCollection(clone)
         return { type: 'tree', collections: await deps.collections.list() }
       }
+      case 'moveCollection': {
+        // Re-parent a whole collection into another workspace, ids intact (a
+        // move, not a copy — open tabs and trash paths keep pointing at it).
+        // The bound environment belongs to the source workspace and isn't
+        // moved, so the binding is dropped rather than left dangling.
+        const all = await deps.collections.list()
+        const c = all.find((x) => x.id === msg.id)
+        if (!c || c.workspaceId === msg.toWorkspaceId) return { type: 'tree', collections: all }
+        const target = (await deps.workspaces.list()).find((w) => w.id === msg.toWorkspaceId)
+        if (!target) return { type: 'tree', collections: all }
+        if (deps.isReadOnly?.(msg.toWorkspaceId)) {
+          return { type: 'toast', level: 'error', message: 'That workspace is read-only (viewer access).' }
+        }
+        const { environmentId: _dropped, ...rest } = c
+        await deps.collections.saveCollection({ ...rest, workspaceId: msg.toWorkspaceId })
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
       case 'duplicateFolder': {
         const all = await deps.collections.list()
         const c = all.find((x) => x.id === msg.collectionId)

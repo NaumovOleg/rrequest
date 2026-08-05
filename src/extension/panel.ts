@@ -128,7 +128,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       const def = await workspaces.create("Default");
       list = [...list, def];
     }
-    const bootActive = context.globalState.get<string>("rrequest.activeWorkspaceId", "");
+    const bootActive = context.globalState.get<string>(
+      "rrequest.activeWorkspaceId",
+      "",
+    );
     if (!list.some((w) => w.id === bootActive)) {
       const local = list.find(isLocalWs) ?? list[0];
       await context.globalState.update("rrequest.activeWorkspaceId", local.id);
@@ -155,13 +158,16 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         .getConfiguration("rrequest")
         .get<string>("syncServerUrl") ||
       process.env.SYNC_SERVER_URL ||
-      "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api";
+      "https://ovbwfcukmiehohhxnaeekc5nmy0cbedu.lambda-url.eu-west-1.on.aws/api";
     // --- Multi-account sync ---
     // Several Google accounts can be connected at once; each synced workspace is
     // bound to one (SyncState.accountId). AccountStore loads cached tokens (and
     // migrates a legacy single-account session) up front, so startup's authed
     // calls resolve tokens synchronously and never send an empty Bearer.
-    const accounts = new AccountStore({ secrets: context.secrets, globalState: context.globalState });
+    const accounts = new AccountStore({
+      secrets: context.secrets,
+      globalState: context.globalState,
+    });
     await accounts.load();
     const isAuthed = (): boolean => !accounts.isEmpty();
     const currentAccounts = (): Account[] => accounts.list();
@@ -179,7 +185,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       const key = accountId ?? "__default__";
       let c = clientCache.get(key);
       if (!c) {
-        c = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => accounts.getToken(accountId) });
+        c = new SyncClient({
+          baseUrl: syncBaseUrl(),
+          getToken: () => accounts.getToken(accountId),
+        });
         clientCache.set(key, c);
       }
       return c;
@@ -188,7 +197,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       clientFor((await syncState.get(id))?.accountId);
 
     const membersPort = {
-      list: async (id: string) => (await clientForWorkspace(id)).listMembers(id),
+      list: async (id: string) =>
+        (await clientForWorkspace(id)).listMembers(id),
       add: async (id: string, email: string, role: "editor" | "viewer") => {
         try {
           await (await clientForWorkspace(id)).addMember(id, { email, role });
@@ -269,7 +279,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         }
       },
       runExport: async (c, format) => {
-        const suffix = format === "openapi" ? ".openapi" : format === "postman" ? ".postman" : "";
+        const suffix =
+          format === "openapi"
+            ? ".openapi"
+            : format === "postman"
+            ? ".postman"
+            : "";
         const safe = (c.name || "collection").replace(/[^a-z0-9_-]+/gi, "_");
         const target = await vscode.window.showSaveDialog({
           filters: { JSON: ["json"] },
@@ -312,9 +327,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         // enabled workspaces to the wrong/undefined account (so they never
         // pulled for the account that was actually picked).
         signOut: (accountId?: string) => syncControlRef!.signOut(accountId),
-        enable: (id: string, accountId?: string) => syncControlRef!.enable(id, accountId),
+        enable: (id: string, accountId?: string) =>
+          syncControlRef!.enable(id, accountId),
         syncNow: (id: string) => syncControlRef!.syncNow(id),
-        syncAccount: (accountId: string) => syncControlRef!.syncAccount(accountId),
+        syncAccount: (accountId: string) =>
+          syncControlRef!.syncAccount(accountId),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
       // workspace when it's deleted; never blocks the local delete (see below).
@@ -554,7 +571,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
             void vscode.env.openExternal(vscode.Uri.parse(u)),
         });
         try {
-          const who = new SyncClient({ baseUrl: syncBaseUrl(), getToken: () => token });
+          const who = new SyncClient({
+            baseUrl: syncBaseUrl(),
+            getToken: () => token,
+          });
           const me = await who.me();
           await accounts.add({ id: me.id, email: me.email }, token);
           authWarned.delete(me.id); // fresh token -> allow a future warning again
@@ -573,7 +593,10 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           } else if (res.error) {
             hub.toast("error", `Couldn't fetch your workspaces: ${res.error}`);
           } else if (res.failed > 0) {
-            hub.toast("error", `Found ${res.failed} workspace(s) but couldn't read their Drive files.`);
+            hub.toast(
+              "error",
+              `Found ${res.failed} workspace(s) but couldn't read their Drive files.`,
+            );
           }
         } catch (e: any) {
           hub.toast("error", `Sign-in failed: ${e?.message ?? e}`);
@@ -584,22 +607,32 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // signOut removes ONE account and drops sync on its workspaces (local data
       // kept). No accountId -> remove the sole account (single-account case).
       signOut: async (accountId?: string) => {
-        const id = accountId ?? (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
+        const id =
+          accountId ??
+          (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
         if (!id) return;
         await accounts.remove(id);
         clientCache.delete(id);
         clientCache.delete("__default__");
         for (const [wsId, st] of Object.entries(await syncState.all())) {
-          if (st.accountId === id && st.synced) await syncState.set(wsId, { ...st, synced: false });
+          if (st.accountId === id && st.synced)
+            await syncState.set(wsId, { ...st, synced: false });
         }
         await runtime.refreshRoleCache();
         hub.authState(currentAccounts());
         await runtime.refresh();
       },
       enable: async (id: string, accountId?: string) => {
-        const acct = accountId ?? (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
+        const acct =
+          accountId ??
+          (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
         if (!acct) {
-          hub.toast("error", accounts.isEmpty() ? "Sign in with Google first." : "Choose an account to sync this workspace.");
+          hub.toast(
+            "error",
+            accounts.isEmpty()
+              ? "Sign in with Google first."
+              : "Choose an account to sync this workspace.",
+          );
           return;
         }
         try {
@@ -628,9 +661,15 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         try {
           const res = await manager.adoptRemoteWorkspaces(accountId);
           await runtime.refreshRoleCache();
-          if (res.error) hub.toast("error", `Couldn't fetch ${email}: ${res.error}`);
-          else if (res.listed === 0) hub.toast("info", `${email}: no workspaces on the server.`);
-          else hub.toast("info", `${email}: synced ${res.adopted.length}/${res.listed} workspace(s).`);
+          if (res.error)
+            hub.toast("error", `Couldn't fetch ${email}: ${res.error}`);
+          else if (res.listed === 0)
+            hub.toast("info", `${email}: no workspaces on the server.`);
+          else
+            hub.toast(
+              "info",
+              `${email}: synced ${res.adopted.length}/${res.listed} workspace(s).`,
+            );
         } catch (e: any) {
           hub.toast("error", `Force sync failed: ${e?.message ?? e}`);
         }
@@ -759,10 +798,10 @@ export class RrequestPanel {
     const iconBase = key.startsWith("grpc")
       ? "icon-grpc"
       : key.startsWith("ws")
-        ? "icon-ws"
-        : key === "env"
-          ? "icon-env"
-          : "icon-request";
+      ? "icon-ws"
+      : key === "env"
+      ? "icon-env"
+      : "icon-request";
     panel.iconPath = {
       light: vscode.Uri.joinPath(
         context.extensionUri,

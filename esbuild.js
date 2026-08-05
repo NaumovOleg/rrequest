@@ -12,7 +12,7 @@ require("./scripts/load-root-env.cjs")();
 // extension still lets a user override it via the `rrequest.syncServerUrl`
 // setting at runtime.
 const PROD_SYNC_URL =
-  "https://slgvpoiwdpzymrlg6iu4zbowea0yneyw.lambda-url.eu-west-1.on.aws/api";
+  "https://ovbwfcukmiehohhxnaeekc5nmy0cbedu.lambda-url.eu-west-1.on.aws/api";
 const SYNC_URL = process.env.SYNC_SERVER_URL || PROD_SYNC_URL;
 
 const options = {

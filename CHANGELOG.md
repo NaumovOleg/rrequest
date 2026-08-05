@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.10
+
+### Patch Changes
+
+- aws accont
+
 ## 0.0.9
 
 ### Patch Changes

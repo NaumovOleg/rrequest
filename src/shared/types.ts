@@ -1,5 +1,9 @@
+// A known method, or any custom string (Postman-style: the method dropdown is
+// a free-text input, so WebDAV/GraphQL/legacy verbs work). `string & {}` keeps
+// autocomplete for the common ones while allowing arbitrary values.
 export type HttpMethod =
   | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'QUERY' | 'DELETE' | 'HEAD' | 'OPTIONS'
+  | (string & {})
 
 export type KeyValue = { key: string; value: string; enabled: boolean; description?: string; secret?: boolean }
 
@@ -79,6 +83,12 @@ export type HttpError = {
 
 export type TestResult = { name: string; passed: boolean; error?: string }
 
+// Per-phase timing, in ms from the moment sending started:
+//   ttfbMs     — until response headers arrived (fetch() resolves)
+//   downloadMs — from headers until the body was fully read
+//   timeMs     — total (kept as the flat field, timings is a breakdown)
+export type ResponseTimings = { ttfbMs: number; downloadMs: number }
+
 export type HttpResponse = {
   status: number
   statusText: string
@@ -91,6 +101,11 @@ export type HttpResponse = {
   error?: HttpError
   testResults?: TestResult[]
   consoleLogs?: string[]
+  timings?: ResponseTimings
+  // Binary payloads (images, octet-stream, …) can't travel as UTF-8 text:
+  // body stays empty and the (possibly truncated) bytes come as base64 here.
+  bodyIsBinary?: boolean
+  bodyBase64?: string
 }
 
 export type Folder = { id: string; name: string; requests: CollectionItem[] }
@@ -170,6 +185,11 @@ export type WebviewMessage =
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }
+  | { type: 'reorderRequest'; collectionId: string; folderId: string | null; requestId: string; delta: 'up' | 'down' }
+  | { type: 'reorderFolder'; collectionId: string; folderId: string; delta: 'up' | 'down' }
+  | { type: 'clearHistory' }
+  | { type: 'openTextDocument'; content: string; language: string }
+  | { type: 'saveBody'; requestId: string; fallbackContent?: string; fallbackIsBase64?: boolean; suggestName?: string }
   | { type: 'loadTrash' }
   | { type: 'restoreTrash'; entryId: string; folderId?: string; requestId?: string }
   | { type: 'purgeTrash'; entryId: string }

@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
 import { newId, type KeyValue, type WsRequest } from '../../../shared/types'
+
+function fmtWsData(data: string): string {
+  try {
+    const parsed = JSON.parse(data)
+    if (parsed !== null && typeof parsed === 'object') return JSON.stringify(parsed, null, 2)
+  } catch { /* not JSON, keep raw */ }
+  return data
+}
 
 function WsHeadersTable({ rows, onChange }: {
   rows: KeyValue[]; onChange: (rows: KeyValue[]) => void
@@ -45,7 +53,14 @@ export function WebSocketPanel() {
   const setWsHeaders = useStore((s) => s.setWsHeaders)
   const wsStartConnect = useStore((s) => s.wsStartConnect)
   const wsAppendLog = useStore((s) => s.wsAppendLog)
+  const wsClear = useStore((s) => s.wsClear)
   const tree = useStore((s) => s.tree)
+
+  const logRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = logRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [wsLog.length])
 
   const [id, setId] = useState(() => newId())
   const [name, setName] = useState('New WebSocket Request')
@@ -156,12 +171,25 @@ export function WebSocketPanel() {
           value={wsInput} onChange={(e) => setWsInput(e.target.value)} />
         <button className="rm-btn rm-btn--primary" disabled={wsStatus !== 'open'} onClick={send}>Send</button>
       </div>
-      <div className="rm-log">
+      <div className="rm-log-head">
+        <span className="rm-section-title">Log</span>
+        <button className="rm-icon-btn" aria-label="clear log" title="Clear log" disabled={wsLog.length === 0}
+          onClick={wsClear}>
+          <span className="codicon codicon-clear-all" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="rm-log" ref={logRef}>
+        {wsLog.length === 0 && (
+          <div className="rm-blank rm-log-empty">
+            <span className="codicon codicon-radio-tower rm-blank-icon" aria-hidden="true" />
+            <div className="rm-blank-hint">Connect to see the message log.</div>
+          </div>
+        )}
         {wsLog.map((e, i) => (
           <div key={i} className={`rm-log-row is-${e.dir}`}>
             <span className="rm-log-dir">{e.dir}</span>
             <span className="rm-log-time">{new Date(e.at).toLocaleTimeString()}</span>
-            <span>{e.data}</span>
+            <pre className="rm-log-data">{fmtWsData(e.data)}</pre>
           </div>
         ))}
       </div>

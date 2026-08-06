@@ -343,6 +343,34 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         const p = picked[0].fsPath;
         return { path: p, filename: p.split(/[\\/]/).pop() ?? p };
       },
+      // Response body in a real editor: search, folding and highlighting for
+      // free, instead of the webview's readonly <pre>.
+      openTextDocument: async ({ content, language }) => {
+        const doc = await vscode.workspace.openTextDocument({
+          content,
+          language,
+        });
+        void vscode.window.showTextDocument(doc, { preview: true });
+      },
+      // "Save response body": native save dialog, then write the (full, cached)
+      // body — base64 for binary payloads, utf8 text otherwise.
+      saveBodyToFile: async ({ content, isBase64, suggestName }) => {
+        const safe = (suggestName || "response").replace(/[^a-z0-9_.-]+/gi, "_");
+        const target = await vscode.window.showSaveDialog({
+          saveLabel: "Save response body",
+          defaultUri: vscode.Uri.file(`${safe}.txt`),
+        });
+        if (!target) return null;
+        try {
+          await fs.writeFile(target.fsPath, content, isBase64 ? "base64" : "utf8");
+          return target.fsPath;
+        } catch (e: any) {
+          void vscode.window.showErrorMessage(
+            `rrequest could not save the response body: ${e?.message ?? e}`,
+          );
+          return null;
+        }
+      },
       ws: wsManager,
       grpcInvoke,
       trash,
@@ -764,13 +792,17 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         }
       },
       syncNow: async (id: string) => {
+        hub.syncStatus(true);
         try {
           await manager.pull(id);
           await manager.push(id);
           await runtime.refreshRoleCache();
           await runtime.refresh();
+          hub.toast("info", "Sync completed.");
         } catch (e: any) {
           hub.toast("error", `Sync failed: ${e?.message ?? e}`);
+        } finally {
+          hub.syncStatus(false);
         }
       },
       // Force sync ONE account now: re-index its Drive (recover) + pull every

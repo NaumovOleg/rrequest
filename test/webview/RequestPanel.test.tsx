@@ -89,19 +89,23 @@ describe('RequestPanel', () => {
     expect(active.url).toBe('https://api.test/y'); expect(active.method).toBe('POST')
   })
 
+  function openSubtab(name: string) {
+    fireEvent.click(screen.getByRole('tab', { name }))
+  }
+
   it('edits the pre-request and test scripts', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'pre-request' } })
+    openSubtab('Pre-request Script')
     fireEvent.change(screen.getByLabelText(/pre-request script/i), { target: { value: 'pm.environment.set("a","1")' } })
     expect(useStore.getState().tabs[0].preRequestScript).toBe('pm.environment.set("a","1")')
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'tests' } })
+    openSubtab('Tests')
     fireEvent.change(screen.getByLabelText(/test script/i), { target: { value: 'pm.test("t", () => {})' } })
     expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
   })
 
   it('restores raw body text after switching body mode away and back', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    openSubtab('Body')
     fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'raw' } })
     fireEvent.change(screen.getByLabelText('body'), { target: { value: '{"a":1}' } })
     expect(useStore.getState().tabs[0].body).toEqual({ mode: 'raw', type: 'json', text: '{"a":1}' })
@@ -134,7 +138,7 @@ describe('RequestPanel', () => {
     const sel = screen.getByLabelText('method')
     expect(sel.className).toContain('rm-method--DELETE')
     // params section selected by default
-    expect((screen.getByLabelText(/request section/i) as HTMLSelectElement).value).toBe('params')
+    expect(screen.getByRole('tab', { name: 'Params' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('Save posts the pending folder id', () => {
@@ -157,7 +161,7 @@ describe('RequestPanel', () => {
   it('Headers section lists greyed auto-generated headers on demand', () => {
     render(<RequestPanel />)
     fireEvent.change(screen.getByPlaceholderText('URL'), { target: { value: 'https://api.test/x' } })
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'headers' } })
+    openSubtab('Headers')
     fireEvent.click(screen.getByRole('button', { name: /auto-generated headers/i }))
     expect(screen.getByText('Host')).toBeInTheDocument()
     expect(screen.getByText('api.test')).toBeInTheDocument()
@@ -190,7 +194,7 @@ describe('RequestPanel', () => {
 
   it('choosing a raw JSON body sets the Content-Type header', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    openSubtab('Body')
     fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'raw' } })
     expect(useStore.getState().tabs[0].headers).toContainEqual({ key: 'Content-Type', value: 'application/json', enabled: true })
     // switching to XML updates it, not duplicates it
@@ -201,7 +205,7 @@ describe('RequestPanel', () => {
 
   it('GraphQL body: selecting it defaults method to POST, sets JSON content-type, shows editors', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'body' } })
+    openSubtab('Body')
     fireEvent.change(screen.getByLabelText('body mode'), { target: { value: 'graphql' } })
     const tab = useStore.getState().tabs[0]
     expect(tab.method).toBe('POST')
@@ -213,7 +217,7 @@ describe('RequestPanel', () => {
 
   it('the Cookies section edits request cookies', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'cookies' } })
+    openSubtab('Cookies')
     fireEvent.change(screen.getAllByPlaceholderText('key')[0], { target: { value: 'sid' } })
     fireEvent.change(screen.getAllByPlaceholderText('value')[0], { target: { value: 'abc' } })
     expect(useStore.getState().tabs[0].cookies).toContainEqual({ key: 'sid', value: 'abc', enabled: true })
@@ -221,7 +225,7 @@ describe('RequestPanel', () => {
 
   it('Authorization tab: choosing Bearer stores a bearer token', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/request section/i), { target: { value: 'authorization' } })
+    openSubtab('Authorization')
     fireEvent.change(screen.getByLabelText(/auth type/i), { target: { value: 'bearer' } })
     fireEvent.change(screen.getByLabelText(/bearer token/i), { target: { value: 'tok' } })
     expect(useStore.getState().tabs[0].auth).toEqual({ type: 'bearer', token: 'tok' })

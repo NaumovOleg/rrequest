@@ -86,4 +86,19 @@ describe('WebSocketPanel', () => {
     expect((screen.getByLabelText('websocket name') as HTMLInputElement).value).toBe('New WebSocket Request')
     expect(screen.getByLabelText('save to collection')).toBeTruthy()
   })
+  it('Clear log empties the message log', () => {
+    useStore.getState().wsAppendLog({ dir: 'in', data: 'hello', at: 1 })
+    render(<WebSocketPanel />)
+    expect(screen.getByText(/hello/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /clear log/i }))
+    expect(useStore.getState().wsLog).toHaveLength(0)
+    expect(screen.getByText(/connect to see the message log/i)).toBeInTheDocument()
+  })
+  it('pretty-prints JSON payloads in the log', () => {
+    useStore.getState().wsAppendLog({ dir: 'in', data: '{"a":1}', at: 1 })
+    render(<WebSocketPanel />)
+    const pre = document.querySelector('.rm-log-data')
+    expect(pre?.textContent).toContain('\n') // pretty-printed, not single line
+    expect(pre?.textContent).toContain('"a"')
+  })
 })

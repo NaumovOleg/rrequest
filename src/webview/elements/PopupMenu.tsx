@@ -39,6 +39,38 @@ function indented(items: PopupMenuItem[], i: number): boolean {
   return false
 }
 
+/**
+ * One menu row, shared by PopupMenu (anchored to a button) and ContextMenu
+ * (anchored to a right-click). Renders headers/separators as plain markup and
+ * items as menuitem buttons with the shared check-gutter.
+ */
+export function MenuRows({ items, onPick }: { items: PopupMenuItem[]; onPick: () => void }) {
+  return (
+    <>
+      {items.map((it, i) => {
+        if (isHeader(it)) return <div key={i} className="rm-popup-header" role="presentation">{it.label}</div>
+        if (isSeparator(it)) return <div key={i} className="rm-popup-sep" role="separator" />
+        const cls = ['rm-popup-item']
+        if (indented(items, i)) cls.push('rm-popup-item--sub')
+        if (it.checked) cls.push('is-checked')
+        return (
+          <button key={i} type="button" className={cls.join(' ')} role="menuitem"
+            aria-checked={it.checked} disabled={it.disabled}
+            onClick={(e) => { e.stopPropagation(); it.onClick(); onPick() }}>
+            <span className="rm-popup-gutter" aria-hidden="true">
+              {it.checked
+                ? <span className="codicon codicon-check" />
+                : it.icon ? <span className={`codicon codicon-${it.icon}`} /> : null}
+            </span>
+            <span className="rm-popup-label">{it.label}</span>
+            {it.hint && <span className="rm-popup-hint">{it.hint}</span>}
+          </button>
+        )
+      })}
+    </>
+  )
+}
+
 export function PopupMenu({ icon, label, items }: { icon: string; label: string; items: PopupMenuItem[] }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -55,26 +87,7 @@ export function PopupMenu({ icon, label, items }: { icon: string; label: string;
       <IconButton icon={icon} label={label} onClick={() => setOpen((o) => !o)} />
       {open && (
         <div className="rm-popup-menu" role="menu" aria-label={label}>
-          {items.map((it, i) => {
-            if (isHeader(it)) return <div key={i} className="rm-popup-header" role="presentation">{it.label}</div>
-            if (isSeparator(it)) return <div key={i} className="rm-popup-sep" role="separator" />
-            const cls = ['rm-popup-item']
-            if (indented(items, i)) cls.push('rm-popup-item--sub')
-            if (it.checked) cls.push('is-checked')
-            return (
-              <button key={i} type="button" className={cls.join(' ')} role="menuitem"
-                aria-checked={it.checked} disabled={it.disabled}
-                onClick={(e) => { e.stopPropagation(); it.onClick(); setOpen(false) }}>
-                <span className="rm-popup-gutter" aria-hidden="true">
-                  {it.checked
-                    ? <span className="codicon codicon-check" />
-                    : it.icon ? <span className={`codicon codicon-${it.icon}`} /> : null}
-                </span>
-                <span className="rm-popup-label">{it.label}</span>
-                {it.hint && <span className="rm-popup-hint">{it.hint}</span>}
-              </button>
-            )
-          })}
+          <MenuRows items={items} onPick={() => setOpen(false)} />
         </div>
       )}
     </span>

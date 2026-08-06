@@ -145,6 +145,8 @@ body {
 /* inputs */
 .rm-input,
 .rm-select {
+  box-sizing: border-box;
+  line-height: 1.4;
   background: var(--rm-input-bg);
   color: var(--rm-input-fg);
   border: 1px solid var(--rm-input-border);
@@ -222,6 +224,13 @@ body {
 .rm-tab-close:hover {
   color: var(--rm-fg);
 }
+.rm-tab-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rm-accent);
+  flex-shrink: 0;
+}
 
 /* url bar */
 .rm-urlbar {
@@ -246,6 +255,37 @@ body {
 .rm-subtab-select {
   min-width: 170px;
   font-weight: 600;
+}
+/* compact request-section tabs: small, wrapping chips — 7 tabs won't fit one
+   row in a narrow pane and the default .rm-chips pill styling reads as big
+   overlapping buttons there. */
+.rm-subtab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+}
+.rm-subtab-chips .rm-chip {
+  padding: 2px 9px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+/* hidden same-width chip row, absolute so it never takes layout space */
+.rm-chip-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  display: inline-flex;
+  gap: 2px;
+  white-space: nowrap;
+}
+.rm-chip-measure .rm-chip {
+  padding: 2px 9px;
+  font-size: 0.8em;
+  line-height: 1.4;
 }
 
 /* auto-generated (transport-managed) headers — read-only, greyed like Postman */
@@ -346,6 +386,23 @@ body {
 }
 .rm-tree-head .rm-section-title {
   margin-bottom: 0;
+}
+.rm-tree-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--rm-sp-2);
+}
+.rm-tree-search-icon {
+  color: var(--rm-muted);
+}
+.rm-tree-search-input {
+  flex: 1;
+  padding: 2px 6px;
+}
+.rm-tree-search-clear {
+  color: var(--rm-muted);
+  padding: 2px 4px;
 }
 .rm-tree-row {
   position: relative;
@@ -520,6 +577,23 @@ body {
   color: var(--rm-m-put);
 }
 .rm-log-row.is-status .rm-log-dir {
+  color: var(--rm-muted);
+}
+.rm-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rm-sp-1) var(--rm-sp-2) 0;
+}
+.rm-log-data {
+  margin: 0;
+  font-size: 0.95em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.rm-log-empty {
+  padding: var(--rm-sp-6);
+  text-align: center;
   color: var(--rm-muted);
 }
 
@@ -1372,10 +1446,18 @@ body {
   white-space: nowrap;
 }
 
-/* env-var highlight input: mirror div behind a caret-only input */
+/* env-var highlight input: mirror div behind a caret-only input.
+   The border/padding/bg live on the WRAPPER; field + mirror are both
+   frameless and fill the wrapper's content box (inset:0), so the highlighted
+   copy is pixel-locked to the caret regardless of context (URL bar, KV table). */
 .rm-envinput {
   position: relative;
   display: block;
+  background: var(--rm-input-bg);
+  border: 1px solid var(--rm-input-border);
+  border-radius: var(--rm-radius);
+  padding: 4px 8px;
+  box-sizing: border-box;
 }
 .rm-envinput-field {
   position: relative;
@@ -1383,28 +1465,96 @@ body {
   background: transparent;
   color: transparent;
   caret-color: var(--rm-fg);
+  border: none;
+  padding: 0;
+}
+.rm-envinput-field:focus {
+  outline: none;
 }
 .rm-envinput-mirror {
   position: absolute;
   inset: 0;
-  padding: 4px 6px;
-  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: none;
+  box-sizing: border-box;
   white-space: pre;
   overflow: hidden;
   pointer-events: none;
   color: var(--rm-fg);
   font: inherit;
-  line-height: normal;
 }
 .rm-envvar {
   color: var(--rm-m-query, #e0823d);
   background: color-mix(in srgb, var(--rm-m-query, #e0823d) 20%, transparent);
   border-radius: 2px;
 }
+/* hover popover resolving each {{var}} in the field's value */
+.rm-env-hints {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  max-width: 320px;
+  background: var(--rm-panel-bg);
+  border: 1px solid var(--rm-border);
+  border-radius: var(--rm-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: var(--rm-sp-1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rm-env-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--rm-sp-2);
+  align-items: baseline;
+  padding: 2px 4px;
+  font-size: 0.85em;
+}
+.rm-env-hint-name {
+  color: var(--rm-m-query, #e0823d);
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: nowrap;
+}
+.rm-env-hint-value {
+  color: var(--rm-fg);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+  max-height: 4.2em;
+  overflow: hidden;
+}
+.rm-env-hint-value.is-missing {
+  color: var(--rm-muted);
+  font-style: italic;
+}
 .rm-body-toolbar {
   display: flex;
   gap: var(--rm-sp-1);
+  align-items: center;
   padding: var(--rm-sp-1) var(--rm-sp-2);
+}
+.rm-body-search {
+  width: 220px;
+}
+.rm-body-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.rm-body-line mark {
+  background: var(--rm-accent);
+  color: var(--vscode-button-foreground, #fff);
+  border-radius: 2px;
+}
+.rm-body-empty {
+  color: var(--rm-muted);
+  padding: var(--rm-sp-2) 0;
+}
+.rm-spacer {
+  flex: 1;
 }
 .rm-btn--sm {
   padding: 2px 8px;
@@ -1589,6 +1739,18 @@ body {
   color: var(--rm-muted);
   padding: var(--rm-sp-2);
   font-size: 0.95em;
+}
+/* empty-state call to action for the collections tree */
+.rm-empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--rm-sp-2);
+  padding: var(--rm-sp-6) var(--rm-sp-2);
+  text-align: center;
+}
+.rm-empty-cta-actions {
+  gap: var(--rm-sp-2);
 }
 
 /* history */

@@ -42,4 +42,37 @@ describe('History', () => {
     fireEvent.keyDown(screen.getByText('H'), { key: 'Enter' })
     expect(posted).toContainEqual({ type: 'openRequest', request })
   })
+
+  it('search filters entries by name or URL', () => {
+    const a = { id: 'a1', name: 'Login', method: 'GET' as const, url: 'https://api/login', params: [], headers: [], body: { mode: 'none' as const } }
+    const b = { id: 'b1', name: 'Users', method: 'GET' as const, url: 'https://api/users', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([
+      { id: 'h1', workspaceId: 'w1', request: a, status: 200, at: Date.now() },
+      { id: 'h2', workspaceId: 'w1', request: b, status: 200, at: Date.now() },
+    ])
+    render(<History />)
+    fireEvent.change(screen.getByLabelText('search history'), { target: { value: 'users' } })
+    expect(screen.queryByText('Login')).toBeNull()
+    expect(screen.getByText('Users')).toBeInTheDocument()
+  })
+
+  it('clear history posts clearHistory after confirmation', () => {
+    const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<History />)
+    fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
+    expect(posted).toContainEqual({ type: 'clearHistory' })
+    confirm.mockRestore()
+  })
+
+  it('clear history is cancelled when the confirmation is declined', () => {
+    const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<History />)
+    fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
+    expect(posted.filter((m) => m.type === 'clearHistory')).toHaveLength(0)
+    confirm.mockRestore()
+  })
 })

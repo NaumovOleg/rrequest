@@ -5,7 +5,29 @@ import * as fs from 'node:fs/promises'
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
 
-type Opts = { timeoutMs?: number; maxBytes?: number; fetchImpl?: typeof fetch; vars?: KeyValue[] }
+type Opts = {
+  timeoutMs?: number
+  maxBytes?: number
+  fetchImpl?: typeof fetch
+  vars?: KeyValue[]
+  // Called with the FULL body (before truncation) once it has been read, so the
+  // caller can cache it for a later "save response body to file" without the
+  // full payload ever crossing the webview IPC (which is truncated to maxBytes).
+  onFullBody?: (full: { text?: string; base64?: string }) => void
+}
+
+// Content types whose payload can't be shown as UTF-8 text. Images get a
+// preview, everything else shows a "binary response" note. JSON/XML/SVG stay
+// text so the existing pretty/raw views keep working.
+function isBinaryContentType(ct: string): boolean {
+  const t = ct.toLowerCase()
+  return (
+    /^(image|audio|video)\//.test(t) ||
+    t === 'application/octet-stream' ||
+    t === 'application/pdf' ||
+    t === 'application/zip'
+  )
+}
 
 function buildUrl(req: RestRequest): string {
   const enabled = req.params.filter((p) => p.enabled && p.key)
@@ -164,18 +186,40 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
       body: fetchBody,
       signal: controller.signal,
     })
-    const full = await resp.text()
-    const sizeBytes = Buffer.byteLength(full, 'utf8')
+    // fetch() resolves once the response HEADERS are in — that's the TTFB mark.
+    // Reading the body (arrayBuffer) completes the total; the delta is the
+    // download phase. Both are wall-clock, matching the pre-existing timeMs.
+    const ttfbMs = Date.now() - started
+    const bytes = new Uint8Array(await resp.arrayBuffer())
+    const totalMs = Date.now() - started
+    const sizeBytes = bytes.byteLength
     const truncated = sizeBytes > maxBytes
+    const ct = resp.headers.get('content-type') ?? ''
+    const binary = isBinaryContentType(ct)
+    let body = ''
+    let bodyBase64: string | undefined
+    if (binary) {
+      const slice = truncated ? bytes.subarray(0, maxBytes) : bytes
+      bodyBase64 = Buffer.from(slice).toString('base64')
+    } else {
+      const full = Buffer.from(bytes).toString('utf8')
+      body = truncated ? truncateUtf8(full, maxBytes) : full
+    }
+    // Full payload goes only to the caller's cache, never into the response
+    // message (which is capped at maxBytes on purpose).
+    opts.onFullBody?.(binary ? { base64: Buffer.from(bytes).toString('base64') } : { text: Buffer.from(bytes).toString('utf8') })
     return {
       status: resp.status,
       statusText: resp.statusText,
       headers: headersToKeyValues(resp.headers),
-      body: truncated ? truncateUtf8(full, maxBytes) : full,
+      body,
       bodyTruncated: truncated,
-      timeMs: Date.now() - started,
+      timeMs: totalMs,
       sizeBytes,
       cookies: extractCookies(resp.headers),
+      timings: { ttfbMs, downloadMs: totalMs - ttfbMs },
+      bodyIsBinary: binary,
+      bodyBase64,
     }
   } catch (e: any) {
     const kind: HttpError['kind'] =

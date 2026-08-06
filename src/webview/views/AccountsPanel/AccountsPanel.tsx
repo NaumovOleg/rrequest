@@ -74,7 +74,7 @@ export function AccountsPanel() {
         <IconButton icon="organization" label="Share / invite people" onClick={() => { postToHost({ type: "openMembers", workspaceId: w.id }); setOpen(false); }} />
       )}
       {w.synced && (
-        <IconButton icon="sync" label="Sync now" onClick={() => postToHost({ type: "syncNow", workspaceId: w.id })} />
+        <IconButton icon="sync" spin={syncLoading} disabled={syncLoading} label="Sync now" onClick={() => postToHost({ type: "syncNow", workspaceId: w.id })} />
       )}
       {w.role !== "viewer" && !isEditing && (
         <>
@@ -154,7 +154,7 @@ export function AccountsPanel() {
                   <div className="rm-acct-head">
                     <span className="codicon codicon-account" />
                     <span className="rm-acct-email" title={a.email}>{a.email}</span>
-                    <IconButton icon="sync" label={`Force sync ${a.email} — pull all its workspaces now`} onClick={() => postToHost({ type: "syncAccount", accountId: a.id })} />
+                    <IconButton icon="sync" spin={syncLoading} disabled={syncLoading} label={`Force sync ${a.email} — pull all its workspaces now`} onClick={() => postToHost({ type: "syncAccount", accountId: a.id })} />
                     <IconButton icon="add" label={`New workspace in ${a.email}`} onClick={() => { create("New Workspace", a.id); setOpen(false); }} />
                     <IconButton icon="sign-out" label={`Sign out ${a.email}`} onClick={() => postToHost({ type: "signOut", accountId: a.id })} />
                   </div>

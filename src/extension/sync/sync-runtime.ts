@@ -3,7 +3,7 @@ import type { SyncManager } from './sync-manager'
 const MUTATING = new Set<string>([
   'createCollection', 'renameCollection', 'deleteCollection', 'duplicateCollection', 'moveCollection',
   'createFolder', 'renameFolder', 'deleteFolder', 'moveFolder', 'duplicateFolder',
-  'createRequest', 'saveRequest', 'renameRequest', 'deleteRequest', 'duplicateRequest', 'moveRequest',
+  'createRequest', 'saveRequest', 'renameRequest', 'deleteRequest', 'duplicateRequest', 'moveRequest', 'reorderRequest', 'reorderFolder',
   'setCollectionEnvironment',
   'createEnvironment', 'saveEnvironment', 'deleteEnvironment',
   'importCollection', 'restoreTrash', 'purgeTrash',

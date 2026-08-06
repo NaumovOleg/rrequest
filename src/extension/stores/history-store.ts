@@ -24,4 +24,8 @@ export class HistoryStore {
     const kept = (await this.list()).filter((e) => e.workspaceId !== workspaceId)
     await writeJsonAtomic(this.file, kept)
   }
+
+  async clear(): Promise<void> {
+    await writeJsonAtomic(this.file, [])
+  }
 }

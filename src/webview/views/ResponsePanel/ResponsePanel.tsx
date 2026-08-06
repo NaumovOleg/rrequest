@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useStore } from '../../state/store'
+import { postToHost } from '../../ipc'
 import type { HttpResponse } from '../../../shared/types'
+import { JsonTree } from '../../components/JsonTree'
 
 type SubTab = 'body' | 'headers' | 'cookies' | 'test-results' | 'console'
+type BodyView = 'pretty' | 'raw' | 'tree'
 
 function prettyBody(resp: HttpResponse): string {
   const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
@@ -37,11 +40,43 @@ function isHtml(resp: HttpResponse): boolean {
   return ct.includes('html')
 }
 
+// Which VS Code language id the body maps to (for "Open in editor").
+function bodyLanguage(resp: HttpResponse): string {
+  const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
+  if (ct.includes('json')) return 'json'
+  if (ct.includes('html')) return 'html'
+  if (ct.includes('xml')) return 'xml'
+  return 'text'
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Split `line` into plain text + <mark> runs for each case-insensitive match.
+function highlight(line: string, q: string): ReactNode {
+  if (!q) return line
+  const parts = line.split(new RegExp(`(${escapeRegExp(q)})`, 'gi'))
+  return parts.map((p, i) =>
+    p.toLowerCase() === q.toLowerCase() ? <mark key={i}>{p}</mark> : p,
+  )
+}
+
+// Whether the tree view is worth offering: content-type says JSON and the
+// body actually parses. Parsing a few MB of JSON once per render is fine; the
+// tree itself only renders the top level until the user expands.
+function parseableJson(resp: HttpResponse): boolean {
+  if (!isJson(resp) || !resp.body) return false
+  try { JSON.parse(resp.body); return true } catch { return false }
+}
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
   const [filter, setFilter] = useState<ResultFilter>('all')
-  const [bodyView, setBodyView] = useState<'pretty' | 'raw'>('pretty')
+  const [bodyView, setBodyView] = useState<BodyView>('pretty')
   const [htmlView, setHtmlView] = useState<'preview' | 'raw'>('preview')
+  const [search, setSearch] = useState('')
+  const requestId = useStore((s) => s.activeTabId)
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
   if (!resp) return (
     <div className="rm-panel rm-response-blank">
@@ -63,11 +98,36 @@ export function ResponsePanel() {
     )
   }
 
+  const binary = !!resp.bodyBase64
+  const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
+  const isImage = binary && /^image\//.test(ct)
+  const displayed = bodyView === 'raw' ? resp.body : prettyBody(resp)
+  const q = search.trim().toLowerCase()
+  const lines = q ? displayed.split('\n').filter((l) => l.toLowerCase().includes(q)) : []
+  const inPreview = isHtml(resp) && htmlView === 'preview'
+  const jsonTree = bodyView === 'tree' && parseableJson(resp)
+
+  const saveBody = () =>
+    postToHost({
+      type: 'saveBody',
+      requestId: requestId ?? '',
+      fallbackContent: binary ? resp.bodyBase64 : displayed,
+      fallbackIsBase64: binary,
+      suggestName: 'response',
+    })
+
   return (
     <div className="rm-panel">
       <div className="rm-statusline">
         <span className={`rm-status-pill ${pillClass(resp.status)}`}>{resp.status} {resp.statusText}</span>
-        <span className="rm-meta">Time: {resp.timeMs} ms</span>
+        {resp.timings ? (
+          <>
+            <span className="rm-meta" title="Total: TTFB + body download">TTFB: {resp.timings.ttfbMs} ms</span>
+            <span className="rm-meta">Body: {resp.timings.downloadMs} ms</span>
+          </>
+        ) : (
+          <span className="rm-meta">Time: {resp.timeMs} ms</span>
+        )}
         <span className="rm-meta">Size: {fmtSize(resp.sizeBytes)}</span>
       </div>
       <div className="rm-subtabs">
@@ -77,15 +137,20 @@ export function ResponsePanel() {
       </div>
       {sub === 'body' && (
         <>
-          {isJson(resp) && (
+          {!binary && isJson(resp) && (
             <div className="rm-body-toolbar">
               <button className={`rm-btn rm-btn--sm ${bodyView === 'pretty' ? 'is-active' : ''}`}
                 onClick={() => setBodyView('pretty')}>Beautify</button>
+              {parseableJson(resp) && (
+                <button className={`rm-btn rm-btn--sm ${bodyView === 'tree' ? 'is-active' : ''}`}
+                  title="Browse the response as a collapsible tree"
+                  onClick={() => setBodyView('tree')}>Tree</button>
+              )}
               <button className={`rm-btn rm-btn--sm ${bodyView === 'raw' ? 'is-active' : ''}`}
                 onClick={() => setBodyView('raw')}>Raw</button>
             </div>
           )}
-          {isHtml(resp) && (
+          {!binary && isHtml(resp) && (
             <div className="rm-body-toolbar">
               <button className={`rm-btn rm-btn--sm ${htmlView === 'preview' ? 'is-active' : ''}`}
                 onClick={() => setHtmlView('preview')}>Preview</button>
@@ -93,8 +158,60 @@ export function ResponsePanel() {
                 onClick={() => setHtmlView('raw')}>Raw</button>
             </div>
           )}
-          {resp.bodyTruncated && <div>Response too large — showing a truncated preview.</div>}
-          {isHtml(resp) && htmlView === 'preview' ? (
+          <div className="rm-body-toolbar">
+            {!binary && (
+              <>
+                <input
+                  className="rm-input rm-body-search"
+                  aria-label="search response"
+                  placeholder="Search in body"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {q && <span className="rm-meta">{lines.length} line{lines.length === 1 ? '' : 's'}</span>}
+              </>
+            )}
+            <div className="rm-spacer" />
+            {!binary && (
+              <button className="rm-btn rm-btn--sm" title="Copy the response body"
+                onClick={() => void navigator.clipboard.writeText(displayed)}>
+                Copy
+              </button>
+            )}
+            {!binary && (
+              <button className="rm-btn rm-btn--sm" title="Open the response body in a VS Code editor (search, fold, highlight)"
+                onClick={() => postToHost({ type: 'openTextDocument', content: displayed, language: bodyLanguage(resp) })}>
+                Open in editor
+              </button>
+            )}
+            <button className="rm-btn rm-btn--sm" title="Save the response body to a file (the full body, even when the preview is truncated)"
+              onClick={saveBody}>
+              Save
+            </button>
+          </div>
+          {resp.bodyTruncated && !binary && <div className="rm-trunc-note">Response too large — showing a truncated preview. Use Save to write the full body to a file.</div>}
+          {binary ? (
+            isImage ? (
+              <img
+                className="rm-img-preview"
+                src={`data:${ct};base64,${resp.bodyBase64}`}
+                alt={`response image (${fmtSize(resp.sizeBytes)})`}
+              />
+            ) : (
+              <div className="rm-binary-note">
+                <span className="codicon codicon-file-binary" aria-hidden="true" />
+                <div>
+                  <div className="rm-binary-title">Binary response</div>
+                  <div className="rm-binary-sub">
+                    {fmtSize(resp.sizeBytes)}
+                    {resp.bodyTruncated ? ' (truncated preview) — use Save for the full file' : ' — use Save to write it to a file'}
+                  </div>
+                </div>
+              </div>
+            )
+          ) : jsonTree ? (
+            <JsonTree text={resp.body} />
+          ) : inPreview ? (
             // Sandboxed with NO tokens => scripts disabled (JS-free preview), and
             // default-src 'none' in the page CSP blocks any external resources.
             <iframe
@@ -103,8 +220,15 @@ export function ResponsePanel() {
               sandbox=""
               srcDoc={resp.body}
             />
+          ) : q ? (
+            <pre className="rm-code">
+              {lines.map((l, i) => (
+                <div key={i} className="rm-body-line">{highlight(l, q)}</div>
+              ))}
+              {lines.length === 0 && <div className="rm-body-empty">No matches</div>}
+            </pre>
           ) : (
-            <pre className="rm-code">{bodyView === 'raw' ? resp.body : prettyBody(resp)}</pre>
+            <pre className="rm-code">{displayed}</pre>
           )}
         </>
       )}

@@ -264,4 +264,69 @@ describe('Sidebar', () => {
     // bubbled to the row's own onKeyDown handler and toggled it open.
     expect(screen.queryByText('Get Users')).toBeNull()
   })
+
+  it('search filters requests by name and URL and shows matching ones without expanding', () => {
+    const a = { id: 'r1', name: 'Get Users', method: 'GET' as const, url: 'https://api/users', params: [], headers: [], body: { mode: 'none' as const } }
+    const b = { id: 'r2', name: 'Create Item', method: 'POST' as const, url: 'https://api/items', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'My Coll', workspaceId: 'w1', requests: [a, b] }])
+    render(<Sidebar />)
+    fireEvent.change(screen.getByLabelText('search collections'), { target: { value: 'users' } })
+    // filtering mode forces expansion — the match is visible without clicking
+    expect(screen.getByText('Get Users')).toBeInTheDocument()
+    expect(screen.queryByText('Create Item')).toBeNull()
+    // clearing the search restores the collapsed state
+    fireEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(screen.queryByText('Get Users')).toBeNull()
+  })
+
+  it('search with no matches shows a hint', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r] }])
+    render(<Sidebar />)
+    fireEvent.change(screen.getByLabelText('search collections'), { target: { value: 'zzz' } })
+    expect(screen.getByText(/no matching requests/i)).toBeInTheDocument()
+  })
+
+  it('expand all / collapse all toggle the whole tree', () => {
+    const r = { id: 'r1', name: 'Req', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [r] }])
+    render(<Sidebar />)
+    expect(screen.queryByText('Req')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /expand all collections/i }))
+    expect(screen.getByText('Req')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /collapse all collections/i }))
+    expect(screen.queryByText('Req')).toBeNull()
+  })
+
+  it('shows an empty state with New Collection and Import CTAs when there are no collections', () => {
+    render(<Sidebar />)
+    expect(screen.getByText(/no collections yet/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^new collection$/i }))
+    expect(posted).toContainEqual({ type: 'createCollection', name: 'New Collection' })
+    fireEvent.click(screen.getByRole('button', { name: /^import$/i }))
+    expect(posted).toContainEqual({ type: 'importCollection' })
+  })
+
+  it('right-click on a request offers Move Up and posts reorderRequest', () => {
+    const a = { id: 'r1', name: 'A', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    const b = { id: 'r2', name: 'B', method: 'GET' as const, url: 'u', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [a, b] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.contextMenu(screen.getByText('B'))
+    fireEvent.click(screen.getByRole('menuitem', { name: /move up/i }))
+    expect(posted).toContainEqual({ type: 'reorderRequest', collectionId: 'c1', folderId: null, requestId: 'r2', delta: 'up' })
+  })
+
+  it('right-click on a folder posts reorderFolder with the folder id', () => {
+    useStore.getState().setTree([{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [
+      { id: 'f1', name: 'F1', requests: [] },
+      { id: 'f2', name: 'F2', requests: [] },
+    ] }])
+    render(<Sidebar />)
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.contextMenu(screen.getByText('F2'))
+    fireEvent.click(screen.getByRole('menuitem', { name: /move up/i }))
+    expect(posted).toContainEqual({ type: 'reorderFolder', collectionId: 'c1', folderId: 'f2', delta: 'up' })
+  })
 })

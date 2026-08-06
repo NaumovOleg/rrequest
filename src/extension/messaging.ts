@@ -37,6 +37,9 @@ export type RouterDeps = {
   ws?: WsManager
   grpcInvoke?: (p: import('./net/grpc-client').GrpcParams) => Promise<import('./net/grpc-client').GrpcResult>
   trash?: import('./stores/trash-store').TrashStore
+  // Opens `content` in a VS Code text editor (untitled document), giving the
+  // response full editor features (search, folding, syntax highlighting).
+  openTextDocument?: (opts: { content: string; language: string }) => Promise<void>
   isReadOnly?: (workspaceId: string) => boolean
   members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
   syncControl?: { signIn(): Promise<void>; signOut(accountId?: string): Promise<void>; enable(workspaceId: string, accountId?: string): Promise<void>; syncNow(workspaceId: string): Promise<void>; syncAccount(accountId: string): Promise<void> }
@@ -45,6 +48,28 @@ export type RouterDeps = {
   // reject (the sync side already swallows its own errors) and never blocks
   // the local delete below, which proceeds regardless.
   onWorkspaceDeleted?: (workspaceId: string) => Promise<void>
+  // Shows a native save dialog and writes `content` to the picked file.
+  // Returns the saved path, or null when the user cancelled / it failed.
+  saveBodyToFile?: (opts: { content: string; isBase64: boolean; suggestName: string }) => Promise<string | null>
+}
+
+// requestId -> the FULL body of its latest response, kept off the webview IPC
+// (the response message itself is truncated to maxBytes). "Save response body"
+// writes from here so the saved file is complete even when the preview was
+// truncated. Bounded: capped by count; oversized bodies are dropped so a
+// 500 MB download never pins memory.
+const MAX_KEPT_FULL_BODIES = 16
+const MAX_KEPT_FULL_BYTES = 64 * 1024 * 1024
+const fullBodies = new Map<string, { text?: string; base64?: string; sizeBytes: number }>()
+
+function keepFullBody(requestId: string, full: { text?: string; base64?: string }): void {
+  const sizeBytes = full.text ? Buffer.byteLength(full.text, 'utf8') : (full.base64 ? full.base64.length * 0.75 : 0)
+  if (sizeBytes > MAX_KEPT_FULL_BYTES) return // too big to cache — save falls back to the preview
+  fullBodies.set(requestId, { ...full, sizeBytes })
+  if (fullBodies.size > MAX_KEPT_FULL_BODIES) {
+    const oldest = fullBodies.keys().next().value
+    if (oldest !== undefined) fullBodies.delete(oldest)
+  }
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -136,7 +161,10 @@ export function createRouter(deps: RouterDeps) {
           if (pre.envSets.length) { await persistEnvSets(pre.envSets); vars = await activeVars() }
           effective = pre.request
         }
-        const payload = await deps.send(effective, { vars })
+        const payload = await deps.send(effective, {
+          vars,
+          onFullBody: (full) => keepFullBody(msg.requestId, full),
+        })
         let testResults: import('../shared/types').TestResult[] = []
         if (raw.testScript && deps.runTestScript) {
           const post = deps.runTestScript(raw.testScript, { response: payload, vars })
@@ -500,6 +528,57 @@ export function createRouter(deps: RouterDeps) {
         await deps.collections.saveCollection(from)
         await deps.collections.saveCollection(to)
         return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'reorderRequest': {
+        // Move a request one step up/down within its bucket (collection root
+        // or folder). Order inside a bucket persists in the collection file.
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        if (c) {
+          const bucket = reqBucket(c, msg.folderId)
+          if (bucket) {
+            const i = bucket.findIndex((r) => r.id === msg.requestId)
+            const j = msg.delta === 'up' ? i - 1 : i + 1
+            if (i >= 0 && j >= 0 && j < bucket.length) {
+              const [item] = bucket.splice(i, 1)
+              bucket.splice(j, 0, item)
+              await deps.collections.saveCollection(c)
+            }
+          }
+        }
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'reorderFolder': {
+        const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
+        if (c) {
+          const folders = c.folders ?? []
+          const i = folders.findIndex((f) => f.id === msg.folderId)
+          const j = msg.delta === 'up' ? i - 1 : i + 1
+          if (i >= 0 && j >= 0 && j < folders.length) {
+            const [folder] = folders.splice(i, 1)
+            folders.splice(j, 0, folder)
+            await deps.collections.saveCollection(c)
+          }
+        }
+        return { type: 'tree', collections: await deps.collections.list() }
+      }
+      case 'clearHistory':
+        await deps.history.clear()
+        return await histSnapshot()
+      case 'openTextDocument':
+        await deps.openTextDocument?.({ content: msg.content, language: msg.language })
+        return undefined
+      case 'saveBody': {
+        // Prefer the cached FULL body (complete even for truncated previews),
+        // so the saved file matches the real response — not the 5 MB preview.
+        const cached = fullBodies.get(msg.requestId)
+        const content = cached?.base64 ?? cached?.text ?? msg.fallbackContent
+        const isBase64 = !!cached?.base64 || (cached === undefined && !!msg.fallbackIsBase64)
+        if (content === undefined) {
+          return { type: 'toast', level: 'error', message: 'Response body is no longer available — resend the request.' }
+        }
+        const path = await deps.saveBodyToFile?.({ content, isBase64, suggestName: msg.suggestName ?? 'response' })
+        if (path) return { type: 'toast', level: 'info', message: `Saved response body to ${path}` }
+        return undefined
       }
       case 'signIn': await deps.syncControl?.signIn(); return undefined
       case 'signOut': await deps.syncControl?.signOut(msg.accountId); return undefined

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useStore } from '../../src/webview/state/store'
 import { ResponsePanel } from '../../src/webview/views/ResponsePanel/ResponsePanel'
@@ -98,5 +98,60 @@ describe('ResponsePanel', () => {
     })
     render(<ResponsePanel />)
     expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument()
+  })
+
+  it('search filters body lines and highlights matches', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: 'alpha\nbeta\ngamma', bodyTruncated: false, timeMs: 1, sizeBytes: 15, cookies: [],
+    })
+    render(<ResponsePanel />)
+    fireEvent.change(screen.getByLabelText('search response'), { target: { value: 'ma' } })
+    expect(screen.queryByText(/alpha/)).toBeNull()
+    const lines = document.querySelectorAll('.rm-body-line')
+    expect(lines.length).toBe(1) // only gamma contains "ma"
+    expect(document.querySelectorAll('.rm-body-line mark').length).toBe(1)
+    expect(screen.getByText(/1 line/)).toBeInTheDocument()
+  })
+
+  it('search with no matches shows an empty note', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: 'alpha\nbeta', bodyTruncated: false, timeMs: 1, sizeBytes: 10, cookies: [],
+    })
+    render(<ResponsePanel />)
+    fireEvent.change(screen.getByLabelText('search response'), { target: { value: 'zzz' } })
+    expect(screen.getByText(/no matches/i)).toBeInTheDocument()
+  })
+
+  it('Copy writes the displayed body to the clipboard', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+      body: '{"a":1}', bodyTruncated: false, timeMs: 1, sizeBytes: 7, cookies: [],
+    })
+    render(<ResponsePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /copy/i }))
+    expect(writeText).toHaveBeenCalledWith('{\n  "a": 1\n}')
+  })
+
+  it('Open in editor posts openTextDocument with the body and language', () => {
+    const posted: any[] = []
+    const origPost = window.postMessage.bind(window)
+    const spy = vi.spyOn(window, 'postMessage').mockImplementation((m: any) => { posted.push(m); return true })
+    try {
+      useStore.getState().setResponse(activeId(), {
+        status: 200, statusText: 'OK', headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+        body: '{"a":1}', bodyTruncated: false, timeMs: 1, sizeBytes: 7, cookies: [],
+      })
+      render(<ResponsePanel />)
+      fireEvent.click(screen.getByRole('button', { name: /open in editor/i }))
+      const msg = posted.find((m: any) => m.type === 'openTextDocument')
+      expect(msg).toBeTruthy()
+      expect(msg.content).toContain('"a": 1')
+      expect(msg.language).toBe('json')
+    } finally {
+      spy.mockRestore()
+      void origPost
+    }
   })
 })

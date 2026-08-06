@@ -5,6 +5,7 @@ import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, 
 import { MethodBadge } from '../../elements/MethodBadge'
 import { IconButton } from '../../elements/IconButton'
 import { PopupMenu, type PopupMenuItem } from '../../elements/PopupMenu'
+import { ContextMenu } from '../../elements/ContextMenu'
 import { RenameInput } from '../../elements/RenameInput'
 
 function blankRequest(): RestRequest {
@@ -14,6 +15,13 @@ function blankRequest(): RestRequest {
 type DragPayload =
   | { kind: 'request'; fromCollectionId: string; fromFolderId: string | null; requestId: string }
   | { kind: 'folder'; fromCollectionId: string; folderId: string }
+
+// Right-click menu target: the node plus enough context to build its items
+// (the bucket it lives in, for Move Up/Down disabled states).
+type Ctx =
+  | { x: number; y: number; kind: 'request'; collectionId: string; folderId: string | null; request: CollectionItem; bucket: CollectionItem[] }
+  | { x: number; y: number; kind: 'folder'; collectionId: string; folder: Folder; folders: Folder[] }
+  | { x: number; y: number; kind: 'collection'; collection: Collection }
 
 export function Sidebar() {
   const tree = useStore((s) => s.tree)
@@ -38,7 +46,8 @@ export function Sidebar() {
   useEffect(() => { setUiState('expandedFolders', [...expandedFolders]) }, [expandedFolders])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
-  const [ctx, setCtx] = useState<{ x: number; y: number; collectionId: string; folderId: string | null; request: CollectionItem } | null>(null)
+  const [ctx, setCtx] = useState<Ctx | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     if (!ctx) return
@@ -92,6 +101,21 @@ export function Sidebar() {
   const expandCollection = (id: string) => setExpandedCollections((prev) => new Set(prev).add(id))
   const expandFolder = (key: string) => setExpandedFolders((prev) => new Set(prev).add(key))
 
+  const expandAll = () => {
+    const colls = new Set<string>()
+    const folds = new Set<string>()
+    for (const c of tree) {
+      colls.add(c.id)
+      for (const f of c.folders ?? []) folds.add(`${c.id}/${f.id}`)
+    }
+    setExpandedCollections(colls)
+    setExpandedFolders(folds)
+  }
+  const collapseAll = () => {
+    setExpandedCollections(new Set())
+    setExpandedFolders(new Set())
+  }
+
   const itemBadge = (r: CollectionItem) => {
     const k = itemKind(r)
     if (k === 'grpc') return <span className="rm-method rm-method--OTHER">gRPC</span>
@@ -142,14 +166,64 @@ export function Sidebar() {
     return items
   }
 
-  const renderRequestRow = (r: CollectionItem, collectionId: string, folderId: string | null) => {
+  // Right-click menus mirror the row's inline actions (plus Move Up/Down).
+  const requestMenu = (r: CollectionItem, collectionId: string, folderId: string | null, bucket: CollectionItem[]): PopupMenuItem[] => {
+    const i = bucket.findIndex((x) => x.id === r.id)
+    return [
+      { label: 'Duplicate', icon: 'copy', onClick: () => postToHost({ type: 'duplicateRequest', collectionId, folderId, requestId: r.id }) },
+      { label: 'Rename', icon: 'edit', onClick: () => setRenamingId(r.id) },
+      { label: 'Delete', icon: 'trash', onClick: () => postToHost({ type: 'deleteRequest', collectionId, folderId, requestId: r.id }) },
+      { kind: 'separator' },
+      { label: 'Move Up', icon: 'arrow-up', disabled: i <= 0, onClick: () => postToHost({ type: 'reorderRequest', collectionId, folderId, requestId: r.id, delta: 'up' }) },
+      { label: 'Move Down', icon: 'arrow-down', disabled: i < 0 || i >= bucket.length - 1, onClick: () => postToHost({ type: 'reorderRequest', collectionId, folderId, requestId: r.id, delta: 'down' }) },
+    ]
+  }
+
+  const folderMenu = (collectionId: string, f: Folder, folders: Folder[]): PopupMenuItem[] => {
+    const i = folders.findIndex((x) => x.id === f.id)
+    const key = `${collectionId}/${f.id}`
+    return [
+      { label: 'Add Request', icon: 'add', onClick: () => { expandCollection(collectionId); expandFolder(key); postToHost({ type: 'createRequest', collectionId, folderId: f.id, request: blankRequest() }) } },
+      { label: 'Rename', icon: 'edit', onClick: () => setRenamingId(f.id) },
+      { label: 'Duplicate', icon: 'copy', onClick: () => postToHost({ type: 'duplicateFolder', collectionId, folderId: f.id }) },
+      { label: 'Delete', icon: 'trash', onClick: () => postToHost({ type: 'deleteFolder', collectionId, folderId: f.id }) },
+      { kind: 'separator' },
+      { label: 'Move Up', icon: 'arrow-up', disabled: i <= 0, onClick: () => postToHost({ type: 'reorderFolder', collectionId, folderId: f.id, delta: 'up' }) },
+      { label: 'Move Down', icon: 'arrow-down', disabled: i < 0 || i >= folders.length - 1, onClick: () => postToHost({ type: 'reorderFolder', collectionId, folderId: f.id, delta: 'down' }) },
+    ]
+  }
+
+  // Filtering view: while a query is active, every matching node renders as
+  // expanded (the persisted expansion state is left untouched, so clearing the
+  // search restores the previous fold state).
+  const q = query.trim().toLowerCase()
+  const filtering = q.length > 0
+  const matchesReq = (r: CollectionItem): boolean => {
+    if (!q) return true
+    if (r.name.toLowerCase().includes(q)) return true
+    if ('url' in r && typeof (r as { url?: unknown }).url === 'string' && (r as { url: string }).url.toLowerCase().includes(q)) return true
+    return false
+  }
+  const visibleTree: Collection[] = filtering
+    ? tree
+        .map((c) => ({
+          ...c,
+          folders: (c.folders ?? [])
+            .filter((f) => f.name.toLowerCase().includes(q) || f.requests.some(matchesReq))
+            .map((f) => ({ ...f, requests: f.requests.filter(matchesReq) })),
+          requests: c.requests.filter(matchesReq),
+        }))
+        .filter((c) => c.folders.length > 0 || c.requests.length > 0)
+    : tree
+
+  const renderRequestRow = (r: CollectionItem, collectionId: string, folderId: string | null, bucket: CollectionItem[]) => {
     const isRenaming = renamingId === r.id
     const activate = () => openExisting(r, collectionId, folderId)
     return (
       <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
         draggable={!isRenaming && !isViewer}
         onDragStart={(e) => startDrag(e, { kind: 'request', fromCollectionId: collectionId, fromFolderId: folderId, requestId: r.id })}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, collectionId, folderId, request: r }) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, kind: 'request', collectionId, folderId, request: r, bucket }) }}
         onClick={activate}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } }}>
         {itemBadge(r)}{' '}
@@ -169,8 +243,9 @@ export function Sidebar() {
 
   const renderFolder = (c: Collection, f: Folder) => {
     const key = `${c.id}/${f.id}`
-    const isExpanded = expandedFolders.has(key)
+    const isExpanded = filtering || expandedFolders.has(key)
     const isRenaming = renamingId === f.id
+    const folders = c.folders ?? []
     return (
       <div key={f.id}>
         <div className={`rm-tree-row${dropTarget === key ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
@@ -178,6 +253,7 @@ export function Sidebar() {
           onDragStart={(e) => { e.stopPropagation(); startDrag(e, { kind: 'folder', fromCollectionId: c.id, folderId: f.id }) }}
           onClick={() => toggleFolder(key)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFolder(key) } }}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, kind: 'folder', collectionId: c.id, folder: f, folders }) }}
           {...dropHandlers(key, c.id, f.id)}>
           <span className="rm-tree-caret" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>{' '}
           <span className={`codicon codicon-folder${isExpanded ? '-opened' : ''}`} aria-hidden="true" />{' '}
@@ -200,7 +276,7 @@ export function Sidebar() {
         </div>
         {isExpanded && (
           <div className="rm-tree-children">
-            {f.requests.map((r) => renderRequestRow(r, c.id, f.id))}
+            {f.requests.map((r) => renderRequestRow(r, c.id, f.id, f.requests))}
           </div>
         )}
       </div>
@@ -210,71 +286,108 @@ export function Sidebar() {
   return (
     <div className="rm-tree">
       {ctx && (
-        <div className="rm-ctxmenu" role="menu" style={{ top: ctx.y, left: ctx.x }}
-          onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="rm-popup-item" role="menuitem"
-            onClick={() => { postToHost({ type: 'duplicateRequest', collectionId: ctx.collectionId, folderId: ctx.folderId, requestId: ctx.request.id }); setCtx(null) }}>
-            <span className="codicon codicon-copy" /> Duplicate
-          </button>
-          <button type="button" className="rm-popup-item" role="menuitem"
-            onClick={() => { setRenamingId(ctx.request.id); setCtx(null) }}>
-            <span className="codicon codicon-edit" /> Rename
-          </button>
-          <button type="button" className="rm-popup-item" role="menuitem"
-            onClick={() => { postToHost({ type: 'deleteRequest', collectionId: ctx.collectionId, folderId: ctx.folderId, requestId: ctx.request.id }); setCtx(null) }}>
-            <span className="codicon codicon-trash" /> Delete
-          </button>
-        </div>
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={
+            ctx.kind === 'request'
+              ? requestMenu(ctx.request, ctx.collectionId, ctx.folderId, ctx.bucket)
+              : ctx.kind === 'folder'
+              ? folderMenu(ctx.collectionId, ctx.folder, ctx.folders)
+              : collectionMenu(ctx.collection)
+          }
+        />
       )}
       <div className="rm-tree-head">
         <span className="rm-section-title">Collections</span>
-        {!isViewer && (
-          <IconButton icon="add" label="add collection"
-            onClick={() => postToHost({ type: 'createCollection', name: 'New Collection' })} />
-        )}
+        <div className="rm-actions">
+          <IconButton icon="expand-all" label="expand all collections" onClick={expandAll} />
+          <IconButton icon="collapse-all" label="collapse all collections" onClick={collapseAll} />
+          {!isViewer && (
+            <IconButton icon="add" label="add collection"
+              onClick={() => postToHost({ type: 'createCollection', name: 'New Collection' })} />
+          )}
+        </div>
       </div>
-      {tree.map((c) => {
-        const isExpanded = expandedCollections.has(c.id)
-        const isRenaming = renamingId === c.id
-        const folders = c.folders ?? []
-        return (
-          <div key={c.id}>
-            <div className={`rm-tree-row${dropTarget === c.id ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
-              onClick={() => toggleCollection(c.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollection(c.id) } }}
-              {...dropHandlers(c.id, c.id, null)}>
-              <span className="rm-tree-caret" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>{' '}
-              {isRenaming
-                ? <RenameInput initial={c.name}
-                    onCommit={(name) => { postToHost({ type: 'renameCollection', id: c.id, name }); setRenamingId(null) }}
-                    onCancel={() => setRenamingId(null)} />
-                : <span className="rm-tree-label">{c.name}</span>}
-              <div className="rm-actions">
-                {!isViewer && (
-                  <>
-                    <IconButton icon="new-folder" label={`new folder in ${c.name}`}
-                      onClick={() => postToHost({ type: 'createFolder', collectionId: c.id, name: 'New Folder' })} />
-                    <IconButton icon="add" label={`add request to ${c.name}`}
-                      onClick={() => { expandCollection(c.id); postToHost({ type: 'createRequest', collectionId: c.id, folderId: null, request: blankRequest() }) }} />
-                    <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
-                    <IconButton icon="copy" label={`duplicate collection ${c.name}`}
-                      onClick={() => postToHost({ type: 'duplicateCollection', id: c.id })} />
-                    <IconButton icon="trash" label={`delete collection ${c.name}`}
-                      onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
-                  </>
-                )}
-                <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={collectionMenu(c)} />
-              </div>
-            </div>
-            {isExpanded && (
-              <div className="rm-tree-children">
-                {folders.map((f) => renderFolder(c, f))}
-                {c.requests.map((r) => renderRequestRow(r, c.id, null))}
-              </div>
-            )}
+      {tree.length > 0 && (
+        <div className="rm-tree-search">
+          <span className="codicon codicon-search rm-tree-search-icon" aria-hidden="true" />
+          <input
+            className="rm-input rm-tree-search-input"
+            aria-label="search collections"
+            placeholder="Filter requests…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button type="button" className="rm-icon-btn" aria-label="clear search"
+              onClick={() => setQuery('')}>
+              <span className="codicon codicon-close" />
+            </button>
+          )}
+        </div>
+      )}
+      {!filtering && tree.length === 0 ? (
+        <div className="rm-empty-cta">
+          <div className="rm-empty">No collections yet.</div>
+          <div className="rm-row rm-empty-cta-actions">
+            <button type="button" className="rm-btn" onClick={() => postToHost({ type: 'createCollection', name: 'New Collection' })}>
+              New Collection
+            </button>
+            <button type="button" className="rm-btn" title="Import a Postman or OpenAPI collection"
+              onClick={() => postToHost({ type: 'importCollection' })}>
+              Import
+            </button>
           </div>
-        )
-      })}
+        </div>
+      ) : filtering && visibleTree.length === 0 ? (
+        <div className="rm-empty">No matching requests.</div>
+      ) : (
+        visibleTree.map((c) => {
+          const isExpanded = filtering || expandedCollections.has(c.id)
+          const isRenaming = renamingId === c.id
+          const folders = c.folders ?? []
+          return (
+            <div key={c.id}>
+              <div className={`rm-tree-row${dropTarget === c.id ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
+                onClick={() => toggleCollection(c.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollection(c.id) } }}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, kind: 'collection', collection: c }) }}
+                {...dropHandlers(c.id, c.id, null)}>
+                <span className="rm-tree-caret" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>{' '}
+                {isRenaming
+                  ? <RenameInput initial={c.name}
+                      onCommit={(name) => { postToHost({ type: 'renameCollection', id: c.id, name }); setRenamingId(null) }}
+                      onCancel={() => setRenamingId(null)} />
+                  : <span className="rm-tree-label">{c.name}</span>}
+                <div className="rm-actions">
+                  {!isViewer && (
+                    <>
+                      <IconButton icon="new-folder" label={`new folder in ${c.name}`}
+                        onClick={() => postToHost({ type: 'createFolder', collectionId: c.id, name: 'New Folder' })} />
+                      <IconButton icon="add" label={`add request to ${c.name}`}
+                        onClick={() => { expandCollection(c.id); postToHost({ type: 'createRequest', collectionId: c.id, folderId: null, request: blankRequest() }) }} />
+                      <IconButton icon="edit" label={`rename collection ${c.name}`} onClick={() => setRenamingId(c.id)} />
+                      <IconButton icon="copy" label={`duplicate collection ${c.name}`}
+                        onClick={() => postToHost({ type: 'duplicateCollection', id: c.id })} />
+                      <IconButton icon="trash" label={`delete collection ${c.name}`}
+                        onClick={() => postToHost({ type: 'deleteCollection', id: c.id })} />
+                    </>
+                  )}
+                  <PopupMenu icon="gear" label={`collection settings ${c.name}`} items={collectionMenu(c)} />
+                </div>
+              </div>
+              {isExpanded && (
+                <div className="rm-tree-children">
+                  {folders.map((f) => renderFolder(c, f))}
+                  {c.requests.map((r) => renderRequestRow(r, c.id, null, c.requests))}
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }

@@ -154,4 +154,28 @@ describe('ResponsePanel', () => {
       void origPost
     }
   })
+
+  it('Beautify pretty-prints a JSON body even without a JSON content-type', () => {
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: '{"a":1,"b":[1,2]}',
+      bodyTruncated: false, timeMs: 1, sizeBytes: 15, cookies: [],
+    })
+    render(<ResponsePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /^beautify$/i }))
+    const pre = document.querySelector('.rm-code')
+    expect(pre?.textContent).toContain('"a": 1')
+    expect(pre?.textContent).toContain('"b"')
+  })
+
+  it('Copy after Beautify writes the formatted body', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    useStore.getState().setResponse(activeId(), {
+      status: 200, statusText: 'OK', headers: [], body: '{"a":1}', bodyTruncated: false, timeMs: 1, sizeBytes: 7, cookies: [],
+    })
+    render(<ResponsePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /^beautify$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^copy$/i }))
+    expect(writeText).toHaveBeenCalledWith('{\n  "a": 1\n}')
+  })
 })

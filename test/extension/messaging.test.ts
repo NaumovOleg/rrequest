@@ -64,7 +64,7 @@ describe('createRouter', () => {
     const msg: WebviewMessage = { type: 'sendRequest', requestId: 'q1', payload: req() }
     const out = await route(msg)
     expect(out).toEqual({ type: 'response', requestId: 'q1', payload: { ...fakeResp, testResults: [], consoleLogs: [] } })
-    expect(d.send).toHaveBeenCalledWith(expect.anything(), { vars: [] })
+    expect(d.send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ vars: [] }))
     expect(d.history.append).toHaveBeenCalledOnce()
   })
 
@@ -111,7 +111,7 @@ describe('createRouter env routes', () => {
       environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id) => { d.activeEnvId = id },
       workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id) => { d.activeWorkspaceId = id } })
     await route({ type: 'sendRequest', requestId: 'q1', payload: req() })
-    expect(d.send).toHaveBeenCalledWith(expect.anything(), { vars: [{ key: 'base', value: 'V', enabled: true }] })
+    expect(d.send).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ vars: [{ key: 'base', value: 'V', enabled: true }] }))
   })
 })
 

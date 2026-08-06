@@ -9,7 +9,7 @@ import type {
   RequestBody,
 } from "../../../shared/types";
 import { FormDataEditor, EnvDropdown } from "../../components";
-import { EnvVarInput } from "../../elements";
+import { CodeTextarea, EnvVarInput } from "../../elements";
 import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
 import { methodClass } from "../../method-color";
@@ -452,22 +452,31 @@ export function RequestPanel() {
   }, []);
   // Fit the section tabs into one row when there's room; else collapse them
   // into a dropdown. A hidden same-size chip row is measured against the bar.
-  // (Declared before the early return below — it's a hook.)
+  // (Declared before the early return below — it's a hook. The bar only exists
+  // once a request tab is open, so the effect re-runs when `active` appears;
+  // with [] deps it would run once at mount, measure nothing, and stay on the
+  // chips branch forever.)
   const navWrapRef = useRef<HTMLDivElement | null>(null);
   const chipsMeasureRef = useRef<HTMLDivElement | null>(null);
   const [navFits, setNavFits] = useState(true);
+  const hasActiveTab = !!active;
   useEffect(() => {
     const el = navWrapRef.current;
     if (!el) return;
     const measure = () => {
       const need = chipsMeasureRef.current?.scrollWidth ?? 0;
-      setNavFits(need <= el.clientWidth);
+      setNavFits(need <= (el?.clientWidth ?? 0) + 1);
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    // Fonts may not be ready at mount; chip widths change once they land.
+    void document.fonts?.ready.then(measure);
+    return () => ro?.disconnect();
+  }, [hasActiveTab]);
   // No autosave: editor edits stay local (the tab shows a dirty dot) and only
   // reach the sidebar/tree when the user hits Save — see `save()` below.
   if (!active) return <div className="rm-panel">No request open</div>;
@@ -855,7 +864,7 @@ export function RequestPanel() {
               />
             )}
             {sub === "body" && (
-              <div>
+              <div className="rm-body-pane">
                 <div className="rm-row">
                   <select
                     className="rm-select"
@@ -903,11 +912,12 @@ export function RequestPanel() {
                 </div>
                 {active.body.mode === "raw" && (
                   <>
-                    <textarea
-                      className="rm-input rm-code-input"
+                    <CodeTextarea
+                      className="rm-code-input"
                       aria-label="body"
-                      rows={10}
-                      style={{ width: "100%" }}
+                      highlight={
+                        active.body.type === "json" ? "json" : "none"
+                      }
                       value={active.body.text}
                       onChange={(e) =>
                         active.body.mode === "raw" &&

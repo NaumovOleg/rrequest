@@ -156,8 +156,8 @@ body {
 }
 .rm-input:focus,
 .rm-select:focus {
-  outline: 1px solid var(--rm-accent);
-  outline-offset: -1px;
+  /* no blue focus ring around fields — the caret + hover affordance is enough */
+  outline: none;
 }
 
 /* method colors */
@@ -247,9 +247,11 @@ body {
   flex: 1;
 }
 
-/* request section selector (dropdown instead of tabs — survives narrow panes) */
+/* request section selector: chips when they fit one line, dropdown otherwise.
+   The 5px bottom padding is the breathing room between the menu and the
+   section content below it. */
 .rm-subtab-bar {
-  padding: var(--rm-sp-1) var(--rm-sp-2);
+  padding: var(--rm-sp-1) var(--rm-sp-2) 5px;
   border-bottom: 1px solid var(--rm-border);
 }
 .rm-subtab-select {
@@ -368,8 +370,7 @@ body {
   font: inherit;
 }
 .rm-kv-input:focus {
-  outline: 1px solid var(--rm-accent);
-  outline-offset: -1px;
+  outline: none;
 }
 
 /* tree */
@@ -1356,7 +1357,7 @@ body {
 }
 .rm-req-name:focus {
   outline: none;
-  border-bottom-color: var(--rm-accent);
+  border-bottom-color: var(--rm-border);
 }
 .rm-req-meta-actions {
   display: flex;
@@ -1420,6 +1421,87 @@ body {
 }
 .rm-code-input {
   font-family: var(--vscode-editor-font-family, monospace);
+  resize: none;
+}
+
+/* Body tab: fills the config pane down to the pinned cURL row. The editor
+   (CodeTextarea) grows with it, so a large body scrolls inside the field
+   instead of stretching the pane. */
+.rm-body-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rm-sp-2);
+  height: 100%;
+  min-height: 0;
+  padding: var(--rm-sp-2);
+}
+/* highlighted code field: border/bg live on the WRAPPER; the field and its
+   <pre> mirror share the same padding/font/padding so the highlighted copy is
+   pixel-locked to the caret. The field's own text is transparent, its scroll
+   drives the mirror's (locked via onScroll + a post-render sync). */
+.rm-codebox {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--rm-input-bg);
+  border: 1px solid var(--rm-input-border);
+  border-radius: var(--rm-radius);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.4;
+}
+.rm-codebox-ta {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: var(--rm-sp-2);
+  background: transparent;
+  border: none;
+  outline: none;
+  color: transparent;
+  caret-color: var(--rm-fg);
+  resize: none;
+  overflow: auto;
+  font: inherit;
+}
+.rm-codebox-ta::selection {
+  background: var(--rm-active);
+}
+.rm-codebox-mirror {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: var(--rm-sp-2);
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--rm-input-fg);
+  font: inherit;
+}
+/* minimal JSON syntax highlighting (strings / numbers / keywords) */
+.rm-codebox .rs-json-str {
+  color: var(--rm-m-get);
+}
+.rm-codebox .rs-json-num {
+  color: var(--rm-m-put);
+}
+.rm-codebox .rs-json-key {
+  color: var(--rm-m-patch);
+}
+/* one-line validity hint under the JSON body editor */
+.rm-body-error {
+  flex: none;
+  color: var(--rm-error);
+  font-size: 0.9em;
+}
+.rm-body-ok {
+  flex: none;
+  color: var(--rm-success);
+  font-size: 0.9em;
 }
 .rm-graphql {
   display: flex;

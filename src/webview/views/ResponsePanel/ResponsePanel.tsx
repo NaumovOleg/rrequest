@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
 import type { HttpResponse } from '../../../shared/types'
@@ -70,14 +70,24 @@ function parseableJson(resp: HttpResponse): boolean {
   try { JSON.parse(resp.body); return true } catch { return false }
 }
 
+// Try to pretty-print `text` as JSON, content-type-agnostic (servers
+// occasionally return JSON labeled text/plain). null when it doesn't parse.
+function tryFormatJson(text: string): string | null {
+  try { return JSON.stringify(JSON.parse(text), null, 2) } catch { return null }
+}
+
 export function ResponsePanel() {
   const [sub, setSub] = useState<SubTab>('body')
   const [filter, setFilter] = useState<ResultFilter>('all')
   const [bodyView, setBodyView] = useState<BodyView>('pretty')
   const [htmlView, setHtmlView] = useState<'preview' | 'raw'>('preview')
   const [search, setSearch] = useState('')
+  const [bodyText, setBodyText] = useState<string | null>(null)
   const requestId = useStore((s) => s.activeTabId)
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
+  // The Beautify action reformats the body in place; a fresh response (or a
+  // different tab) starts from the server bytes again.
+  useEffect(() => { setBodyText(null) }, [requestId, resp?.body])
   if (!resp) return (
     <div className="rm-panel rm-response-blank">
       <div className="rm-blank">
@@ -101,11 +111,19 @@ export function ResponsePanel() {
   const binary = !!resp.bodyBase64
   const ct = resp.headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? ''
   const isImage = binary && /^image\//.test(ct)
-  const displayed = bodyView === 'raw' ? resp.body : prettyBody(resp)
+  const displayed = bodyText ?? (bodyView === 'raw' ? resp.body : prettyBody(resp))
   const q = search.trim().toLowerCase()
   const lines = q ? displayed.split('\n').filter((l) => l.toLowerCase().includes(q)) : []
   const inPreview = isHtml(resp) && htmlView === 'preview'
   const jsonTree = bodyView === 'tree' && parseableJson(resp)
+  const canBeautify = !binary && tryFormatJson(resp.body) !== null
+
+  const beautify = () => {
+    const pretty = tryFormatJson(resp.body)
+    if (pretty === null) return
+    setBodyText(pretty)
+    setBodyView('pretty')
+  }
 
   const saveBody = () =>
     postToHost({
@@ -140,7 +158,7 @@ export function ResponsePanel() {
           {!binary && isJson(resp) && (
             <div className="rm-body-toolbar">
               <button className={`rm-btn rm-btn--sm ${bodyView === 'pretty' ? 'is-active' : ''}`}
-                onClick={() => setBodyView('pretty')}>Beautify</button>
+                onClick={() => setBodyView('pretty')}>Pretty</button>
               {parseableJson(resp) && (
                 <button className={`rm-btn rm-btn--sm ${bodyView === 'tree' ? 'is-active' : ''}`}
                   title="Browse the response as a collapsible tree"
@@ -172,6 +190,12 @@ export function ResponsePanel() {
               </>
             )}
             <div className="rm-spacer" />
+            {canBeautify && (
+              <button className="rm-btn rm-btn--sm" title="Format the JSON body (pretty print, even from Raw view)"
+                onClick={beautify}>
+                Beautify
+              </button>
+            )}
             {!binary && (
               <button className="rm-btn rm-btn--sm" title="Copy the response body"
                 onClick={() => void navigator.clipboard.writeText(displayed)}>

@@ -1,7 +1,7 @@
 export type PollWorkspace = { id: string; revision: string }
 
 export type PollStateStore = {
-  get(id: string): Promise<{ lastRevision: string; synced: boolean } | undefined>
+  get(id: string): Promise<{ lastRevision: string; synced: boolean; pollEnabled?: boolean } | undefined>
 }
 
 export function createPollLoop(deps: {
@@ -29,7 +29,9 @@ export function createPollLoop(deps: {
       let pulledAny = false
       for (const w of workspaces) {
         const st = await deps.state.get(w.id)
-        if (st?.synced && st.lastRevision !== w.revision) {
+        // pollEnabled === false: the user paused this workspace's background
+        // pull (their own pushes are unaffected — they never go through this).
+        if (st?.synced && st.pollEnabled !== false && st.lastRevision !== w.revision) {
           if (await deps.pullIfNewer(w.id, w.revision)) pulledAny = true
         }
       }

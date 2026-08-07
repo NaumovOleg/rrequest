@@ -84,6 +84,21 @@ describe('createPollLoop', () => {
     loop.stop()
   })
 
+  it('skips a workspace whose polling is paused (pollEnabled === false)', async () => {
+    const listWorkspaces = vi.fn(async () => [{ id: 'w1', revision: '5' }])
+    const state = { get: vi.fn(async () => ({ lastRevision: '3', synced: true, pollEnabled: false })) }
+    const pullIfNewer = vi.fn(async () => true)
+    const onPulled = vi.fn(async () => {})
+    const loop = createPollLoop({ listWorkspaces, state, pullIfNewer, onPulled, intervalMs: 1000 })
+
+    loop.start()
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(pullIfNewer).not.toHaveBeenCalled()
+    expect(onPulled).not.toHaveBeenCalled()
+    loop.stop()
+  })
+
   it('does not call onPulled when nothing was actually pulled', async () => {
     const listWorkspaces = vi.fn(async () => [{ id: 'w1', revision: '5' }])
     const state = { get: vi.fn(async () => ({ lastRevision: '3', synced: true })) }

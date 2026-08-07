@@ -99,6 +99,7 @@ type SyncControlPort = {
   enable(workspaceId: string, accountId?: string): Promise<void>;
   syncNow(workspaceId: string): Promise<void>;
   syncAccount(accountId: string): Promise<void>;
+  setPolling(workspaceId: string, enabled: boolean): Promise<void>;
   // Connected accounts, so the command-palette path can ask WHICH one to sync
   // to instead of giving up when more than one is signed in.
   accounts(): Account[];
@@ -272,6 +273,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           ...w,
           role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
           synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
+          pollEnabled: isAuthed() ? syncRuntimeRef?.pollingOf(w.id) : undefined,
           accountId: st?.accountId,
           accountEmail: accounts.emailOf(st?.accountId),
         };
@@ -392,7 +394,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // syncControlPort is built after the sync runtime below (it needs manager/
       // runtime/hub, which don't exist yet at createRouter time), so this is a
       // deferred-closure thunk over syncControlRef — same pattern as isReadOnly.
-      syncControl: {
+syncControl: {
         signIn: () => syncControlRef!.signIn(),
         // Forward accountId — dropping it broke per-account sign-out and bound
         // enabled workspaces to the wrong/undefined account (so they never
@@ -403,6 +405,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         syncNow: (id: string) => syncControlRef!.syncNow(id),
         syncAccount: (accountId: string) =>
           syncControlRef!.syncAccount(accountId),
+        setPolling: (id: string, enabled: boolean) =>
+          syncControlRef!.setPolling(id, enabled),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
       // workspace when it's deleted; never blocks the local delete (see below).
@@ -855,6 +859,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           hub.toast("error", `Force sync failed: ${e?.message ?? e}`);
         }
         hub.syncStatus(false, { kind: "account", id: accountId });
+        await runtime.refresh();
+      },
+      // Pause/resume only the background poll for ONE workspace. Pushes keep
+      // working either way — they're triggered by local edits, not the poll.
+      setPolling: async (workspaceId: string, enabled: boolean) => {
+        await manager.setPolling(workspaceId, enabled);
+        await runtime.refreshRoleCache();
         await runtime.refresh();
       },
     };

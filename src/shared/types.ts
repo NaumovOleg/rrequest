@@ -116,7 +116,7 @@ export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
 
 export type Account = { id: string; email: string }
-export type Workspace = { id: string; name: string; role?: WorkspaceRole; synced?: boolean; accountId?: string; accountEmail?: string }
+export type Workspace = { id: string; name: string; role?: WorkspaceRole; synced?: boolean; accountId?: string; accountEmail?: string; pollEnabled?: boolean }
 
 // A deleted thing kept for restore. `data` is the full snapshot (collections and
 // folders keep their children); `path` records ancestors so a folder/request can
@@ -208,6 +208,7 @@ export type WebviewMessage =
   | { type: 'syncAccount'; accountId: string }
   | { type: 'enableSync'; workspaceId: string; accountId?: string }
   | { type: 'syncNow'; workspaceId: string }
+  | { type: 'setWorkspacePolling'; workspaceId: string; enabled: boolean }
 
 // host -> webview
 export type HostMessage =

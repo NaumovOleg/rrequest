@@ -59,6 +59,7 @@ function harness(client: any) {
     setActiveWorkspaceId: (id) => { activeWorkspaceId = id },
     syncControl: {
       signIn: async () => {}, signOut: async () => {}, syncNow: async () => {}, syncAccount: async () => {},
+      setPolling: async () => {},
       // Mirror of panel.ts syncControlPort.enable.
       enable: async (id: string, accountId?: string) => {
         const acct = accountId ?? (accounts.length === 1 ? accounts[0].id : undefined)

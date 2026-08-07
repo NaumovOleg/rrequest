@@ -207,6 +207,23 @@ export function AccountsPanel() {
           onClick={() => postToHost({ type: "syncNow", workspaceId: w.id })}
         />
       )}
+      {w.synced && (
+        <IconButton
+          icon={w.pollEnabled === false ? "sync-ignored" : "debug-pause"}
+          label={
+            w.pollEnabled === false
+              ? `Resume auto-sync for “${w.name}” — pull it on a schedule again`
+              : `Pause auto-sync for “${w.name}” — stop pulling it (pushes still work)`
+          }
+          onClick={() =>
+            postToHost({
+              type: "setWorkspacePolling",
+              workspaceId: w.id,
+              enabled: w.pollEnabled === false,
+            })
+          }
+        />
+      )}
       {w.role !== "viewer" && !isEditing && (
         <>
           <IconButton

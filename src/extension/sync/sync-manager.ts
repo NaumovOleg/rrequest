@@ -175,6 +175,15 @@ export class SyncManager {
     if (state) await this.deps.state.set(workspaceId, { ...state, synced: false })
   }
 
+  /** Pause/resume this workspace's auto-poll. Pushes are never affected. */
+  async setPolling(workspaceId: string, enabled: boolean): Promise<void> {
+    const state = await this.deps.state.get(workspaceId)
+    if (!state?.synced) return
+    if (enabled) delete state.pollEnabled
+    else state.pollEnabled = false
+    await this.deps.state.set(workspaceId, { ...state })
+  }
+
   async push(workspaceId: string): Promise<void> {
     if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)

@@ -615,6 +615,7 @@ describe('createRouter sync control routes', () => {
       enable: async (id: string) => { calls.push('enable:' + id) },
       syncNow: async (id: string) => { calls.push('syncNow:' + id) },
       syncAccount: async (id: string) => { calls.push('syncAccount:' + id) },
+      setPolling: async (id: string, enabled: boolean) => { calls.push(`setPolling:${id}:${enabled}`) },
     }
     const d = deps()
     const route = createRouter({ send: d.send, collections: d.collections, history: d.history,
@@ -626,7 +627,8 @@ describe('createRouter sync control routes', () => {
     await route({ type: 'signOut' } as any)
     await route({ type: 'syncNow', workspaceId: 'w2' } as any)
     await route({ type: 'syncAccount', accountId: 'acc1' } as any)
-    expect(calls).toEqual(['signIn', 'enable:w1', 'signOut', 'syncNow:w2', 'syncAccount:acc1'])
+    await route({ type: 'setWorkspacePolling', workspaceId: 'w3', enabled: false } as any)
+    expect(calls).toEqual(['signIn', 'enable:w1', 'signOut', 'syncNow:w2', 'syncAccount:acc1', 'setPolling:w3:false'])
   })
 })
 

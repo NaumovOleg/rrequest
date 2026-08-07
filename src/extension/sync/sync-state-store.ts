@@ -10,6 +10,10 @@ export type SyncState = {
   // Which connected account (AccountStore id) this workspace is bound to. Absent
   // on pre-multi-account state -> resolves to the sole account as a fallback.
   accountId?: string
+  // Per-workspace opt-out of the auto-poll (background pull). Absent/true ->
+  // polled on the schedule; false -> skipped by the poll loop. Pushes are never
+  // affected -- local edits still hit the server whenever they're made.
+  pollEnabled?: boolean
 }
 
 export class SyncStateStore {

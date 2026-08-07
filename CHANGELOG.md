@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.17
+
+### Patch Changes
+
+- sync: no server URL is baked into the build anymore. Sync is disabled until you set your own backend via `rrequest.syncServerUrl` in settings; attempting to sync while unset shows a warning with a shortcut to those settings.
+
 ## 0.0.16
 
 ### Patch Changes

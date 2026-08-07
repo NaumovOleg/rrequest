@@ -189,13 +189,35 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // (which does need the Hub) is wired up after the Hub is constructed.
     // Precedence: the user's `rrequest.syncServerUrl` setting (if they set one),
     // then the URL baked into the build (`process.env.SYNC_SERVER_URL`, injected
-    // by esbuild from SYNC_SERVER_URL — dev/prod per build), then the prod URL.
+    // by esbuild from SYNC_SERVER_URL — unset by default). Empty = sync disabled;
+    // every user-triggered sync action warns and bails until a URL is set.
     const syncBaseUrl = (): string =>
       vscode.workspace
         .getConfiguration("rrequest")
         .get<string>("syncServerUrl") ||
       process.env.SYNC_SERVER_URL ||
-      "https://ovbwfcukmiehohhxnaeekc5nmy0cbedu.lambda-url.eu-west-1.on.aws/api";
+      "";
+
+    // Single guard for every user-triggered sync action: no server URL -> warn
+    // once (modal) and bail. Fixes every entry point at once — command palette
+    // and webview both route through syncControlPort below.
+    const requireServerUrl = (): boolean => {
+      if (syncBaseUrl()) return true;
+      const open = "Open settings";
+      void vscode.window
+        .showWarningMessage(
+          "RREQUEST: no sync server URL configured — sync is disabled until you set your own backend. Add a \u201crrequest.syncServerUrl\u201d value (your own sync server) in settings.",
+          open
+        )
+        .then((pick) => {
+          if (pick === open)
+            void vscode.commands.executeCommand(
+              "workbench.action.openSettings",
+              "rrequest"
+            );
+        });
+      return false;
+    };
     // --- Multi-account sync ---
     // Several Google accounts can be connected at once; each synced workspace is
     // bound to one (SyncState.accountId). AccountStore loads cached tokens (and
@@ -707,6 +729,7 @@ syncControl: {
       // signIn ADDS a Google account (multiple can be connected). The browser
       // OAuth flow decides which account; we identify it via /me and register it.
       signIn: async () => {
+        if (!requireServerUrl()) return;
         const token = await signIn({
           baseUrl: syncBaseUrl(),
           openExternal: (u) =>
@@ -765,6 +788,7 @@ syncControl: {
         await runtime.refresh();
       },
       enable: async (id: string, accountId?: string) => {
+        if (!requireServerUrl()) return;
         const acct =
           accountId ??
           (accounts.ids().length === 1 ? accounts.ids()[0] : undefined);
@@ -825,6 +849,7 @@ syncControl: {
         }
       },
       syncNow: async (id: string) => {
+        if (!requireServerUrl()) return;
         hub.syncStatus(true, { kind: "workspace", id });
         try {
           await manager.pull(id);
@@ -841,6 +866,7 @@ syncControl: {
       // Force sync ONE account now: re-index its Drive (recover) + pull every
       // workspace bound to it, without waiting for the poll loop.
       syncAccount: async (accountId: string) => {
+        if (!requireServerUrl()) return;
         const email = accounts.emailOf(accountId) ?? "account";
         hub.syncStatus(true, { kind: "account", id: accountId });
         try {

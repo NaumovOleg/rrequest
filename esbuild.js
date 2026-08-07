@@ -8,12 +8,10 @@ const watch = process.argv.includes("--watch");
 require("./scripts/load-root-env.cjs")();
 
 // The sync backend URL baked into the build. Set SYNC_SERVER_URL (CI env var or
-// local .env) to point a build at dev/prod; unset falls back to prod. The
-// extension still lets a user override it via the `rrequest.syncServerUrl`
-// setting at runtime.
-const PROD_SYNC_URL =
-  "https://ovbwfcukmiehohhxnaeekc5nmy0cbedu.lambda-url.eu-west-1.on.aws/api";
-const SYNC_URL = process.env.SYNC_SERVER_URL || PROD_SYNC_URL;
+// local .env) only if a specific build must point at your own backend; unset
+// leaves it empty and the user's `rrequest.syncServerUrl` setting is the only
+// source. Nothing is baked by default, so each user brings their own backend.
+const SYNC_URL = process.env.SYNC_SERVER_URL || "";
 
 const options = {
   entryPoints: ["src/extension/extension.ts"],

@@ -2,7 +2,7 @@
   "name": "rrequest",
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "publisher": "olgert",
   "packageManager": "yarn@1.22.22",
   "engines": {
@@ -53,7 +53,7 @@
         "rrequest.syncServerUrl": {
           "type": "string",
           "default": "",
-          "description": "rrequest sync backend URL (ending in /api). Leave empty to use the URL baked into this build (production by default)."
+          "description": "rrequest sync backend URL (ending in /api). Empty by default — set it to your own backend to enable sync."
         },
         "rrequest.syncPollIntervalMs": {
           "type": "number",

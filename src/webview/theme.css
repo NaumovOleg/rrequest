@@ -270,10 +270,21 @@ body {
   background: transparent;
 }
 .rm-subtab-chips .rm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 9px;
   font-size: 0.8em;
   line-height: 1.4;
   white-space: nowrap;
+}
+.rm-subtab-chips .rm-chip .codicon,
+.rm-chip-measure .rm-chip .codicon {
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+.rm-subtab-chips .rm-chip.is-active .codicon {
+  opacity: 1;
 }
 /* hidden same-width chip row, absolute so it never takes layout space */
 .rm-chip-measure {
@@ -285,6 +296,9 @@ body {
   white-space: nowrap;
 }
 .rm-chip-measure .rm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 9px;
   font-size: 0.8em;
   line-height: 1.4;
@@ -360,6 +374,12 @@ body {
 .rm-kvtable td {
   border-bottom: 1px solid var(--rm-border);
   padding: 0;
+}
+.rm-kvtable tr:hover td {
+  background: color-mix(in srgb, var(--rm-fg) 4%, transparent);
+}
+.rm-kv-input:hover {
+  background: color-mix(in srgb, var(--rm-fg) 4%, transparent);
 }
 .rm-kv-input {
   width: 100%;
@@ -841,6 +861,95 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   padding: 2px 4px;
+  border-top: 1px solid var(--rm-border);
+}
+.rm-acct-actions .rm-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.rm-acct-actions .rm-btn--ghost:first-child:only-child,
+.rm-acct-actions .rm-btn--primary {
+  background: var(--rm-accent);
+  color: var(--rm-accent-fg);
+  border-color: transparent;
+}
+.rm-acct-actions .rm-btn--primary:hover {
+  background: var(--rm-accent-hover);
+}
+
+/* account avatar — colored initials, deterministic per email */
+.rm-avatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.rm-avatar--sm {
+  width: 15px;
+  height: 15px;
+  font-size: 7px;
+}
+
+/* popup search */
+.rm-accts-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 4px;
+  border-bottom: 1px solid var(--rm-border);
+  margin-bottom: 4px;
+}
+.rm-accts-search-icon {
+  flex: none;
+  color: var(--rm-muted);
+}
+.rm-accts-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+}
+
+/* inline "new workspace" row */
+.rm-acct-create {
+  padding: 2px 8px 2px 22px;
+}
+.rm-create-input {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 0.85em;
+}
+
+/* row actions reveal on hover/focus, so the list stays calm when reading */
+.rm-acct-ws {
+  position: relative;
+}
+@keyframes rm-acct-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.rm-acct-ws-actions {
+  opacity: 0;
+  animation: rm-acct-reveal 120ms ease forwards;
+}
+.rm-acct-ws:hover .rm-acct-ws-actions,
+.rm-acct-ws:focus-within .rm-acct-ws-actions {
+  opacity: 1;
 }
 .rm-sync-enable:hover {
   color: var(--rm-fg);

@@ -33,14 +33,14 @@ type SubTab =
   | "pre-request"
   | "tests";
 
-const SUBTABS: { id: SubTab; label: string }[] = [
-  { id: "params", label: "Params" },
-  { id: "authorization", label: "Authorization" },
-  { id: "headers", label: "Headers" },
-  { id: "body", label: "Body" },
-  { id: "cookies", label: "Cookies" },
-  { id: "pre-request", label: "Pre-request Script" },
-  { id: "tests", label: "Tests" },
+const SUBTABS: { id: SubTab; label: string; icon: string }[] = [
+  { id: "params", label: "Params", icon: "symbol-parameter" },
+  { id: "authorization", label: "Authorization", icon: "shield" },
+  { id: "headers", label: "Headers", icon: "list-unordered" },
+  { id: "body", label: "Body", icon: "bracket" },
+  { id: "cookies", label: "Cookies", icon: "archive" },
+  { id: "pre-request", label: "Pre-request Script", icon: "run-all" },
+  { id: "tests", label: "Tests", icon: "beaker" },
 ];
 
 // Split pasted text ("a=1&b=2", one pair per line, or a mix) into rows. Only
@@ -52,7 +52,11 @@ function parseKvText(text: string): KeyValue[] {
     if (!t.includes("=")) continue;
     const i = t.indexOf("=");
     if (i <= 0) continue;
-    out.push({ key: t.slice(0, i).trim(), value: t.slice(i + 1).trim(), enabled: true });
+    out.push({
+      key: t.slice(0, i).trim(),
+      value: t.slice(i + 1).trim(),
+      enabled: true,
+    });
   }
   return out;
 }
@@ -82,7 +86,7 @@ function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
 // User-Agent is omitted here because it's an editable default header already.
 function autoHeaders(
   url: string,
-  body: RequestBody,
+  body: RequestBody
 ): { key: string; value: string }[] {
   let host = "";
   try {
@@ -181,9 +185,7 @@ const KeyValueTable = ({
                   className="rm-kv-input rm-kv-envinput"
                   placeholder="value"
                   value={r.value}
-                  onChange={(v) =>
-                    i < rows.length && update(i, { value: v })
-                  }
+                  onChange={(v) => i < rows.length && update(i, { value: v })}
                   knownVars={knownVars}
                   values={envValues}
                 />
@@ -360,7 +362,7 @@ export function RequestPanel() {
   const knownVars = useStore((s) => {
     const e = s.environments.find((x) => x.id === s.activeEnvId);
     return new Set(
-      (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key),
+      (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key)
     );
   });
   // name -> value for the active environment, for the {{var}} hover hints.
@@ -387,7 +389,11 @@ export function RequestPanel() {
   useEffect(() => {
     lastSaveTarget.current = getUiState(
       "lastSaveTarget",
-      null as { workspaceId?: string; collectionId?: string; folderId?: string } | null,
+      null as {
+        workspaceId?: string;
+        collectionId?: string;
+        folderId?: string;
+      } | null
     );
   }, []);
   // On load, make the URL bar reflect the request's params (a saved request may
@@ -418,7 +424,13 @@ export function RequestPanel() {
       return;
     setSaveCollectionId(saved.collectionId);
     setSaveFolderId(saved.folderId ?? "");
-  }, [active?.id, active?.collectionId, activeWorkspaceId, tree, pendingSaveCollectionId]);
+  }, [
+    active?.id,
+    active?.collectionId,
+    activeWorkspaceId,
+    tree,
+    pendingSaveCollectionId,
+  ]);
   // Cmd/Ctrl+S saves the active request, like saving a file in VS Code. The
   // editor is a webview (VS Code's own save is a no-op for a webview panel), so
   // we catch the shortcut in-page and route it to the same save() the button
@@ -428,7 +440,11 @@ export function RequestPanel() {
   const sendRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "s") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "s"
+      ) {
         e.preventDefault();
         saveRef.current();
       }
@@ -438,11 +454,15 @@ export function RequestPanel() {
         sendRef.current();
       }
       // Cmd/Ctrl+E jumps to the environment picker (Postman-style shortcut).
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "e") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "e"
+      ) {
         e.preventDefault();
         (
           document.querySelector(
-            '[aria-label="active environment"]',
+            '[aria-label="active environment"]'
           ) as HTMLSelectElement | null
         )?.focus();
       }
@@ -479,7 +499,21 @@ export function RequestPanel() {
   }, [hasActiveTab]);
   // No autosave: editor edits stay local (the tab shows a dirty dot) and only
   // reach the sidebar/tree when the user hits Save — see `save()` below.
-  if (!active) return <div className="rm-panel">No request open</div>;
+  if (!active)
+    return (
+      <div className="rm-panel">
+        <div className="rm-blank">
+          <span
+            className="codicon codicon-request rm-blank-icon"
+            aria-hidden="true"
+          />
+          <div className="rm-blank-title">No request open</div>
+          <div className="rm-blank-hint">
+            Open a request from the sidebar or create a new one to start.
+          </div>
+        </div>
+      </div>
+    );
 
   const send = () => {
     // url already carries the query (kept in sync with params); send the base
@@ -586,8 +620,8 @@ export function RequestPanel() {
       active.body.type === "json"
         ? "json"
         : active.body.type === "xml"
-          ? "xml"
-          : "plaintext";
+        ? "xml"
+        : "plaintext";
     postToHost({
       type: "openTextDocument",
       content: active.body.text,
@@ -621,8 +655,7 @@ export function RequestPanel() {
       request,
     });
     // Remember where this save went so the next unsaved request starts there.
-    if (!linkC)
-      persistSaveTarget(collectionId, saveFolderId || "");
+    if (!linkC) persistSaveTarget(collectionId, saveFolderId || "");
     // Committed to the tree -> tab is clean again (clears the dirty dot and
     // lets subsequent tree broadcasts refresh this tab).
     markTabSaved(active.id);
@@ -718,7 +751,7 @@ export function RequestPanel() {
           <input
             list="rm-methods"
             className={`rm-input rm-method-select ${methodClass(
-              active.method,
+              active.method
             )}`}
             aria-label="method"
             value={active.method}
@@ -752,9 +785,17 @@ export function RequestPanel() {
         <section className="rm-req-config" style={{ flex: `0 0 ${splitPct}%` }}>
           <div className="rm-subtab-bar" ref={navWrapRef}>
             {/* hidden same-size chip row used only to measure fit */}
-            <div className="rm-chip-measure" ref={chipsMeasureRef} aria-hidden="true">
+            <div
+              className="rm-chip-measure"
+              ref={chipsMeasureRef}
+              aria-hidden="true"
+            >
               {SUBTABS.map((t) => (
                 <span key={t.id} className="rm-chip">
+                  <span
+                    className={`codicon codicon-${t.icon}`}
+                    aria-hidden="true"
+                  />
                   {t.label}
                 </span>
               ))}
@@ -774,10 +815,14 @@ export function RequestPanel() {
                     className={`rm-chip${sub === t.id ? " is-active" : ""}`}
                     onClick={() => setSub(t.id)}
                   >
+                    <span
+                      className={`codicon codicon-${t.icon}`}
+                      aria-hidden="true"
+                    />
                     {t.label}
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
             ) : (
               <select
                 className="rm-select rm-subtab-select"
@@ -915,9 +960,7 @@ export function RequestPanel() {
                     <CodeTextarea
                       className="rm-code-input"
                       aria-label="body"
-                      highlight={
-                        active.body.type === "json" ? "json" : "none"
-                      }
+                      highlight={active.body.type === "json" ? "json" : "none"}
                       value={active.body.text}
                       onChange={(e) =>
                         active.body.mode === "raw" &&
@@ -933,9 +976,7 @@ export function RequestPanel() {
                         JSON error at line {jsonError.line}
                       </div>
                     )}
-                    {jsonValid && (
-                      <div className="rm-body-ok">Valid JSON</div>
-                    )}
+                    {jsonValid && <div className="rm-body-ok">Valid JSON</div>}
                   </>
                 )}
                 {active.body.mode === "urlencoded" && (
@@ -982,7 +1023,7 @@ export function RequestPanel() {
             )}
             {sub === "pre-request" && (
               <textarea
-                className="rm-input"
+                className="rm-input rm-code-input"
                 aria-label="pre-request script"
                 rows={8}
                 style={{ width: "100%" }}
@@ -992,7 +1033,7 @@ export function RequestPanel() {
             )}
             {sub === "tests" && (
               <textarea
-                className="rm-input"
+                className="rm-input rm-code-input"
                 aria-label="test script"
                 rows={8}
                 style={{ width: "100%" }}

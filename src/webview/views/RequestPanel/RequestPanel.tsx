@@ -746,22 +746,23 @@ export function RequestPanel() {
       <div className="rm-urlbar">
         <label>
           <span style={{ display: "none" }}>method</span>
-          {/* Free-text method with known-method suggestions (Postman-style):
-              any verb can be typed, the select-colored input keeps its hue. */}
-          <input
-            list="rm-methods"
+          {/* Native select — datalist popups are blocked inside VS Code
+              webviews, so a real <select> is the only way to pick a method.
+              Kept colored by the active method like the old text input. */}
+          <select
             className={`rm-input rm-method-select ${methodClass(
               active.method
             )}`}
             aria-label="method"
             value={active.method}
             onChange={(e) => update({ method: e.target.value as HttpMethod })}
-          />
-          <datalist id="rm-methods">
+          >
             {METHODS.map((m) => (
-              <option key={m} value={m} />
+              <option key={m} value={m}>
+                {m}
+              </option>
             ))}
-          </datalist>
+          </select>
         </label>
         <EnvVarInput
           className="rm-url-input"

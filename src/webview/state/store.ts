@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { reconcileUrlParams } from './url-sync'
-import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest, type GrpcRequest } from '../../shared/types'
+import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type SyncScope, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest, type GrpcRequest } from '../../shared/types'
 
 // Payload for opening the WebSocket / gRPC editor panels. `request` null = a
 // fresh "New" request. `seq` bumps on every open so the panel re-applies even
@@ -74,7 +74,10 @@ type State = {
   toasts: { id: string; level: 'error' | 'info'; message: string }[]
   authEmail: string | null
   accounts: Account[]
-  syncLoading: boolean
+  /** Which sync operation is in flight (`all` / one account / one workspace).
+      `null` when idle. Row widgets match on this to spin only the button that
+      started, instead of every sync icon at once. */
+  syncLoading: SyncScope | null
   openNewTab(): void
   closeTab(id: string): void
   setActive(id: string): void
@@ -118,7 +121,7 @@ type State = {
   activeWorkspace(): Workspace | undefined
   setAccounts(list: Account[]): void
   setAuthEmail(email: string | null): void
-  setSyncLoading(v: boolean): void
+  setSyncLoading(v: SyncScope | null): void
   activeSynced(): boolean
   __reset(): void
 }
@@ -155,7 +158,7 @@ export const useStore = create<State>((set, get) => ({
   toasts: [],
   authEmail: null,
   accounts: [],
-  syncLoading: false,
+  syncLoading: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -294,8 +297,8 @@ export const useStore = create<State>((set, get) => ({
   setAccounts: (accounts) => set({ accounts: accounts ?? [], authEmail: accounts?.[0]?.email ?? null }),
   // Convenience for the single-account case (tests, legacy call sites).
   setAuthEmail: (email) => set({ accounts: email ? [{ id: 'me', email }] : [], authEmail: email }),
-  setSyncLoading: (syncLoading) => set({ syncLoading }),
+  setSyncLoading: (syncLoading: SyncScope | null) => set({ syncLoading }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: false }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: null }),
 }))

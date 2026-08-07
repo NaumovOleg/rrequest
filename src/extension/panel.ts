@@ -43,7 +43,7 @@ export function buildHtml(
   styleUri: string,
   codiconUri: string,
   cspSource: string,
-  nonce: string,
+  nonce: string
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -136,7 +136,8 @@ export function explainSyncError(e: unknown): string {
     return "your session expired — sign in again (RREQUEST: Sign in to sync)";
   if (name === "SyncForbiddenError")
     return "the server refused it — that workspace id belongs to another account";
-  if (name === "SyncGoneError") return "the server no longer has that workspace";
+  if (name === "SyncGoneError")
+    return "the server no longer has that workspace";
   if (/fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network/i.test(message))
     return `couldn't reach the sync server (${message})`;
   return message;
@@ -165,7 +166,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     }
     const bootActive = context.globalState.get<string>(
       "rrequest.activeWorkspaceId",
-      "",
+      ""
     );
     if (!list.some((w) => w.id === bootActive)) {
       const local = list.find(isLocalWs) ?? list[0];
@@ -263,7 +264,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // created/enabled workspace shows under its account right away.
     const tagWorkspaces = (
       list: Workspace[],
-      states: Record<string, SyncState>,
+      states: Record<string, SyncState>
     ): Workspace[] =>
       list.map((w) => {
         const st = states[w.id];
@@ -308,7 +309,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           return parseImport(text);
         } catch (e: any) {
           void vscode.window.showErrorMessage(
-            `rrequest import failed: ${e?.message ?? e}`,
+            `rrequest import failed: ${e?.message ?? e}`
           );
           return null;
         }
@@ -331,7 +332,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           await fs.writeFile(target.fsPath, serializeExport(c, format), "utf8");
         } catch (e: any) {
           void vscode.window.showErrorMessage(
-            `rrequest export failed: ${e?.message ?? e}`,
+            `rrequest export failed: ${e?.message ?? e}`
           );
         }
       },
@@ -355,18 +356,25 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // "Save response body": native save dialog, then write the (full, cached)
       // body — base64 for binary payloads, utf8 text otherwise.
       saveBodyToFile: async ({ content, isBase64, suggestName }) => {
-        const safe = (suggestName || "response").replace(/[^a-z0-9_.-]+/gi, "_");
+        const safe = (suggestName || "response").replace(
+          /[^a-z0-9_.-]+/gi,
+          "_"
+        );
         const target = await vscode.window.showSaveDialog({
           saveLabel: "Save response body",
           defaultUri: vscode.Uri.file(`${safe}.txt`),
         });
         if (!target) return null;
         try {
-          await fs.writeFile(target.fsPath, content, isBase64 ? "base64" : "utf8");
+          await fs.writeFile(
+            target.fsPath,
+            content,
+            isBase64 ? "base64" : "utf8"
+          );
           return target.fsPath;
         } catch (e: any) {
           void vscode.window.showErrorMessage(
-            `rrequest could not save the response body: ${e?.message ?? e}`,
+            `rrequest could not save the response body: ${e?.message ?? e}`
           );
           return null;
         }
@@ -405,22 +413,22 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     const snapshot = async (): Promise<HostMessage[]> => {
       const ws = context.globalState.get<string>(
         "rrequest.activeWorkspaceId",
-        "",
+        ""
       );
       // Per-workspace sync state (which account it's bound to, etc.) for the
       // workspaces snapshot below.
       const states = isAuthed() ? await syncState.all() : {};
       const cols = (await collections.list()).filter(
-        (c) => (c.workspaceId || ws) === ws,
+        (c) => (c.workspaceId || ws) === ws
       );
       const envs = (await environments.list()).filter(
-        (e) => (e.workspaceId || ws) === ws,
+        (e) => (e.workspaceId || ws) === ws
       );
       const hist = (await history.list()).filter(
-        (e) => (e.workspaceId || ws) === ws,
+        (e) => (e.workspaceId || ws) === ws
       );
       const trashed = (await trash.list()).filter(
-        (e) => (e.workspaceId || ws) === ws,
+        (e) => (e.workspaceId || ws) === ws
       );
       return [
         { type: "tree", collections: cols },
@@ -429,7 +437,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           environments: envs,
           activeId: context.globalState.get<string | null>(
             "rrequest.activeEnvId",
-            null,
+            null
           ),
         },
         {
@@ -457,21 +465,21 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           context,
           `req:${m.request.id}`,
           m.request.name,
-          m,
+          m
         );
       } else if (m.type === "openGrpcRequest") {
         RrequestPanel.openOrReveal(
           context,
           `grpc:${m.request.id}`,
           `gRPC ${m.request.name}`,
-          m,
+          m
         );
       } else if (m.type === "openWsRequest") {
         RrequestPanel.openOrReveal(
           context,
           `ws:${m.request.id}`,
           `WS ${m.request.name}`,
-          m,
+          m
         );
       } else if (m.type === "showEnvironments") {
         RrequestPanel.openOrReveal(context, "env", "Environments", m);
@@ -491,7 +499,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // pushes/polls doesn't spam the user with a toast per workspace/attempt.
     const throttledToast = makeToastThrottle(
       (level, message) => hub.toast(level, message),
-      15000,
+      15000
     );
     // Suppresses the "sign-in expired" toast during the background startup sweep
     // (adopt + refreshRoles) — that runs across every account/workspace and would
@@ -522,19 +530,19 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           "error",
           email
             ? `Sync sign-in for ${email} expired — sign in with that account again to resume syncing.`
-            : "A sync sign-in expired — sign in again to resume syncing.",
+            : "A sync sign-in expired — sign in again to resume syncing."
         );
       },
       onSyncError: (_workspaceId, error) => {
         if (error instanceof SyncGoneError) {
           throttledToast(
             "info",
-            "This workspace was deleted by its owner; your local copy was kept.",
+            "This workspace was deleted by its owner; your local copy was kept."
           );
         } else {
           throttledToast(
             "error",
-            "Could not reach the sync server; will retry.",
+            "Could not reach the sync server; will retry."
           );
         }
       },
@@ -640,7 +648,13 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         logLine("--- sync diagnostics ---");
         logLine(`server: ${syncBaseUrl()}`);
         const list = accounts.list();
-        logLine(`accounts: ${list.length ? list.map((a) => a.email).join(", ") : "(none — sign in first)"}`);
+        logLine(
+          `accounts: ${
+            list.length
+              ? list.map((a) => a.email).join(", ")
+              : "(none — sign in first)"
+          }`
+        );
         for (const a of list) {
           const token = accounts.getToken(a.id);
           if (!token) {
@@ -656,16 +670,28 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           }
           try {
             const remotes = await clientFor(a.id).listWorkspaces();
-            logLine(`  ${a.email}: ${remotes.length} workspace(s) on the server`);
+            logLine(
+              `  ${a.email}: ${remotes.length} workspace(s) on the server`
+            );
           } catch (e) {
-            logLine(`  ${a.email}: listWorkspaces FAILED: ${explainSyncError(e)}`);
+            logLine(
+              `  ${a.email}: listWorkspaces FAILED: ${explainSyncError(e)}`
+            );
           }
         }
         const states = await syncState.all();
         for (const w of await workspaces.list()) {
           const st = states[w.id];
           logLine(
-            `workspace ${w.name} (${w.id}): ${st?.synced ? `synced -> ${accounts.emailOf(st.accountId) ?? st.accountId ?? "unbound account"} (${st.role})` : "local"}`,
+            `workspace ${w.name} (${w.id}): ${
+              st?.synced
+                ? `synced -> ${
+                    accounts.emailOf(st.accountId) ??
+                    st.accountId ??
+                    "unbound account"
+                  } (${st.role})`
+                : "local"
+            }`
           );
         }
         logLine("--- end diagnostics ---");
@@ -707,7 +733,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           } else if (res.failed > 0) {
             hub.toast(
               "error",
-              `Found ${res.failed} workspace(s) but couldn't read their Drive files.`,
+              `Found ${res.failed} workspace(s) but couldn't read their Drive files.`
             );
           }
         } catch (e: any) {
@@ -743,7 +769,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
             "error",
             accounts.isEmpty()
               ? "Sign in with Google first."
-              : "Choose an account to sync this workspace.",
+              : "Choose an account to sync this workspace."
           );
           return;
         }
@@ -755,7 +781,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         // the RREQUEST output channel.
         const failed = (reason: string, raw?: unknown): void => {
           logLine(
-            `enable(${id}) -> ${email} FAILED: ${reason}${raw ? `\n${(raw as Error)?.stack ?? String(raw)}` : ""}`,
+            `enable(${id}) -> ${email} FAILED: ${reason}${
+              raw ? `\n${(raw as Error)?.stack ?? String(raw)}` : ""
+            }`
           );
           const msg = `RREQUEST: couldn't sync this workspace to ${email} — ${reason}. It stayed local; use “Sync to account” on the workspace to retry.`;
           hub.toast("error", msg);
@@ -764,15 +792,16 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           // revalidated), so offer the fix inline rather than just naming it.
           const isAuth = (raw as { name?: string })?.name === "SyncAuthError";
           const actions = isAuth ? ["Sign in again", "Show log"] : ["Show log"];
-          void vscode.window
-            .showErrorMessage(msg, ...actions)
-            .then((pick) => {
-              if (pick === "Show log") syncLog().show(true);
-              if (pick === "Sign in again") void syncControlRef?.signIn();
-            });
+          void vscode.window.showErrorMessage(msg, ...actions).then((pick) => {
+            if (pick === "Show log") syncLog().show(true);
+            if (pick === "Sign in again") void syncControlRef?.signIn();
+          });
         };
         if (!accounts.getToken(acct)) {
-          failed("no saved credentials for that account — sign in again", new SyncAuthError());
+          failed(
+            "no saved credentials for that account — sign in again",
+            new SyncAuthError()
+          );
           return;
         }
         try {
@@ -792,7 +821,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         }
       },
       syncNow: async (id: string) => {
-        hub.syncStatus(true);
+        hub.syncStatus(true, { kind: "workspace", id });
         try {
           await manager.pull(id);
           await manager.push(id);
@@ -802,14 +831,14 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         } catch (e: any) {
           hub.toast("error", `Sync failed: ${e?.message ?? e}`);
         } finally {
-          hub.syncStatus(false);
+          hub.syncStatus(false, { kind: "workspace", id });
         }
       },
       // Force sync ONE account now: re-index its Drive (recover) + pull every
       // workspace bound to it, without waiting for the poll loop.
       syncAccount: async (accountId: string) => {
         const email = accounts.emailOf(accountId) ?? "account";
-        hub.syncStatus(true);
+        hub.syncStatus(true, { kind: "account", id: accountId });
         try {
           const res = await manager.adoptRemoteWorkspaces(accountId);
           await runtime.refreshRoleCache();
@@ -820,12 +849,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           else
             hub.toast(
               "info",
-              `${email}: synced ${res.adopted.length}/${res.listed} workspace(s).`,
+              `${email}: synced ${res.adopted.length}/${res.listed} workspace(s).`
             );
         } catch (e: any) {
           hub.toast("error", `Force sync failed: ${e?.message ?? e}`);
         }
-        hub.syncStatus(false);
+        hub.syncStatus(false, { kind: "account", id: accountId });
         await runtime.refresh();
       },
     };
@@ -878,7 +907,7 @@ export class RrequestPanel {
       context,
       `req:${req.id}`,
       `${req.method} ${req.name}`,
-      { type: "openInEditor", request: req },
+      { type: "openInEditor", request: req }
     );
   }
 
@@ -886,7 +915,7 @@ export class RrequestPanel {
     context: vscode.ExtensionContext,
     key: string,
     title: string,
-    initial?: HostMessage,
+    initial?: HostMessage
   ) {
     const existing = RrequestPanel.panels.get(key);
     if (existing) {
@@ -907,7 +936,7 @@ export class RrequestPanel {
         localResourceRoots: [
           vscode.Uri.joinPath(context.extensionUri, "media"),
         ],
-      },
+      }
     );
     const rp = new RrequestPanel(panel, context, key);
     if (initial) rp.pending.push(initial);
@@ -922,21 +951,21 @@ export class RrequestPanel {
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
-    key: string,
+    key: string
   ) {
     const scriptUri = panel.webview
       .asWebviewUri(
-        vscode.Uri.joinPath(context.extensionUri, "media", "editor.js"),
+        vscode.Uri.joinPath(context.extensionUri, "media", "editor.js")
       )
       .toString();
     const styleUri = panel.webview
       .asWebviewUri(
-        vscode.Uri.joinPath(context.extensionUri, "media", "editor.css"),
+        vscode.Uri.joinPath(context.extensionUri, "media", "editor.css")
       )
       .toString();
     const codiconUri = panel.webview
       .asWebviewUri(
-        vscode.Uri.joinPath(context.extensionUri, "media", "codicon.css"),
+        vscode.Uri.joinPath(context.extensionUri, "media", "codicon.css")
       )
       .toString();
     panel.webview.html = buildHtml(
@@ -944,7 +973,7 @@ export class RrequestPanel {
       styleUri,
       codiconUri,
       panel.webview.cspSource,
-      nonce(),
+      nonce()
     );
     // Tab icon per panel kind (request / gRPC / WebSocket / environments).
     const iconBase = key.startsWith("grpc")
@@ -958,12 +987,12 @@ export class RrequestPanel {
       light: vscode.Uri.joinPath(
         context.extensionUri,
         "resources",
-        `${iconBase}-light.svg`,
+        `${iconBase}-light.svg`
       ),
       dark: vscode.Uri.joinPath(
         context.extensionUri,
         "resources",
-        `${iconBase}-dark.svg`,
+        `${iconBase}-dark.svg`
       ),
     };
 
@@ -986,7 +1015,7 @@ export class RrequestPanel {
           panel.iconPath = vscode.Uri.joinPath(
             context.extensionUri,
             "resources",
-            `icon-${msg.icon}.svg`,
+            `icon-${msg.icon}.svg`
           );
         return;
       }

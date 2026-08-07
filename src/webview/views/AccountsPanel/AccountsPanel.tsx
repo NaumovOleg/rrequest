@@ -94,6 +94,20 @@ export function AccountsPanel() {
   const accounts = useStore((s) => s.accounts);
   const isViewer = useStore((s) => s.isViewer());
   const syncLoading = useStore((s) => s.syncLoading);
+  // Whether a sync in flight covers a given row: 'all' (startup/sign-in)
+  // spins everything; an account scope spins its head + workspaces; a
+  // workspace scope spins only that row. Keeps one click from spinning every
+  // sync icon in the popup.
+  const coversAccount = (id: string) =>
+    !!syncLoading &&
+    (syncLoading.kind === "all" ||
+      (syncLoading.kind === "account" && syncLoading.id === id));
+  const coversWorkspace = (id: string) =>
+    !!syncLoading &&
+    (syncLoading.kind === "all" ||
+      (syncLoading.kind === "workspace" && syncLoading.id === id) ||
+      (syncLoading.kind === "account" &&
+        workspaces.find((w) => w.id === id)?.accountId === syncLoading.id));
   const { workspaces, activeId, active, create, rename, remove, select } =
     useWorkspace();
 
@@ -187,8 +201,8 @@ export function AccountsPanel() {
       {w.synced && (
         <IconButton
           icon="sync"
-          spin={syncLoading}
-          disabled={syncLoading}
+          spin={coversWorkspace(w.id)}
+          disabled={coversWorkspace(w.id)}
           label="Sync now"
           onClick={() => postToHost({ type: "syncNow", workspaceId: w.id })}
         />
@@ -299,7 +313,7 @@ export function AccountsPanel() {
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {syncLoading ? (
+          {syncLoading?.kind === "all" ? (
             <span
               className={`codicon codicon-loading rm-spin rm-accts-trigger-icon`}
               aria-hidden="true"
@@ -374,8 +388,8 @@ export function AccountsPanel() {
                   </span>
                   <IconButton
                     icon="sync"
-                    spin={syncLoading}
-                    disabled={syncLoading}
+                    spin={coversAccount(a.id)}
+                    disabled={coversAccount(a.id)}
                     label={`Force sync ${a.email} — pull all its workspaces now`}
                     onClick={() =>
                       postToHost({ type: "syncAccount", accountId: a.id })

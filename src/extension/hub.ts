@@ -1,4 +1,4 @@
-import type { Account, HostMessage, WebviewMessage } from '../shared/types'
+import type { Account, HostMessage, SyncScope, WebviewMessage } from '../shared/types'
 
 type Sink = (m: HostMessage) => void
 
@@ -42,7 +42,9 @@ export class Hub {
 
   // Broadcast the current auth state to every sink (used by the host after sign-in/out).
   authState(accounts: Account[]): void { this.broadcast({ type: 'authState', accounts }) }
-  syncStatus(loading: boolean): void { this.broadcast({ type: 'syncStatus', loading }) }
+  syncStatus(loading: boolean, scope: SyncScope = { kind: 'all' }): void {
+    this.broadcast({ type: 'syncStatus', loading, scope })
+  }
 
   private postTo(id: string, m: HostMessage) { this.sinks.get(id)?.(m) }
   private broadcast(m: HostMessage) { for (const s of this.sinks.values()) s(m) }

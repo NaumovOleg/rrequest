@@ -16,7 +16,7 @@ export function EditorApp() {
   const setActiveEnvId = useStore((s) => s.setActiveEnvId);
   const openLinkedTab = useStore((s) => s.openLinkedTab);
   const setPendingSaveCollectionId = useStore(
-    (s) => s.setPendingSaveCollectionId,
+    (s) => s.setPendingSaveCollectionId
   );
   const setPendingSaveFolderId = useStore((s) => s.setPendingSaveFolderId);
   const wsMode = useStore((s) => s.wsMode);
@@ -59,7 +59,15 @@ export function EditorApp() {
         icon: `method-${activeMethod}`,
       });
     }
-  }, [activeLabel, activeMethod, activeDirty, envMode, wsMode, grpcMode, membersMode]);
+  }, [
+    activeLabel,
+    activeMethod,
+    activeDirty,
+    envMode,
+    wsMode,
+    grpcMode,
+    membersMode,
+  ]);
 
   useEffect(() => {
     const off = onHostMessage((m) => {
@@ -78,7 +86,7 @@ export function EditorApp() {
             testScript: r.testScript ?? "",
           },
           m.targetCollectionId,
-          m.targetFolderId ?? null,
+          m.targetFolderId ?? null
         );
         setPendingSaveCollectionId(m.targetCollectionId ?? null);
         setPendingSaveFolderId(m.targetFolderId ?? null);
@@ -91,11 +99,23 @@ export function EditorApp() {
       } else if (m.type === "openWsRequest") {
         // Existing WS request — stash the payload in the store so the panel
         // (which mounts only now) reads it, instead of racing the message.
-        useStore.getState().openWs(m.request, m.targetCollectionId ?? null, m.targetFolderId ?? null);
+        useStore
+          .getState()
+          .openWs(
+            m.request,
+            m.targetCollectionId ?? null,
+            m.targetFolderId ?? null
+          );
       } else if (m.type === "showGrpc") {
         useStore.getState().openGrpc(null, null, null);
       } else if (m.type === "openGrpcRequest") {
-        useStore.getState().openGrpc(m.request, m.targetCollectionId ?? null, m.targetFolderId ?? null);
+        useStore
+          .getState()
+          .openGrpc(
+            m.request,
+            m.targetCollectionId ?? null,
+            m.targetFolderId ?? null
+          );
       } else if (m.type === "showMembers") {
         setMembersMode(true);
         setMembersWorkspaceId(m.workspaceId);
@@ -109,7 +129,7 @@ export function EditorApp() {
       } else if (m.type === "authState") {
         setAccounts(m.accounts);
       } else if (m.type === "syncStatus") {
-        useStore.getState().setSyncLoading(m.loading);
+        useStore.getState().setSyncLoading(m.scope);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;
@@ -119,7 +139,7 @@ export function EditorApp() {
             const items = tab.body.items.map((it, i) =>
               i === pending.index && it.kind === "file"
                 ? { ...it, path: m.path, filename: m.filename }
-                : it,
+                : it
             );
             st.setTabBody(pending.tabId, { mode: "formdata", items });
           }

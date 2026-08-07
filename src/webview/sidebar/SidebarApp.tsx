@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import "../theme.css";
 import { useStore } from "../state/store";
 import { onHostMessage, postToHost } from "../ipc";
-import { newId, type RestRequest, type WsRequest, type GrpcRequest } from "../../shared/types";
+import {
+  newId,
+  type RestRequest,
+  type WsRequest,
+  type GrpcRequest,
+} from "../../shared/types";
 import {
   SidebarHeader,
   type SidebarTab,
@@ -32,10 +37,27 @@ function blankRequest(): RestRequest {
 // is reopened from the sidebar. Opening the singleton "New" panel instead left
 // a second panel behind, so clicking the saved item spawned a duplicate tab.
 function blankWs(): WsRequest {
-  return { id: newId(), name: "New WebSocket Request", kind: "ws", url: "", headers: [] };
+  return {
+    id: newId(),
+    name: "New WebSocket Request",
+    kind: "ws",
+    url: "",
+    headers: [],
+  };
 }
 function blankGrpc(): GrpcRequest {
-  return { id: newId(), name: "New gRPC Request", kind: "grpc", address: "", proto: "", service: "", method: "", message: "", metadata: [], plaintext: true };
+  return {
+    id: newId(),
+    name: "New gRPC Request",
+    kind: "grpc",
+    address: "",
+    proto: "",
+    service: "",
+    method: "",
+    message: "",
+    metadata: [],
+    plaintext: true,
+  };
 }
 
 export function SidebarApp() {
@@ -59,8 +81,10 @@ export function SidebarApp() {
       else if (m.type === "history") setHistory(m.entries);
       else if (m.type === "trash") setTrash(m.entries);
       else if (m.type === "toast") pushToast(m.level, m.message);
-      else if (m.type === "authState") useStore.getState().setAccounts(m.accounts);
-      else if (m.type === "syncStatus") useStore.getState().setSyncLoading(m.loading);
+      else if (m.type === "authState")
+        useStore.getState().setAccounts(m.accounts);
+      else if (m.type === "syncStatus")
+        useStore.getState().setSyncLoading(m.scope);
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadWorkspaces" });
@@ -68,7 +92,15 @@ export function SidebarApp() {
     postToHost({ type: "loadHistory" });
     postToHost({ type: "loadTrash" });
     return off;
-  }, [setTree, setEnvironments, setActiveEnvId, setWorkspaces, setHistory, setTrash, pushToast]);
+  }, [
+    setTree,
+    setEnvironments,
+    setActiveEnvId,
+    setWorkspaces,
+    setHistory,
+    setTrash,
+    pushToast,
+  ]);
 
   return (
     <div className="rm-surface rm-surface--sidebar">
@@ -79,7 +111,9 @@ export function SidebarApp() {
           postToHost({ type: "openRequest", request: blankRequest() })
         }
         onNewWs={() => postToHost({ type: "openRequest", request: blankWs() })}
-        onNewGrpc={() => postToHost({ type: "openRequest", request: blankGrpc() })}
+        onNewGrpc={() =>
+          postToHost({ type: "openRequest", request: blankGrpc() })
+        }
       />
       <div className="rm-scroll rm-sbbody">
         {tab === "collections" ? (

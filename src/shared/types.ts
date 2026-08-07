@@ -233,7 +233,15 @@ export type HostMessage =
   | { type: 'showMembers'; workspaceId: string }
   | { type: 'members'; members: Member[] }
   | { type: 'authState'; accounts: Account[] }
-  | { type: 'syncStatus'; loading: boolean }
+  | { type: 'syncStatus'; loading: boolean; scope: SyncScope }
+
+// Which item a sync operation covers, so only the matching widget shows its
+// spinner: 'all' during startup/sign-in (every surface), an account (its head
+// row + all its workspaces), or one workspace (just that row).
+export type SyncScope =
+  | { kind: 'all' }
+  | { kind: 'account'; id: string }
+  | { kind: 'workspace'; id: string }
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)

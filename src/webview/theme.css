@@ -286,6 +286,34 @@ body {
 .rm-subtab-chips .rm-chip.is-active .codicon {
   opacity: 1;
 }
+/* dropdown fallback for the request-section tabs: a chip trigger styled like
+   the active chip, opening the shared MenuRows list. */
+.rm-subtab-drop {
+  position: relative;
+  display: inline-block;
+}
+.rm-subtab-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  white-space: nowrap;
+  background: var(--rm-panel-bg);
+  color: var(--rm-fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.rm-subtab-trigger .codicon {
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+.rm-subtab-drop .rm-popup-menu {
+  top: calc(100% + 2px);
+  right: auto;
+  left: 0;
+  min-width: 180px;
+}
 /* hidden same-width chip row, absolute so it never takes layout space */
 .rm-chip-measure {
   position: absolute;

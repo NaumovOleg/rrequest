@@ -9,7 +9,7 @@ import type {
   RequestBody,
 } from "../../../shared/types";
 import { FormDataEditor, EnvDropdown } from "../../components";
-import { CodeTextarea, EnvVarInput } from "../../elements";
+import { CodeTextarea, EnvVarInput, MenuRows } from "../../elements";
 import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
 import { methodClass } from "../../method-color";
@@ -42,6 +42,72 @@ const SUBTABS: { id: SubTab; label: string; icon: string }[] = [
   { id: "pre-request", label: "Pre-request Script", icon: "run-all" },
   { id: "tests", label: "Tests", icon: "beaker" },
 ];
+
+// Delicate dropdown fallback for the request section tabs when the chips
+// don't fit one line: a single chip trigger showing the active tab, opening
+// the same MenuRows list (with the same icons and a check gutter) instead of
+// a plain native <select>.
+function SubTabSelect({
+  value,
+  onChange,
+}: {
+  value: SubTab;
+  onChange: (v: SubTab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const current = SUBTABS.find((t) => t.id === value) ?? SUBTABS[0];
+  return (
+    <span className="rm-subtab-drop" ref={ref}>
+      <button
+        type="button"
+        className="rm-chip rm-subtab-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span
+          className={`codicon codicon-${current.icon}`}
+          aria-hidden="true"
+        />
+        {current.label}
+        <span
+          className={`codicon codicon-chevron-${open ? "up" : "down"}`}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <div className="rm-popup-menu" role="menu" aria-label="request section">
+          <MenuRows
+            items={SUBTABS.map((t) => ({
+              label: t.label,
+              icon: t.icon,
+              checked: t.id === value,
+              onClick: () => onChange(t.id),
+            }))}
+            onPick={() => setOpen(false)}
+          />
+        </div>
+      )}
+    </span>
+  );
+}
 
 // Split pasted text ("a=1&b=2", one pair per line, or a mix) into rows. Only
 // tokens that contain '=' count, so pasting a random sentence does nothing.
@@ -825,18 +891,7 @@ export function RequestPanel() {
                 ))}
               </div>
             ) : (
-              <select
-                className="rm-select rm-subtab-select"
-                aria-label="request section"
-                value={sub}
-                onChange={(e) => setSub(e.target.value as SubTab)}
-              >
-                {SUBTABS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+              <SubTabSelect value={sub} onChange={setSub} />
             )}
           </div>
 

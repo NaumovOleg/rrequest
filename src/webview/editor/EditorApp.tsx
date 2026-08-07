@@ -129,7 +129,8 @@ export function EditorApp() {
       } else if (m.type === "authState") {
         setAccounts(m.accounts);
       } else if (m.type === "syncStatus") {
-        useStore.getState().setSyncLoading(m.scope);
+        // loading=false always clears the spinner, whatever scope it wrapped.
+        useStore.getState().setSyncLoading(m.loading ? m.scope : null);
       } else if (m.type === "pickedFile") {
         const st = useStore.getState();
         const pending = st.pendingFilePick;

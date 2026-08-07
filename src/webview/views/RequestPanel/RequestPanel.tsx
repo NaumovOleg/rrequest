@@ -152,7 +152,7 @@ function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
 // User-Agent is omitted here because it's an editable default header already.
 function autoHeaders(
   url: string,
-  body: RequestBody
+  body: RequestBody,
 ): { key: string; value: string }[] {
   let host = "";
   try {
@@ -428,7 +428,7 @@ export function RequestPanel() {
   const knownVars = useStore((s) => {
     const e = s.environments.find((x) => x.id === s.activeEnvId);
     return new Set(
-      (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key)
+      (e?.variables ?? []).filter((v) => v.enabled && v.key).map((v) => v.key),
     );
   });
   // name -> value for the active environment, for the {{var}} hover hints.
@@ -459,7 +459,7 @@ export function RequestPanel() {
         workspaceId?: string;
         collectionId?: string;
         folderId?: string;
-      } | null
+      } | null,
     );
   }, []);
   // On load, make the URL bar reflect the request's params (a saved request may
@@ -528,7 +528,7 @@ export function RequestPanel() {
         e.preventDefault();
         (
           document.querySelector(
-            '[aria-label="active environment"]'
+            '[aria-label="active environment"]',
           ) as HTMLSelectElement | null
         )?.focus();
       }
@@ -551,7 +551,15 @@ export function RequestPanel() {
     if (!el) return;
     const measure = () => {
       const need = chipsMeasureRef.current?.scrollWidth ?? 0;
-      setNavFits(need <= (el?.clientWidth ?? 0) + 1);
+      // clientWidth includes the bar's horizontal padding, but the chips row
+      // only gets the content box — compare against that, or the last chip
+      // wraps onto a second line instead of switching to the dropdown.
+      const cs = getComputedStyle(el);
+      const avail =
+        el.clientWidth -
+        parseFloat(cs.paddingLeft) -
+        parseFloat(cs.paddingRight);
+      setNavFits(need + 20 <= avail + 1);
     };
     measure();
     let ro: ResizeObserver | undefined;
@@ -817,7 +825,7 @@ export function RequestPanel() {
               Kept colored by the active method like the old text input. */}
           <select
             className={`rm-input rm-method-select ${methodClass(
-              active.method
+              active.method,
             )}`}
             aria-label="method"
             value={active.method}

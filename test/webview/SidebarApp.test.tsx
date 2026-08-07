@@ -24,4 +24,17 @@ describe('SidebarApp', () => {
     expect(screen.getByText('C')).toBeInTheDocument()
   })
 
+  it('syncStatus sets a scoped spinner while loading, and clears it when done', () => {
+    render(<SidebarApp />)
+    act(() => {
+      handler?.({ type: 'syncStatus', loading: true, scope: { kind: 'workspace', id: 'w1' } })
+    })
+    expect(useStore.getState().syncLoading).toEqual({ kind: 'workspace', id: 'w1' })
+    // loading=false must clear even when a scope payload is attached
+    act(() => {
+      handler?.({ type: 'syncStatus', loading: false, scope: { kind: 'workspace', id: 'w1' } })
+    })
+    expect(useStore.getState().syncLoading).toBeNull()
+  })
+
 })

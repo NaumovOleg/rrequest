@@ -84,7 +84,7 @@ export function SidebarApp() {
       else if (m.type === "authState")
         useStore.getState().setAccounts(m.accounts);
       else if (m.type === "syncStatus")
-        useStore.getState().setSyncLoading(m.scope);
+        useStore.getState().setSyncLoading(m.loading ? m.scope : null);
     });
     postToHost({ type: "ready" });
     postToHost({ type: "loadWorkspaces" });

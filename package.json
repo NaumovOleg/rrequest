@@ -52,6 +52,10 @@
       {
         "command": "rrequest.openDocs",
         "title": "RREQUEST: Open documentation"
+      },
+      {
+        "command": "rrequest.newSse",
+        "title": "RREQUEST: New SSE Stream"
       }
     ],
     "menus": {

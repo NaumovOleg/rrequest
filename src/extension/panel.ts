@@ -14,6 +14,7 @@ import { TrashStore } from "./stores/trash-store";
 import { parseImport, serializeExport } from "./formats/import-export";
 import { Hub } from "./hub";
 import { WsManager, type WsFactory } from "./net/ws-manager";
+import { SseClient } from "./net/sse-client";
 import { resolveOAuthToken, fetchOAuthToken, oauthTokenStatus } from "./net/oauth2";
 import type { Auth } from "../shared/types";
 import {
@@ -185,6 +186,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       }) as unknown as import("./net/ws-manager").WsSocket;
     let hubRef: Hub | undefined;
     const wsManager = new WsManager((m) => hubRef?.emitTo("ws", m), wsFactory);
+    const sseClient = new SseClient((m) => hubRef?.emitTo("sse", m), fetch);
 
     // syncClient is constructed early (it has no Hub dependency) so the router's
     // members port can be built over it below; the rest of the sync runtime
@@ -415,6 +417,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         }
       },
       ws: wsManager,
+      sse: sseClient,
       grpcInvoke,
       trash,
       oauth: {
@@ -543,6 +546,8 @@ syncControl: {
         RrequestPanel.openOrReveal(context, "ws", "WebSocket", m);
       } else if (m.type === "showGrpc") {
         RrequestPanel.openOrReveal(context, "grpc", "gRPC", m);
+      } else if (m.type === "showSse") {
+        RrequestPanel.openOrReveal(context, "sse", "SSE", m);
       } else if (m.type === "showMembers") {
         RrequestPanel.openOrReveal(context, "members", "Members", m);
       }
@@ -1045,7 +1050,7 @@ export class RrequestPanel {
     // Tab icon per panel kind (request / gRPC / WebSocket / environments).
     const iconBase = key.startsWith("grpc")
       ? "icon-grpc"
-      : key.startsWith("ws")
+      : key.startsWith("ws") || key.startsWith("sse")
       ? "icon-ws"
       : key === "env"
       ? "icon-env"

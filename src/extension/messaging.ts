@@ -36,6 +36,7 @@ export type RouterDeps = {
   runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => Promise<{ request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }>
   runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => Promise<{ tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }>
   ws?: WsManager
+  sse?: import('./net/sse-client').SseClient
   grpcInvoke?: (p: import('./net/grpc-client').GrpcParams) => Promise<import('./net/grpc-client').GrpcResult>
   trash?: import('./stores/trash-store').TrashStore
   // Opens `content` in a VS Code text editor (untitled document), giving the
@@ -531,6 +532,21 @@ export function createRouter(deps: RouterDeps) {
         return undefined
       case 'wsDisconnect':
         deps.ws?.disconnect(msg.connId)
+        return undefined
+      case 'openSse':
+        return { type: 'showSse' }
+      case 'sseConnect': {
+        const vars = await activeVars()
+        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
+        deps.sse?.connect(
+          msg.connId,
+          sub(msg.url),
+          msg.headers.map((h) => ({ ...h, key: sub(h.key), value: sub(h.value) })),
+        )
+        return undefined
+      }
+      case 'sseDisconnect':
+        deps.sse?.disconnect(msg.connId)
         return undefined
       case 'deleteCollection': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.id)

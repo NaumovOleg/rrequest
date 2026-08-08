@@ -4,6 +4,7 @@ import { useStore } from "../state/store";
 import { onHostMessage, postToHost } from "../ipc";
 import { RequestPanel } from "../views/RequestPanel/RequestPanel";
 import { WebSocketPanel } from "../views/WebSocket/WebSocketPanel";
+import { SsePanel } from "../views/Sse/SsePanel";
 import { Environments } from "../views/Environments/Environments";
 import { GrpcPanel } from "../views/Grpc/GrpcPanel";
 import { Members } from "../views/Members/Members";
@@ -29,6 +30,10 @@ export function EditorApp() {
   const setEnvEditId = useStore((s) => s.setEnvEditId);
   const grpcMode = useStore((s) => s.grpcMode);
   const setGrpcMode = useStore((s) => s.setGrpcMode);
+  const sseMode = useStore((s) => s.sseMode);
+  const setSseMode = useStore((s) => s.setSseMode);
+  const sseSetStatus = useStore((s) => s.sseSetStatus);
+  const sseAppendLog = useStore((s) => s.sseAppendLog);
   const membersMode = useStore((s) => s.membersMode);
   const setMembersMode = useStore((s) => s.setMembersMode);
   const setMembersWorkspaceId = useStore((s) => s.setMembersWorkspaceId);
@@ -46,7 +51,7 @@ export function EditorApp() {
   // unsaved (dirty) request — WebviewPanels have no native dirty indicator, so
   // the dot in the title is the equivalent of VS Code's unsaved-file dot.
   useEffect(() => {
-    if (wsMode || grpcMode) return;
+    if (wsMode || grpcMode || sseMode) return;
     if (membersMode) {
       postToHost({ type: "setTitle", title: "Members" });
     } else if (envMode) {
@@ -67,6 +72,7 @@ export function EditorApp() {
     envMode,
     wsMode,
     grpcMode,
+    sseMode,
     membersMode,
   ]);
 
@@ -128,6 +134,33 @@ export function EditorApp() {
             m.targetCollectionId ?? null,
             m.targetFolderId ?? null
           );
+      } else if (m.type === "showSse") {
+        setSseMode(true);
+      } else if (m.type === "sseEvent") {
+        if (m.connId === useStore.getState().sseConnId) {
+          sseSetStatus("open");
+          sseAppendLog({ dir: "in", event: m.event, data: m.data, at: m.at });
+        }
+      } else if (m.type === "sseClosed") {
+        if (m.connId === useStore.getState().sseConnId) {
+          sseSetStatus("closed");
+          sseAppendLog({
+            dir: "status",
+            event: "status",
+            data: `closed: ${m.reason}`,
+            at: Date.now(),
+          });
+        }
+      } else if (m.type === "sseError") {
+        if (m.connId === useStore.getState().sseConnId) {
+          sseSetStatus("closed");
+          sseAppendLog({
+            dir: "status",
+            event: "error",
+            data: m.message,
+            at: Date.now(),
+          });
+        }
       } else if (m.type === "showMembers") {
         setMembersMode(true);
         setMembersWorkspaceId(m.workspaceId);
@@ -201,6 +234,8 @@ export function EditorApp() {
     setPendingSaveFolderId,
     wsSetStatus,
     wsAppendLog,
+    sseSetStatus,
+    sseAppendLog,
     setEnvMode,
     setEnvEditId,
     setWsMode,
@@ -221,6 +256,8 @@ export function EditorApp() {
         <WebSocketPanel />
       ) : grpcMode ? (
         <GrpcPanel />
+      ) : sseMode ? (
+        <SsePanel />
       ) : membersMode ? (
         <Members />
       ) : (

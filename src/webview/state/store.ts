@@ -64,6 +64,12 @@ type State = {
   wsStatus: 'closed' | 'connecting' | 'open'
   wsConnId: string | null
   wsLog: { dir: 'in' | 'out' | 'status'; data: string; at: number }[]
+  sseMode: boolean
+  sseUrl: string
+  sseHeaders: KeyValue[]
+  sseStatus: 'closed' | 'connecting' | 'open'
+  sseConnId: string | null
+  sseLog: { dir: 'in' | 'status'; event: string; data: string; at: number }[]
   envMode: boolean
   envEditId: string | null
   grpcMode: boolean
@@ -118,6 +124,13 @@ type State = {
   wsSetStatus(status: 'closed' | 'connecting' | 'open'): void
   wsAppendLog(entry: { dir: 'in' | 'out' | 'status'; data: string; at: number }): void
   wsClear(): void
+  setSseMode(v: boolean): void
+  setSseUrl(v: string): void
+  setSseHeaders(v: KeyValue[]): void
+  sseStartConnect(connId: string): void
+  sseSetStatus(status: 'closed' | 'connecting' | 'open'): void
+  sseAppendLog(entry: { dir: 'in' | 'status'; event: string; data: string; at: number }): void
+  sseClear(): void
   setEnvMode(v: boolean): void
   setEnvEditId(id: string | null): void
   setGrpcMode(v: boolean): void
@@ -156,7 +169,13 @@ export const useStore = create<State>((set, get) => ({
   wsInput: '',
   wsStatus: 'closed',
   wsConnId: null,
-  wsLog: [],
+wsLog: [],
+  sseMode: false,
+  sseUrl: '',
+  sseHeaders: [],
+  sseStatus: 'closed',
+  sseConnId: null,
+  sseLog: [],
   envMode: false,
   envEditId: null,
   grpcMode: false,
@@ -299,6 +318,13 @@ export const useStore = create<State>((set, get) => ({
   wsSetStatus: (wsStatus) => set({ wsStatus }),
   wsAppendLog: (entry) => set((s) => ({ wsLog: [...s.wsLog, entry] })),
   wsClear: () => set({ wsLog: [] }),
+  setSseMode: (sseMode) => set({ sseMode }),
+  setSseUrl: (sseUrl) => set({ sseUrl }),
+  setSseHeaders: (sseHeaders) => set({ sseHeaders }),
+  sseStartConnect: (connId) => set({ sseConnId: connId, sseStatus: 'connecting', sseLog: [] }),
+  sseSetStatus: (sseStatus) => set({ sseStatus }),
+  sseAppendLog: (entry) => set((s) => ({ sseLog: [...s.sseLog, entry] })),
+  sseClear: () => set({ sseLog: [] }),
 
   setPendingSaveFolderId: (pendingSaveFolderId) => set({ pendingSaveFolderId }),
   setEnvMode: (envMode) => set({ envMode }),
@@ -318,5 +344,5 @@ export const useStore = create<State>((set, get) => ({
   setSyncLoading: (syncLoading: SyncScope | null) => set({ syncLoading }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: null, inFlight: new Set(), lastSent: null }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], sseMode: false, sseUrl: '', sseHeaders: [], sseStatus: 'closed', sseConnId: null, sseLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: null, inFlight: new Set(), lastSent: null }),
 }))

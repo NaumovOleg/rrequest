@@ -35,6 +35,9 @@ export function activate(context: vscode.ExtensionContext) {
       void vscode.commands.executeCommand('workbench.action.openSettings', 'rrequest');
     }),
     vscode.commands.registerCommand('rrequest.openDocs', () => openDocs(context)),
+    vscode.commands.registerCommand('rrequest.newSse', () => {
+      RrequestPanel.openOrReveal(context, 'sse', 'SSE', { type: 'showSse' })
+    }),
     vscode.window.registerWebviewViewProvider('rrequest.sidebar', new SidebarViewProvider(context)),
   )
 

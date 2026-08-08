@@ -208,6 +208,9 @@ export type WebviewMessage =
   | { type: 'openEnvironments'; id?: string }
   | { type: 'openWebSocket' }
   | { type: 'openGrpc' }
+  | { type: 'openSse' }
+  | { type: 'sseConnect'; connId: string; url: string; headers: KeyValue[] }
+  | { type: 'sseDisconnect'; connId: string }
   | { type: 'grpcInvoke'; requestId: string; address: string; proto: string; service: string; method: string; message: string; metadata: KeyValue[]; plaintext: boolean }
   | { type: 'setTitle'; title: string; icon?: string }
   | { type: 'openMembers'; workspaceId: string }
@@ -242,9 +245,13 @@ export type HostMessage =
   | { type: 'wsMessage'; connId: string; data: string; at: number }
   | { type: 'wsClosed'; connId: string; code: number; reason: string }
   | { type: 'wsError'; connId: string; message: string }
+  | { type: 'sseEvent'; connId: string; event: string; data: string; id?: string; at: number }
+  | { type: 'sseClosed'; connId: string; reason: string }
+  | { type: 'sseError'; connId: string; message: string }
   | { type: 'showEnvironments'; id?: string }
   | { type: 'showWebSocket' }
   | { type: 'showGrpc' }
+  | { type: 'showSse' }
   | { type: 'grpcResponse'; requestId: string; ok: boolean; message?: string; error?: string; timeMs: number }
   | { type: 'toast'; level: 'error' | 'info'; message: string }
   | { type: 'showMembers'; workspaceId: string }

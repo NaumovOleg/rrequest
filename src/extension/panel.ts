@@ -177,6 +177,37 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       await context.globalState.update("rrequest.activeWorkspaceId", local.id);
     }
 
+    // One-time onboarding sample: on a fresh install (no collections anywhere
+    // and the flag unset) seed a starter collection so the first run shows
+    // something to click. The flag is set on every bootstrap, so existing
+    // users never get a duplicate.
+    if (!context.globalState.get<boolean>("rrequest.onboarded")) {
+      if ((await collections.list()).length === 0) {
+        const ws = list.find(isLocalWs) ?? list[0];
+        const c = await collections.createCollection("RREQUEST examples", ws.id);
+        await collections.saveRequest(
+          c.id,
+          {
+            id: newId(), name: "Fetch a todo", method: "GET",
+            url: "https://jsonplaceholder.typicode.com/todos/1",
+            params: [], headers: defaultHeaders(), body: { mode: "none" },
+          },
+          null
+        );
+        await collections.saveRequest(
+          c.id,
+          {
+            id: newId(), name: "Create a post", method: "POST",
+            url: "https://jsonplaceholder.typicode.com/posts",
+            params: [], headers: defaultHeaders(),
+            body: { mode: "raw", type: "json", text: JSON.stringify({ title: "foo", body: "bar", userId: 1 }, null, 2) },
+          },
+          null
+        );
+      }
+      void context.globalState.update("rrequest.onboarded", true);
+    }
+
     // createRouter runs before the Hub exists, so the WsManager's emit (and the
     // members port's toast-on-403) are lazily-bound closures over hubRef, which
     // is assigned right after the Hub is constructed below.

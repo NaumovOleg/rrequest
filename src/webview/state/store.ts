@@ -77,6 +77,10 @@ type State = {
   /** Tab ids with a request in flight (Send pressed, response not back yet).
       The Send button turns into Cancel while its tab is in the set. */
   inFlight: Set<string>
+  /** Deep copy of the payload of the most recently sent request (url without
+      its query string — params live in `params` and are re-appended). Null
+      until the first send. Backs the "Repeat" button in the response header. */
+  lastSent: RestRequest | null
   /** Which sync operation is in flight (`all` / one account / one workspace).
       `null` when idle. Row widgets match on this to spin only the button that
       started, instead of every sync icon at once. */
@@ -95,6 +99,7 @@ type State = {
   setTree(c: Collection[]): void
   setResponse(id: string, resp: HttpResponse): void
   setInFlight(tabId: string, v: boolean): void
+  setLastSent(r: RestRequest): void
   setHistory(entries: HistoryEntry[]): void
   setTrash(entries: TrashEntry[]): void
   setEnvironments(list: Environment[]): void
@@ -164,6 +169,7 @@ export const useStore = create<State>((set, get) => ({
   accounts: [],
   syncLoading: null,
   inFlight: new Set(),
+  lastSent: null,
 
   openNewTab: () => set((s) => {
     const r = blankRequest()
@@ -265,6 +271,7 @@ export const useStore = create<State>((set, get) => ({
     if (v) next.add(tabId); else next.delete(tabId)
     return { inFlight: next }
   }),
+  setLastSent: (r) => set({ lastSent: r }),
 
   setHistory: (entries) => set({ history: entries }),
 
@@ -311,5 +318,5 @@ export const useStore = create<State>((set, get) => ({
   setSyncLoading: (syncLoading: SyncScope | null) => set({ syncLoading }),
   activeSynced: () => { const s = get(); return s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.synced === true },
 
-  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: null, inFlight: new Set() }),
+  __reset: () => set({ tabs: [], activeTabId: undefined, tree: [], responses: {}, history: [], trash: [], environments: [], activeEnvId: null, pendingFilePick: null, workspaces: [], activeWorkspaceId: null, pendingSaveCollectionId: null, pendingSaveFolderId: null, wsMode: false, wsOpen: null, wsUrl: '', wsHeaders: [], wsInput: '', wsStatus: 'closed', wsConnId: null, wsLog: [], envMode: false, envEditId: null, grpcMode: false, grpcOpen: null, members: [], membersMode: false, membersWorkspaceId: null, toasts: [], authEmail: null, accounts: [], syncLoading: null, inFlight: new Set(), lastSent: null }),
 }))

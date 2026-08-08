@@ -425,6 +425,7 @@ export function RequestPanel() {
     s.activeTabId ? s.inFlight.has(s.activeTabId) : false,
   );
   const setInFlight = useStore((s) => s.setInFlight);
+  const setLastSent = useStore((s) => s.setLastSent);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const update = useStore((s) => s.updateActive);
   const reconcileActiveUrl = useStore((s) => s.reconcileActiveUrl);
@@ -603,12 +604,14 @@ export function RequestPanel() {
     // url already carries the query (kept in sync with params); send the base
     // so the client appends the params exactly once.
     const base = active.url.split("?")[0];
+    const payload = { ...active, url: base };
     postToHost({
       type: "sendRequest",
       requestId: active.id,
-      payload: { ...active, url: base },
+      payload,
     });
     setInFlight(active.id, true);
+    setLastSent(payload);
   };
   const cancel = () => {
     postToHost({ type: "cancelRequest", requestId: active.id });

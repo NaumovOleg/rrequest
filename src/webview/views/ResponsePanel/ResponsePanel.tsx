@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost } from '../../ipc'
-import type { HttpResponse } from '../../../shared/types'
+import { newId, type HttpResponse } from '../../../shared/types'
 import { JsonTree } from '../../components/JsonTree'
 
 type SubTab = 'body' | 'headers' | 'cookies' | 'test-results' | 'console'
@@ -85,15 +85,39 @@ export function ResponsePanel() {
   const [bodyText, setBodyText] = useState<string | null>(null)
   const requestId = useStore((s) => s.activeTabId)
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
+  const lastSent = useStore((s) => s.lastSent)
+  const openOrReplaceBlank = useStore((s) => s.openOrReplaceBlank)
+  const setInFlight = useStore((s) => s.setInFlight)
+  const setLastSent = useStore((s) => s.setLastSent)
   // The Beautify action reformats the body in place; a fresh response (or a
   // different tab) starts from the server bytes again.
   useEffect(() => { setBodyText(null) }, [requestId, resp?.body])
+
+  const repeat = () => {
+    if (!lastSent) return
+    // Re-run the last sent payload in a fresh request tab (the base URL +
+    // params pair is exactly what `send` posts).
+    const copy = structuredClone({ ...lastSent, id: newId() })
+    openOrReplaceBlank(copy)
+    postToHost({ type: 'sendRequest', requestId: copy.id, payload: copy })
+    setInFlight(copy.id, true)
+    setLastSent(copy)
+  }
+
   if (!resp) return (
     <div className="rm-panel rm-response-blank">
       <div className="rm-blank">
         <span className="codicon codicon-arrow-right rm-blank-icon" aria-hidden="true" />
         <div className="rm-blank-title">No response yet</div>
-        <div className="rm-blank-hint">Enter the URL and click Send to get a response.</div>
+        <div className="rm-blank-hint">
+          Enter the URL and click Send to get a response.
+          {lastSent && (
+            <>
+              {" "}Or re-run the last one:{" "}
+              <button className="rm-btn rm-btn--sm" onClick={repeat}>Repeat last</button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -164,6 +188,16 @@ export function ResponsePanel() {
             )}
             <span className="rm-meta">Size: {fmtSize(resp.sizeBytes)}</span>
           </>
+        )}
+        {lastSent && (
+          <button
+            className="rm-btn rm-btn--sm"
+            title="Re-send the last request (without editing)"
+            aria-label="repeat last request"
+            onClick={repeat}
+          >
+            <span className="codicon codicon-refresh" aria-hidden="true" /> Repeat
+          </button>
         )}
       </div>
       <div className="rm-subtabs">

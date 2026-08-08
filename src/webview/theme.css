@@ -492,6 +492,23 @@ body {
   cursor: pointer;
   border-radius: var(--rm-radius);
 }
+.rm-tree-row.rm-selected,
+.rm-req-row.rm-selected {
+  background: var(--rm-selection);
+}
+.rm-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--rm-sp-1);
+  padding: var(--rm-sp-1) var(--rm-sp-2);
+  margin-top: var(--rm-sp-1);
+  border-top: 1px solid var(--rm-border);
+}
+.rm-bulk-count {
+  font-size: var(--rm-font-sm);
+  color: var(--rm-muted);
+  margin-right: auto;
+}
 .rm-tree-row:hover {
   background: var(--rm-hover);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, type DragEvent } from 'react'
+import { useState, useEffect, useRef, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { useStore } from '../../state/store'
 import { postToHost, getUiState, setUiState } from '../../ipc'
 import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Folder, type RestRequest } from '../../../shared/types'
@@ -50,6 +50,36 @@ export function Sidebar() {
   const [docsFor, setDocsFor] = useState<{ title: string; collectionId: string; folderId?: string; description: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [ctx, setCtx] = useState<Ctx | null>(null)
+  // Bulk selection: ids of named tree nodes (collections, folders, requests).
+  // Nothing exotic — one Set, additive toggles on row mousedown with
+  // cmd/ctrl/shift, plain clicks clear and open as usual.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [moveOpen, setMoveOpen] = useState(false)
+  const pushToast = useStore((s) => s.pushToast)
+  const treeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (treeRef.current && !treeRef.current.contains(e.target as Node)) setSelected(new Set())
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  // Additive click on a row (cmd/ctrl/shift): toggle selection and stop the
+  // selection falls back to normal single-item behavior (and clears it).
+  const selMouseDown = (e: ReactMouseEvent, id: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      e.preventDefault()
+      toggleSelect(id)
+    } else if (selected.size > 0 && !selected.has(id)) {
+      setSelected(new Set())
+    }
+  }
   const [query, setQuery] = useState('')
   // Collection/folder scripts modal: lives on the sidebar, keyed by node, so
   // its textareas are cheap local state (Save sends the host mutation).
@@ -110,6 +140,66 @@ export function Sidebar() {
 
   const openExisting = (r: CollectionItem, collectionId: string, folderId: string | null) =>
     postToHost({ type: 'openRequest', request: r, targetCollectionId: collectionId, targetFolderId: folderId })
+
+  // Resolve a selected id back to its node kind + location, so bulk actions
+  // fire the right per-item message (delete/duplicate/move all exist already).
+  type SelInfo =
+    | { kind: 'collection'; id: string }
+    | { kind: 'folder'; collectionId: string; folderId: string }
+    | { kind: 'request'; id: string; collectionId: string; folderId: string | null }
+  const infoOf = (id: string): SelInfo | undefined => {
+    for (const c of tree) {
+      if (c.id === id) return { kind: 'collection', id }
+      for (const f of c.folders ?? []) {
+        if (f.id === id) return { kind: 'folder', collectionId: c.id, folderId: f.id }
+        if (f.requests.some((r) => r.id === id)) return { kind: 'request', id, collectionId: c.id, folderId: f.id }
+      }
+      if (c.requests.some((r) => r.id === id)) return { kind: 'request', id, collectionId: c.id, folderId: null }
+    }
+    return undefined
+  }
+  const forEachSelected = (fn: (info: SelInfo) => void, onInvalid?: (id: string) => void) => {
+    for (const id of selected) {
+      const info = infoOf(id)
+      if (info) fn(info)
+      else onInvalid?.(id)
+    }
+  }
+  const bulkDelete = () => {
+    forEachSelected((i) => {
+      if (i.kind === 'collection') postToHost({ type: 'deleteCollection', id: i.id })
+      else if (i.kind === 'folder') postToHost({ type: 'deleteFolder', collectionId: i.collectionId, folderId: i.folderId })
+      else postToHost({ type: 'deleteRequest', collectionId: i.collectionId, folderId: i.folderId, requestId: i.id })
+    })
+    setSelected(new Set())
+  }
+  const bulkDuplicate = () => {
+    forEachSelected((i) => {
+      if (i.kind === 'collection') postToHost({ type: 'duplicateCollection', id: i.id })
+      else if (i.kind === 'folder') postToHost({ type: 'duplicateFolder', collectionId: i.collectionId, folderId: i.folderId })
+      else postToHost({ type: 'duplicateRequest', collectionId: i.collectionId, folderId: i.folderId, requestId: i.id })
+    })
+  }
+  // Move is requests + folders only; a collection can't live inside another
+  // collection, so bulk-move with any collection selected is a no-op + toast.
+  const bulkMove = (toCollectionId: string, toFolderId: string | null) => {
+    let blockedByCollection = false
+    forEachSelected((i) => {
+      if (i.kind === 'collection') { blockedByCollection = true; return }
+      if (i.kind === 'folder') {
+        if (toFolderId) return // folders don't nest
+        postToHost({ type: 'moveFolder', fromCollectionId: i.collectionId, toCollectionId, folderId: i.folderId })
+      } else {
+        postToHost({ type: 'moveRequest', fromCollectionId: i.collectionId, fromFolderId: i.folderId, requestId: i.id, toCollectionId, toFolderId })
+      }
+    })
+    setMoveOpen(false)
+    if (blockedByCollection) pushToast('error', 'A collection cannot be moved into another collection — deselect it, then retry.')
+  }
+  const moveItems: PopupMenuItem[] = tree.flatMap((c) => [
+    { label: `${c.name} (root)`, onClick: () => bulkMove(c.id, null) },
+    ...(c.folders ?? []).map((f): PopupMenuItem => ({ label: `${c.name} / ${f.name}`, onClick: () => bulkMove(c.id, f.id) })),
+  ])
 
   const expandCollection = (id: string) => setExpandedCollections((prev) => new Set(prev).add(id))
   const expandFolder = (key: string) => setExpandedFolders((prev) => new Set(prev).add(key))
@@ -240,8 +330,9 @@ export function Sidebar() {
     const isRenaming = renamingId === r.id
     const activate = () => openExisting(r, collectionId, folderId)
     return (
-      <div key={r.id} className="rm-req-row" role="button" tabIndex={0}
+      <div key={r.id} className={`rm-req-row${selected.has(r.id) ? ' rm-selected' : ''}`} role="button" tabIndex={0}
         draggable={!isRenaming && !isViewer}
+        onMouseDown={(e) => selMouseDown(e, r.id)}
         onDragStart={(e) => startDrag(e, { kind: 'request', fromCollectionId: collectionId, fromFolderId: folderId, requestId: r.id })}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, kind: 'request', collectionId, folderId, request: r, bucket }) }}
         onClick={activate}
@@ -271,8 +362,9 @@ export function Sidebar() {
     const folders = c.folders ?? []
     return (
       <div key={f.id}>
-        <div className={`rm-tree-row${dropTarget === key ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
+        <div className={`rm-tree-row${selected.has(f.id) ? ' rm-selected' : ''}${dropTarget === key ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
           draggable={!isRenaming && !isViewer}
+          onMouseDown={(e) => selMouseDown(e, f.id)}
           onDragStart={(e) => { e.stopPropagation(); startDrag(e, { kind: 'folder', fromCollectionId: c.id, folderId: f.id }) }}
           onClick={() => toggleFolder(key)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFolder(key) } }}
@@ -379,7 +471,8 @@ export function Sidebar() {
           const folders = c.folders ?? []
           return (
             <div key={c.id}>
-              <div className={`rm-tree-row${dropTarget === c.id ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
+              <div className={`rm-tree-row${selected.has(c.id) ? ' rm-selected' : ''}${dropTarget === c.id ? ' rm-drop-over' : ''}`} role="button" tabIndex={0}
+                onMouseDown={(e) => selMouseDown(e, c.id)}
                 onClick={() => toggleCollection(c.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollection(c.id) } }}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (isViewer) return; setCtx({ x: e.clientX, y: e.clientY, kind: 'collection', collection: c }) }}
@@ -422,6 +515,15 @@ export function Sidebar() {
             </div>
           )
         })
+      )}
+      {!isViewer && selected.size > 0 && (
+        <div className="rm-bulk-bar" role="toolbar" aria-label="bulk actions">
+          <span className="rm-bulk-count">{selected.size} selected</span>
+          <IconButton icon="trash" label={`delete ${selected.size} selected items`} onClick={bulkDelete} />
+          <IconButton icon="copy" label={`duplicate ${selected.size} selected items`} onClick={bulkDuplicate} />
+          <PopupMenu icon="arrow-right" label="move selected items to a collection/folder" items={moveItems} />
+          <IconButton icon="close" label="clear selection" onClick={() => setSelected(new Set())} />
+        </div>
       )}
       {docsFor && (
         <DocsModal

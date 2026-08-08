@@ -28,6 +28,18 @@ describe('parseCurl', () => {
   it('never throws on malformed input', () => {
     expect(() => parseCurl('curl')).not.toThrow()
   })
+  it('rebrands Postman-generated headers to rrequest', () => {
+    const r = parseCurl(`curl https://api.test/x -H 'User-Agent: PostmanRuntime/7.39.1' -H 'Postman-Token: 5f4dcc3b-5aa0-474d-9b0e-8c5c9a2f3b1a' -H 'X-A: 1'`)
+    expect(r.headers).toEqual([
+      { key: 'User-Agent', value: 'rrequest', enabled: true },
+      { key: 'Rrequest-Token', value: '5f4dcc3b-5aa0-474d-9b0e-8c5c9a2f3b1a', enabled: true },
+      { key: 'X-A', value: '1', enabled: true },
+    ])
+  })
+  it('keeps other User-Agent values', () => {
+    const r = parseCurl(`curl https://api.test/x -H 'user-agent: my-agent/2.0'`)
+    expect(r.headers).toEqual([{ key: 'user-agent', value: 'my-agent/2.0', enabled: true }])
+  })
 })
 
 describe('toCurl', () => {

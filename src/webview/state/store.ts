@@ -235,7 +235,7 @@ wsLog: [],
   // refresh its link) instead of adding a duplicate.
   openLinkedTab: (request, collectionId, folderId) => set((s) => {
     // Make the URL bar show the query params (a saved request may have params
-    // but a query-less url — e.g. an OpenAPI/Postman import). Reconcile on both
+    // but a query-less url — e.g. an OpenAPI import). Reconcile on both
     // paths so an already-open / restored tab gets fixed on reactivation too.
     if (s.tabs.some((t) => t.id === request.id)) {
       return {

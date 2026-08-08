@@ -9,6 +9,7 @@ import type {
   RequestBody,
   RestRequest,
 } from "../../../shared/types";
+import { defaultHeaders } from "../../../shared/types";
 import { FormDataEditor, EnvDropdown } from "../../components";
 import { CodeTextarea, EnvVarInput, MenuRows } from "../../elements";
 import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
@@ -157,7 +158,7 @@ function upsertContentType(headers: KeyValue[], ct: string | null): KeyValue[] {
     ? [...rest, { key: "Content-Type", value: ct, enabled: true }]
     : rest;
 }
-// Headers the transport fills in automatically (shown greyed, like Postman).
+// Headers the transport fills in automatically (shown greyed).
 // User-Agent is omitted here because it's an editable default header already.
 function autoHeaders(
   url: string,
@@ -196,6 +197,7 @@ const KeyValueTable = ({
   onChange,
   knownVars,
   envValues,
+  defaultKeys,
 }: {
   rows: KeyValue[];
   onChange: (rows: KeyValue[]) => void;
@@ -203,6 +205,9 @@ const KeyValueTable = ({
   // pasting multi-line / & -separated text splices rows into the table.
   knownVars?: Set<string>;
   envValues?: Map<string, string>;
+  // Header keys (lowercased) treated as transport defaults — rendered dimmer
+  // than the user's own headers so the two are visually distinct.
+  defaultKeys?: Set<string>;
 }) => {
   const update = (i: number, patch: Partial<KeyValue>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -229,7 +234,12 @@ const KeyValueTable = ({
       </thead>
       <tbody>
         {withBlank.map((r, i) => (
-          <tr key={i}>
+          <tr
+            key={i}
+            className={
+              defaultKeys?.has(r.key.toLowerCase()) ? "is-default" : ""
+            }
+          >
             <td>
               <input
                 type="checkbox"
@@ -692,12 +702,12 @@ export function RequestPanel() {
         e.preventDefault();
         saveRef.current();
       }
-      // Cmd/Ctrl+Enter sends the request, mirroring Postman/Insomnia.
+      // Cmd/Ctrl+Enter sends the request.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key === "Enter") {
         e.preventDefault();
         sendRef.current();
       }
-      // Cmd/Ctrl+E jumps to the environment picker (Postman-style shortcut).
+      // Cmd/Ctrl+E jumps to the environment picker.
       if (
         (e.metaKey || e.ctrlKey) &&
         !e.altKey &&
@@ -1142,6 +1152,7 @@ export function RequestPanel() {
                   onChange={(headers) => update({ headers })}
                   knownVars={knownVars}
                   envValues={envValues}
+                  defaultKeys={new Set(defaultHeaders().map((h) => h.key.toLowerCase()))}
                 />
                 {(() => {
                   const auto = autoHeaders(active.url, active.body);

@@ -113,6 +113,10 @@ body {
   padding: 3px 10px;
   cursor: pointer;
   font-size: 0.95em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
 }
 .rm-btn:hover {
   background: var(--rm-hover);
@@ -480,6 +484,11 @@ body {
 }
 .rm-kv-input:focus {
   outline: none;
+}
+/* transport-default headers (Accept, User-Agent, Cache-Control) — dimmed so
+   they read as pre-filled, unlike the user's own header rows */
+.rm-kvtable tr.is-default .rm-kv-input {
+  color: var(--rm-muted);
 }
 
 /* tree */

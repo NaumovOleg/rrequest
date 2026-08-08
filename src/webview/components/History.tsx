@@ -42,6 +42,7 @@ function groupByDay(history: HistoryEntry[]): { label: string; items: HistoryEnt
 export function History() {
   const history = useStore((s) => s.history);
   const [q, setQ] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   const haystack = (e: HistoryEntry) =>
     `${e.request.method} ${e.request.url} ${e.request.name} ${e.status ?? ""}`.toLowerCase();
@@ -50,9 +51,12 @@ export function History() {
     : history;
   const groups = groupByDay(shown);
 
+  // VS Code webviews don't support window.confirm, so the destructive clear
+  // asks via an in-page modal (same pattern as tab close). Confirming only
+  // posts the message; the fresh snapshot clears the list.
   const clear = () => {
-    if (history.length === 0 || !window.confirm("Clear all request history?")) return;
-    postToHost({ type: "clearHistory" });
+    if (history.length === 0) return;
+    setConfirming(true);
   };
 
   return (
@@ -119,6 +123,35 @@ export function History() {
             </div>
           ))}
         </>
+      )}
+      {confirming && (
+        <div
+          className="rm-modal-scrim"
+          onClick={() => setConfirming(false)}
+          role="presentation"
+        >
+          <div className="rm-modal" role="alertdialog" aria-modal="true" aria-label="Clear history?">
+            <div className="rm-modal-title">Clear history</div>
+            <div className="rm-modal-body">
+              Clear all {history.length} request history entr{history.length === 1 ? "y" : "ies"}?
+              This cannot be undone.
+            </div>
+            <div className="rm-modal-actions">
+              <button className="rm-btn" autoFocus onClick={() => setConfirming(false)}>
+                Cancel
+              </button>
+              <button
+                className="rm-btn rm-btn--danger"
+                onClick={() => {
+                  setConfirming(false);
+                  postToHost({ type: "clearHistory" });
+                }}
+              >
+                Clear history
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

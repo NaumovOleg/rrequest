@@ -162,7 +162,7 @@ export function createRouter(deps: RouterDeps) {
   }
 
   // Collection -> folder -> request cascade scripts: pre runs top-down, test
-  // bottom-up (request first), matching Postman/Bruno sandwich order. Levels
+  // bottom-up (request first), in a sandwich order. Levels
   // with no script are skipped; logs/envSets merge across all levels.
   async function resolveCascade(collectionId?: string, folderId?: string | null): Promise<{ pre: string[]; test: string[] }> {
     const pre: string[] = []

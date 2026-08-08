@@ -56,23 +56,22 @@ describe('History', () => {
     expect(screen.getByText('Users')).toBeInTheDocument()
   })
 
-  it('clear history posts clearHistory after confirmation', () => {
+  it('clear history asks via modal, then posts clearHistory', () => {
     const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
     useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    render(<History />)
-    fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
-    expect(posted).toContainEqual({ type: 'clearHistory' })
-    confirm.mockRestore()
-  })
-
-  it('clear history is cancelled when the confirmation is declined', () => {
-    const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
-    useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<History />)
     fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
     expect(posted.filter((m) => m.type === 'clearHistory')).toHaveLength(0)
-    confirm.mockRestore()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear history' }))
+    expect(posted).toContainEqual({ type: 'clearHistory' })
+  })
+
+  it('clear history is cancelled when the modal is dismissed', () => {
+    const request = { id: 'r1', name: 'H', method: 'GET' as const, url: 'https://api/h', params: [], headers: [], body: { mode: 'none' as const } }
+    useStore.getState().setHistory([{ id: 'h1', workspaceId: 'w1', request, status: 200, at: 1 }])
+    render(<History />)
+    fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(posted.filter((m) => m.type === 'clearHistory')).toHaveLength(0)
   })
 })

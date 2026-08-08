@@ -1,5 +1,5 @@
-// A known method, or any custom string (Postman-style: the method dropdown is
-// a free-text input, so WebDAV/GraphQL/legacy verbs work). `string & {}` keeps
+// A known method, or any custom string (the method dropdown is a free-text
+// input, so WebDAV/GraphQL/legacy verbs work). `string & {}` keeps
 // autocomplete for the common ones while allowing arbitrary values.
 export type HttpMethod =
   | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'QUERY' | 'DELETE' | 'HEAD' | 'OPTIONS'

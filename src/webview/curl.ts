@@ -30,7 +30,16 @@ export function parseCurl(cmd: string): Partial<RestRequest> {
     } else if (t === '-H' || t === '--header') {
       const raw = toks[++i] ?? ''
       const idx = raw.indexOf(':')
-      if (idx > 0) headers.push({ key: raw.slice(0, idx).trim(), value: raw.slice(idx + 1).trim(), enabled: true })
+      if (idx > 0) {
+        const key = raw.slice(0, idx).trim()
+        const value = raw.slice(idx + 1).trim()
+        // Postman's cURL generator stamps its own branding onto exported
+        // commands; rebrand the junk headers to ours on import.
+        const k = key.toLowerCase()
+        if (k === 'postman-token') headers.push({ key: 'Rrequest-Token', value, enabled: true })
+        else if (k === 'user-agent' && /^PostmanRuntime\//i.test(value)) headers.push({ key: 'User-Agent', value: 'rrequest', enabled: true })
+        else headers.push({ key, value, enabled: true })
+      }
     } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary') {
       dataText = toks[++i] ?? ''
     } else if (t === '-F' || t === '--form') {

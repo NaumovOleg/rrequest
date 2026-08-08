@@ -31,10 +31,13 @@ describe('RequestPanel', () => {
     expect(posted[0].payload.url).toBe('https://api.test/x')
   })
 
-  it('changing method updates the active request', () => {
+  it('changing method via the dropdown updates the active request', () => {
     render(<RequestPanel />)
-    fireEvent.change(screen.getByLabelText(/method/i), { target: { value: 'POST' } })
+    const method = screen.getByLabelText(/method/i)
+    fireEvent.change(method, { target: { value: 'POST' } })
     expect(useStore.getState().tabs[0].method).toBe('POST')
+    fireEvent.change(method, { target: { value: 'PATCH' } })
+    expect(useStore.getState().tabs[0].method).toBe('PATCH')
   })
 
   it('disables Save when no collection chosen', () => {

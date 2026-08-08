@@ -8,9 +8,9 @@ describe('methodClass', () => {
     expect(methodClass('DELETE')).toBe('rm-method--DELETE')
     expect(methodClass('QUERY')).toBe('rm-method--QUERY')
   })
-  it('maps HEAD/OPTIONS/unknown to rm-method--OTHER', () => {
-    expect(methodClass('HEAD')).toBe('rm-method--OTHER')
-    expect(methodClass('OPTIONS')).toBe('rm-method--OTHER')
+  it('maps HEAD/OPTIONS to their colors and unknown to rm-method--OTHER', () => {
+    expect(methodClass('HEAD')).toBe('rm-method--HEAD')
+    expect(methodClass('OPTIONS')).toBe('rm-method--OPTIONS')
     expect(methodClass('WAT' as any)).toBe('rm-method--OTHER')
   })
 })

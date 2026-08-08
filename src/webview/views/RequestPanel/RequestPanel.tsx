@@ -1026,7 +1026,19 @@ export function RequestPanel() {
       )}
 
       <div className="rm-urlbar">
-        <MethodCombobox value={active.method} onChange={(m) => update({ method: m })} />
+        <select
+          className={`rm-method-select ${methodClass(active.method)}`}
+          aria-label="method"
+          value={active.method}
+          onChange={(e) => update({ method: e.target.value })}
+        >
+          {!METHODS.includes(active.method as HttpMethod) && (
+            <option value={active.method}>{active.method}</option>
+          )}
+          {METHODS.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
         <EnvVarInput
           className="rm-url-input"
           placeholder="URL"
@@ -1422,64 +1434,6 @@ function CodeSnippetView({ request }: { request: RestRequest }) {
         </button>
       </div>
       <pre className="rm-code rm-codeview-pre">{code}</pre>
-    </div>
-  );
-}
-
-// Free-text method with a preset dropdown. A real <input> (not <select>)
-// because custom verbs like PROPFIND must be typeable; datalist popups are
-// blocked inside VS Code webviews, so the presets are a small custom popup.
-// The value is committed on every keystroke (uppercased) and Enter commits
-// the current text for custom verbs; Escape closes the popup.
-function MethodCombobox({ value, onChange }: { value: string; onChange: (m: HttpMethod) => void }) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState(value);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { setText(value); }, [value]);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-  const upper = text.toUpperCase();
-  const presets = METHODS.filter((m) => m.includes(upper));
-  const pick = (m: string) => { setText(m); onChange(m); setOpen(false); };
-  return (
-    <div className="rm-method-cb" ref={wrapRef}>
-      <input
-        className={`rm-input rm-method-select ${methodClass(value)}`}
-        aria-label="method"
-        value={text}
-        onChange={(e) => { setText(e.target.value); onChange(e.target.value.toUpperCase()); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
-          else if (e.key === "Enter") { e.preventDefault(); pick(upper.trim() || value); }
-          else if (e.key === "ArrowDown" || e.key === "ArrowUp") e.preventDefault();
-        }}
-      />
-      {open && (
-        <div className="rm-method-pop" role="listbox" aria-label="method presets">
-          {presets.length === 0 && (
-            <div className="rm-method-hint">Custom method — press Enter to use it</div>
-          )}
-          {presets.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="option"
-              aria-selected={m === upper}
-              className={`rm-method-opt${m === upper ? " is-active" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); pick(m); }}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

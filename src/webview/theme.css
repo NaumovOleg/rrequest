@@ -37,6 +37,8 @@
   --rm-m-put: var(--vscode-charts-blue, #4aa5f0);
   --rm-m-patch: var(--vscode-charts-purple, #b180d7);
   --rm-m-query: var(--vscode-charts-orange, #e0823d);
+  --rm-m-head: var(--vscode-charts-cyan, #56d4dd);
+  --rm-m-options: var(--vscode-charts-purple, #c586c0);
   --rm-m-delete: var(
     --vscode-charts-red,
     var(--vscode-errorForeground, #f14c4c)
@@ -211,6 +213,12 @@ body {
 .rm-method--QUERY {
   color: var(--rm-m-query);
 }
+.rm-method--HEAD {
+  color: var(--rm-m-head);
+}
+.rm-method--OPTIONS {
+  color: var(--rm-m-options);
+}
 .rm-method--DELETE {
   color: var(--rm-m-delete);
 }
@@ -270,49 +278,21 @@ body {
   padding: var(--rm-sp-2);
 }
 .rm-method-select {
-  min-width: 90px;
+  min-width: 62px;
+  max-width: 92px;
+  padding: 2px 4px;
+  font-size: 0.78em;
   font-weight: 700;
-}
-.rm-method-cb {
-  position: relative;
-  flex: none;
-}
-.rm-method-pop {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 4px);
-  z-index: 30;
-  min-width: 150px;
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--rm-panel-bg);
-  border: 1px solid var(--rm-border);
-  border-radius: var(--rm-radius);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  padding: 4px;
-}
-.rm-method-opt {
-  display: block;
-  width: 100%;
-  padding: 4px 8px;
-  background: none;
-  border: none;
-  color: var(--rm-text);
-  font-weight: 700;
+  letter-spacing: 0.03em;
   text-align: left;
-  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--rm-radius);
+  cursor: pointer;
 }
-.rm-method-opt:hover {
+.rm-method-select:hover {
   background: var(--rm-hover);
-}
-.rm-method-opt.is-active {
-  color: var(--rm-accent);
-}
-.rm-method-hint {
-  padding: 4px 8px;
-  font-size: 0.85em;
-  color: var(--rm-muted);
+  border-color: var(--rm-border);
 }
 .rm-readonly-banner {
   display: flex;
@@ -1183,28 +1163,6 @@ body {
 .rm-urlbar .rm-btn--primary {
   padding: 4px 20px;
   font-weight: 600;
-}
-.rm-method-select {
-  font-weight: 700;
-  text-align: left;
-}
-.rm-method-select.rm-method--GET {
-  color: var(--rm-m-get);
-}
-.rm-method-select.rm-method--POST {
-  color: var(--rm-m-post);
-}
-.rm-method-select.rm-method--PUT {
-  color: var(--rm-m-put);
-}
-.rm-method-select.rm-method--PATCH {
-  color: var(--rm-m-patch);
-}
-.rm-method-select.rm-method--DELETE {
-  color: var(--rm-m-delete);
-}
-.rm-method-select.rm-method--OTHER {
-  color: var(--rm-m-other);
 }
 
 /* auth form */

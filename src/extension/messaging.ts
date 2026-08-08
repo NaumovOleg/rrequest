@@ -151,6 +151,25 @@ export function createRouter(deps: RouterDeps) {
     await deps.environments.saveEnvironment({ ...env, variables: vars })
   }
 
+  // Collection -> folder -> request cascade scripts: pre runs top-down, test
+  // bottom-up (request first), matching Postman/Bruno sandwich order. Levels
+  // with no script are skipped; logs/envSets merge across all levels.
+  async function resolveCascade(collectionId?: string, folderId?: string | null): Promise<{ pre: string[]; test: string[] }> {
+    const pre: string[] = []
+    const test: string[] = []
+    if (!collectionId) return { pre, test }
+    const c = (await deps.collections.list()).find((x) => x.id === collectionId)
+    if (!c) return { pre, test }
+    if (c.preRequestScript) pre.push(c.preRequestScript)
+    if (c.testScript) test.unshift(c.testScript)
+    if (folderId) {
+      const folder = c.folders?.find((f) => f.id === folderId)
+      if (folder?.preRequestScript) pre.push(folder.preRequestScript)
+      if (folder?.testScript) test.unshift(folder.testScript)
+    }
+    return { pre, test }
+  }
+
   return async function route(msg: WebviewMessage): Promise<HostMessage | undefined> {
     if (isMutating(msg.type) && deps.isReadOnly?.(deps.getActiveWorkspaceId())) {
       return { type: 'toast', level: 'error', message: 'This workspace is read-only (viewer access).' }
@@ -161,6 +180,48 @@ export function createRouter(deps: RouterDeps) {
         const logs: string[] = []
         let vars = await activeVars()
         let effective = raw
+        // Collection/folder scripts run around the request's own script in
+        // sandwich order: pre top-down (collection -> folder -> request),
+        // test bottom-up (request -> folder -> collection). Each pre script
+        // mutates the request for the next; errors abort the send like a
+        // failed request-level pre script.
+        const cascade = await resolveCascade(msg.collectionId, msg.folderId)
+        const runPre = async (script: string, level: string) => {
+          if (!script || !deps.runPreScript) return true
+          const pre = await deps.runPreScript(script, { request: effective, vars })
+          logs.push(...pre.logs)
+          if (pre.error) {
+            logs.push(`[${level} pre-request script] ${pre.error}`)
+            return false
+          }
+          if (pre.envSets.length) { await persistEnvSets(pre.envSets); vars = await activeVars() }
+          effective = pre.request
+          return true
+        }
+        if (!(await runPre(cascade.pre[0], 'collection'))) {
+          return {
+            type: 'response',
+            requestId: msg.requestId,
+            payload: {
+              status: 0, statusText: 'Pre-request script failed', headers: [], body: '',
+              bodyTruncated: false, timeMs: 0, sizeBytes: 0, cookies: [],
+              error: { kind: 'script', message: 'Collection pre-request script failed' },
+              consoleLogs: logs,
+            },
+          }
+        }
+        if (!(await runPre(cascade.pre[1], 'folder'))) {
+          return {
+            type: 'response',
+            requestId: msg.requestId,
+            payload: {
+              status: 0, statusText: 'Pre-request script failed', headers: [], body: '',
+              bodyTruncated: false, timeMs: 0, sizeBytes: 0, cookies: [],
+              error: { kind: 'script', message: 'Folder pre-request script failed' },
+              consoleLogs: logs,
+            },
+          }
+        }
         if (raw.preRequestScript && deps.runPreScript) {
           const pre = await deps.runPreScript(raw.preRequestScript, { request: raw, vars })
           logs.push(...pre.logs)
@@ -191,20 +252,27 @@ export function createRouter(deps: RouterDeps) {
           })
           let testResults: import('../shared/types').TestResult[] = []
           let scriptError: string | undefined
-          if (raw.testScript && deps.runTestScript) {
-            const post = await deps.runTestScript(raw.testScript, { response: payload, vars })
+          const runTest = async (script: string) => {
+            if (!script || !deps.runTestScript) return
+            const post = await deps.runTestScript(script, { response: payload, vars })
             logs.push(...post.logs)
             if (post.error) {
               // A top-level test-script crash becomes a failed test entry, so
               // it shows up in the results table instead of vanishing.
               logs.push(`[test error] ${post.error}`)
-              testResults = [...post.tests, { name: 'test script', passed: false, error: post.error }]
+              testResults = [...testResults, { name: 'test script', passed: false, error: post.error }]
               scriptError = post.error
             } else {
-              testResults = post.tests
+              testResults = [...testResults, ...post.tests]
             }
             if (post.envSets.length) await persistEnvSets(post.envSets)
           }
+          // Sandwich order: request tests first, then folder, then collection.
+          // cascade.test = [folder, collection] (folder unshifted last), so
+          // request -> test[0] (folder) -> test[1] (collection).
+          await runTest(raw.testScript ?? '')
+          await runTest(cascade.test[0])
+          await runTest(cascade.test[1])
           const withMeta = {
             ...payload,
             testResults,
@@ -423,6 +491,12 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'tree', collections: await deps.collections.list() }
       case 'renameFolder':
         await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) f.name = msg.name })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'saveCollectionScript':
+        await withCollection(msg.collectionId, (c) => { c.preRequestScript = msg.preRequestScript; c.testScript = msg.testScript })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'saveFolderScript':
+        await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) { f.preRequestScript = msg.preRequestScript; f.testScript = msg.testScript } })
         return { type: 'tree', collections: await deps.collections.list() }
       case 'deleteFolder': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)

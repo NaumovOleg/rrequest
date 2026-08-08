@@ -7,6 +7,7 @@ import { IconButton } from '../../elements/IconButton'
 import { PopupMenu, type PopupMenuItem } from '../../elements/PopupMenu'
 import { ContextMenu } from '../../elements/ContextMenu'
 import { RenameInput } from '../../elements/RenameInput'
+import { CodeTextarea } from '../../elements/CodeTextarea'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'New Request', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
@@ -48,6 +49,16 @@ export function Sidebar() {
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [ctx, setCtx] = useState<Ctx | null>(null)
   const [query, setQuery] = useState('')
+  // Collection/folder scripts modal: lives on the sidebar, keyed by node, so
+  // its textareas are cheap local state (Save sends the host mutation).
+  const [scriptsFor, setScriptsFor] = useState<{
+    kind: 'collection' | 'folder'
+    collectionId: string
+    folderId?: string
+    name: string
+    pre?: string
+    test?: string
+  } | null>(null)
 
   useEffect(() => {
     if (!ctx) return
@@ -163,6 +174,10 @@ export function Sidebar() {
       { label: 'Postman', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'postman' }) },
       { label: 'OpenAPI', icon: 'json', onClick: () => postToHost({ type: 'exportCollection', id: c.id, format: 'openapi' }) },
     )
+    items.push(
+      { kind: 'separator' },
+      { label: 'Scripts', icon: 'run-all', onClick: () => setScriptsFor({ kind: 'collection', collectionId: c.id, name: c.name, pre: c.preRequestScript ?? '', test: c.testScript ?? '' }) },
+    )
     return items
   }
 
@@ -184,6 +199,7 @@ export function Sidebar() {
     const key = `${collectionId}/${f.id}`
     return [
       { label: 'Add Request', icon: 'add', onClick: () => { expandCollection(collectionId); expandFolder(key); postToHost({ type: 'createRequest', collectionId, folderId: f.id, request: blankRequest() }) } },
+      { label: 'Scripts', icon: 'run-all', onClick: () => setScriptsFor({ kind: 'folder', collectionId, folderId: f.id, name: f.name, pre: f.preRequestScript ?? '', test: f.testScript ?? '' }) },
       { label: 'Rename', icon: 'edit', onClick: () => setRenamingId(f.id) },
       { label: 'Duplicate', icon: 'copy', onClick: () => postToHost({ type: 'duplicateFolder', collectionId, folderId: f.id }) },
       { label: 'Delete', icon: 'trash', onClick: () => postToHost({ type: 'deleteFolder', collectionId, folderId: f.id }) },
@@ -262,6 +278,9 @@ export function Sidebar() {
                 onCommit={(name) => { postToHost({ type: 'renameFolder', collectionId: c.id, folderId: f.id, name }); setRenamingId(null) }}
                 onCancel={() => setRenamingId(null)} />
             : <span className="rm-tree-label">{f.name}</span>}
+          {(f.preRequestScript || f.testScript) && (
+            <span className="codicon codicon-run-all rm-script-dot" title="Folder scripts set" aria-hidden="true" />
+          )}
           {!isViewer && (
             <div className="rm-actions">
               <IconButton icon="add" label={`add request to ${f.name}`}
@@ -361,6 +380,9 @@ export function Sidebar() {
                       onCommit={(name) => { postToHost({ type: 'renameCollection', id: c.id, name }); setRenamingId(null) }}
                       onCancel={() => setRenamingId(null)} />
                   : <span className="rm-tree-label">{c.name}</span>}
+                {(c.preRequestScript || c.testScript) && (
+                  <span className="codicon codicon-run-all rm-script-dot" title="Collection scripts set" aria-hidden="true" />
+                )}
                 <div className="rm-actions">
                   {!isViewer && (
                     <>
@@ -388,6 +410,46 @@ export function Sidebar() {
           )
         })
       )}
+      {scriptsFor && (
+        <ScriptsModal
+          target={scriptsFor}
+          onClose={() => setScriptsFor(null)}
+          onSave={(pre, test) => {
+            if (scriptsFor.kind === 'collection') {
+              postToHost({ type: 'saveCollectionScript', collectionId: scriptsFor.collectionId, preRequestScript: pre, testScript: test })
+            } else {
+              postToHost({ type: 'saveFolderScript', collectionId: scriptsFor.collectionId, folderId: scriptsFor.folderId!, preRequestScript: pre, testScript: test })
+            }
+            setScriptsFor(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Small modal for editing a collection/folder's pre-request + test scripts.
+function ScriptsModal({ target, onClose, onSave }: {
+  target: { kind: 'collection' | 'folder'; name: string; pre?: string; test?: string }
+  onClose: () => void
+  onSave: (pre: string, test: string) => void
+}) {
+  const [pre, setPre] = useState(target.pre ?? '')
+  const [test, setTest] = useState(target.test ?? '')
+  return (
+    <div className="rm-modal-scrim" onClick={onClose}>
+      <div className="rm-modal rm-scripts-modal" role="dialog" aria-modal="true" aria-label={`${target.kind} scripts`}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="rm-modal-title">{target.kind === 'collection' ? 'Collection' : 'Folder'} Scripts — {target.name}</div>
+        <label className="rm-scripts-label" htmlFor="rm-pre-script">Pre-request script</label>
+        <CodeTextarea id="rm-pre-script" className="rm-input rm-code-input" rows={6} value={pre} onChange={(e) => setPre(e.target.value)} />
+        <label className="rm-scripts-label" htmlFor="rm-test-script">Test script</label>
+        <CodeTextarea id="rm-test-script" className="rm-input rm-code-input" rows={6} value={test} onChange={(e) => setTest(e.target.value)} />
+        <div className="rm-modal-actions">
+          <button className="rm-btn" onClick={onClose}>Cancel</button>
+          <button className="rm-btn rm-btn--primary" onClick={() => onSave(pre, test)}>Save</button>
+        </div>
+      </div>
     </div>
   )
 }

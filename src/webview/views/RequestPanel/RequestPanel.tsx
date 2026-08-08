@@ -622,6 +622,8 @@ export function RequestPanel() {
       type: "sendRequest",
       requestId: active.id,
       payload,
+      collectionId: active.collectionId,
+      folderId: active.folderId ?? null,
     });
     setInFlight(active.id, true);
     setLastSent(payload);

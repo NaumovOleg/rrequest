@@ -1902,6 +1902,28 @@ body {
   flex-direction: column;
   gap: var(--rm-sp-2);
 }
+.rm-scripts-modal {
+  width: min(560px, 92vw);
+}
+.rm-scripts-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+.rm-scripts-modal .rm-code-input {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.rm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--rm-sp-2);
+}
+.rm-script-dot {
+  margin-left: 4px;
+  opacity: 0.6;
+  font-size: 12px;
+}
 .rm-modal-title {
   font-weight: 600;
   font-size: 1.05em;

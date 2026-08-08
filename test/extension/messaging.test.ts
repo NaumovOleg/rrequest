@@ -683,3 +683,64 @@ describe('createRouter viewer read-only gate', () => {
     expect(reply).not.toEqual(expect.objectContaining({ type: 'toast' }))
   })
 })
+
+describe('createRouter cascade scripts', () => {
+  // Collection c1 contains folder f1; scripts are tagged by level so the call
+  // order is observable. runPreScript/runTestScript record their script text.
+  function cascadeRouter({ collectionPre, folderPre, collectionTest, folderTest }: {
+    collectionPre?: string; folderPre?: string; collectionTest?: string; folderTest?: string
+  }, failOn?: string) {
+    const calls: string[] = []
+    const d = deps()
+    d.collections.list = vi.fn(async () => [{
+      id: 'c1', name: 'C', workspaceId: 'w1', requests: [],
+      folders: [{ id: 'f1', name: 'F', requests: [], preRequestScript: folderPre, testScript: folderTest }],
+      preRequestScript: collectionPre, testScript: collectionTest,
+    }])
+    d.runPreScript = vi.fn(async (s: string, _c: any) => {
+      calls.push(`pre:${s}`)
+      if (failOn && s.includes(failOn)) return { request: { url: 'x' } as any, envSets: [], logs: [], error: 'boom' }
+      return { request: { url: 'x' } as any, envSets: [], logs: [] }
+    }) as any
+    d.runTestScript = vi.fn(async (s: string, _c: any) => {
+      calls.push(`test:${s}`)
+      return { tests: [{ name: 't', passed: true }], envSets: [], logs: [] }
+    }) as any
+    const route = createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+      runPreScript: d.runPreScript as any, runTestScript: d.runTestScript as any })
+    return { route, calls }
+  }
+
+  const msg = (preRequestScript?: string, testScript?: string): WebviewMessage => ({
+    type: 'sendRequest', requestId: 'q1', payload: { ...req(), preRequestScript, testScript },
+    collectionId: 'c1', folderId: 'f1',
+  })
+
+  it('runs pre scripts top-down (collection, folder, request)', async () => {
+    const { route, calls } = cascadeRouter({ collectionPre: 'collection-pre', folderPre: 'folder-pre' })
+    await route(msg('request-pre'))
+    expect(calls).toEqual(['pre:collection-pre', 'pre:folder-pre', 'pre:request-pre'])
+  })
+
+  it('runs test scripts bottom-up (request, folder, collection)', async () => {
+    const { route, calls } = cascadeRouter({ collectionTest: 'collection-test', folderTest: 'folder-test' })
+    await route(msg(undefined, 'request-test'))
+    expect(calls).toEqual(['test:request-test', 'test:folder-test', 'test:collection-test'])
+  })
+
+  it('a failing folder pre-script aborts the send with a script error', async () => {
+    const { route, calls } = cascadeRouter({ collectionPre: 'collection-pre', folderPre: 'folder-pre' }, 'folder-pre')
+    const out = await route(msg('request-pre')) as any
+    expect(out.payload.error?.kind).toBe('script')
+    expect(out.payload.statusText).toBe('Pre-request script failed')
+    expect(calls).toEqual(['pre:collection-pre', 'pre:folder-pre'])
+  })
+
+  it('skips missing levels (request-only scripts unaffected)', async () => {
+    const { route, calls } = cascadeRouter({})
+    await route(msg(undefined, 'request-test'))
+    expect(calls).toEqual(['test:request-test'])
+  })
+})

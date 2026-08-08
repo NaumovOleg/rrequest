@@ -108,9 +108,9 @@ export type HttpResponse = {
   bodyBase64?: string
 }
 
-export type Folder = { id: string; name: string; requests: CollectionItem[] }
+export type Folder = { id: string; name: string; requests: CollectionItem[]; preRequestScript?: string; testScript?: string }
 
-export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string }
+export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string; preRequestScript?: string; testScript?: string }
 
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
@@ -148,7 +148,7 @@ export type HistoryEntry = {
 // webview -> host
 export type WebviewMessage =
   | { type: 'ready' }
-  | { type: 'sendRequest'; requestId: string; payload: RestRequest }
+  | { type: 'sendRequest'; requestId: string; payload: RestRequest; collectionId?: string; folderId?: string | null }
   | { type: 'cancelRequest'; requestId: string }
   | { type: 'loadTree' }
   | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: CollectionItem }
@@ -183,6 +183,8 @@ export type WebviewMessage =
   | { type: 'deleteRequest'; collectionId: string; folderId: string | null; requestId: string }
   | { type: 'createFolder'; collectionId: string; name: string }
   | { type: 'renameFolder'; collectionId: string; folderId: string; name: string }
+  | { type: 'saveCollectionScript'; collectionId: string; preRequestScript?: string; testScript?: string }
+  | { type: 'saveFolderScript'; collectionId: string; folderId: string; preRequestScript?: string; testScript?: string }
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }

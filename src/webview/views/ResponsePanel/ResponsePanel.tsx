@@ -99,7 +99,11 @@ export function ResponsePanel() {
     // params pair is exactly what `send` posts).
     const copy = structuredClone({ ...lastSent, id: newId() })
     openOrReplaceBlank(copy)
-    postToHost({ type: 'sendRequest', requestId: copy.id, payload: copy })
+    postToHost({
+      type: 'sendRequest', requestId: copy.id, payload: copy,
+      collectionId: (copy as { collectionId?: string }).collectionId,
+      folderId: (copy as { folderId?: string | null }).folderId ?? null,
+    })
     setInFlight(copy.id, true)
     setLastSent(copy)
   }

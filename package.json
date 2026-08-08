@@ -17,6 +17,18 @@
         "title": "RREQUEST: Open"
       },
       {
+        "command": "rrequest.newRequest",
+        "title": "RREQUEST: New Request"
+      },
+      {
+        "command": "rrequest.changeEnvironment",
+        "title": "RREQUEST: Change Environment"
+      },
+      {
+        "command": "rrequest.importCurl",
+        "title": "RREQUEST: Import cURL from clipboard"
+      },
+      {
         "command": "rrequest.signInToSync",
         "title": "RREQUEST: Sign in to sync (Google)"
       },
@@ -51,6 +63,23 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "rrequest.newRequest",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n"
+      },
+      {
+        "command": "rrequest.changeEnvironment",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e"
+      },
+      {
+        "command": "rrequest.importCurl",
+        "key": "ctrl+alt+u",
+        "mac": "cmd+alt+u"
+      }
+    ],
     "configuration": {
       "title": "RREQUEST",
       "properties": {

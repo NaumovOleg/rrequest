@@ -221,6 +221,7 @@ export type HostMessage =
   | { type: 'pickedFile'; path: string; filename: string }
   | { type: 'openInEditor'; request: RestRequest; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'openGrpcRequest'; request: GrpcRequest; targetCollectionId?: string; targetFolderId?: string | null }
+  | { type: 'importCurl'; text: string }
   | { type: 'openWsRequest'; request: WsRequest; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'workspaces'; workspaces: Workspace[]; activeId: string }
   | { type: 'trash'; entries: TrashEntry[] }

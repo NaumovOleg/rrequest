@@ -8,6 +8,7 @@ import { Environments } from "../views/Environments/Environments";
 import { GrpcPanel } from "../views/Grpc/GrpcPanel";
 import { Members } from "../views/Members/Members";
 import { Toaster } from "../elements";
+import { parseCurl } from "../curl";
 
 export function EditorApp() {
   const setTree = useStore((s) => s.setTree);
@@ -96,6 +97,11 @@ export function EditorApp() {
         );
         setPendingSaveCollectionId(m.targetCollectionId ?? null);
         setPendingSaveFolderId(m.targetFolderId ?? null);
+      } else if (m.type === "importCurl") {
+        // "RREQUEST: Import cURL from clipboard" — parse the host-passed text
+        // into a fresh unsaved request tab.
+        const parsed = parseCurl(m.text);
+        useStore.getState().openOrReplaceBlank(parsed);
       } else if (m.type === "showEnvironments") {
         setEnvMode(true);
         setEnvEditId(m.id ?? null);

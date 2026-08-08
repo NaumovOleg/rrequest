@@ -18,6 +18,18 @@ async function openDocs(context: vscode.ExtensionContext): Promise<void> {
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('rrequest.open', () => { RrequestPanel.createOrShow(context) }),
+    // Palette/keybinding entry points (share the same open paths as the sidebar
+    // buttons): New Request = blank request tab, Change Environment = the
+    // Environments editor, Import cURL = new tab parsed from clipboard.
+    vscode.commands.registerCommand('rrequest.newRequest', () => { RrequestPanel.createOrShow(context) }),
+    vscode.commands.registerCommand('rrequest.changeEnvironment', () => {
+      RrequestPanel.openOrReveal(context, 'env', 'Environments', { type: 'showEnvironments' })
+    }),
+    vscode.commands.registerCommand('rrequest.importCurl', async () => {
+      const text = await vscode.env.clipboard.readText().then((t) => t, () => '')
+      if (!text.trim()) return void vscode.window.showWarningMessage('RREQUEST: clipboard is empty')
+      RrequestPanel.openOrReveal(context, `req:${Date.now().toString(36)}`, 'Import cURL', { type: 'importCurl', text })
+    }),
     // Gear in the sidebar view title bar -> open the two rrequest settings.
     vscode.commands.registerCommand('rrequest.openSettings', () => {
       void vscode.commands.executeCommand('workbench.action.openSettings', 'rrequest');

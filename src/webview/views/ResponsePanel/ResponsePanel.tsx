@@ -98,7 +98,11 @@ export function ResponsePanel() {
     </div>
   )
 
-  if (resp.error) {
+  // A script error still carries a usable response (status, body, tests) —
+  // show it as a banner on top instead of replacing the whole panel. Other
+  // errors (network, timeout, …) get the full-panel treatment below.
+  const scriptError = resp.error?.kind === 'script' ? resp.error : undefined
+  if (resp.error && !scriptError) {
     return (
       <div className="rm-panel">
         <div role="alert" className="rm-error-banner">
@@ -136,17 +140,31 @@ export function ResponsePanel() {
 
   return (
     <div className="rm-panel">
-      <div className="rm-statusline">
-        <span className={`rm-status-pill ${pillClass(resp.status)}`}>{resp.status} {resp.statusText}</span>
-        {resp.timings ? (
-          <>
-            <span className="rm-meta" title="Total: TTFB + body download">TTFB: {resp.timings.ttfbMs} ms</span>
-            <span className="rm-meta">Body: {resp.timings.downloadMs} ms</span>
-          </>
+      {scriptError && (
+        <div role="alert" className="rm-error-banner">
+          Script error: {scriptError.message}
+        </div>
+      )}
+      <div className="rm-statusline" role="status" aria-live="polite">
+        {resp.status === 0 && scriptError ? (
+          // The request never went out (the failure was inside the pre-request
+          // script), so a fake 0/time/size status line would just mislead.
+          <span className="rm-status-pill is-err">Script failed</span>
         ) : (
-          <span className="rm-meta">Time: {resp.timeMs} ms</span>
+          <>
+            <span className={`rm-status-pill ${pillClass(resp.status)}`}>{resp.status} {resp.statusText}</span>
+            {resp.timings ? (
+              <>
+                <span className="rm-meta" title="Total time: TTFB + body download">Total: {resp.timings.ttfbMs + resp.timings.downloadMs} ms</span>
+                <span className="rm-meta" title="Time to first byte">TTFB: {resp.timings.ttfbMs} ms</span>
+                <span className="rm-meta" title="Body download">Body: {resp.timings.downloadMs} ms</span>
+              </>
+            ) : (
+              <span className="rm-meta">Time: {resp.timeMs} ms</span>
+            )}
+            <span className="rm-meta">Size: {fmtSize(resp.sizeBytes)}</span>
+          </>
         )}
-        <span className="rm-meta">Size: {fmtSize(resp.sizeBytes)}</span>
       </div>
       <div className="rm-subtabs">
         {(['body', 'headers', 'cookies', 'test-results', 'console'] as SubTab[]).map((t) => (

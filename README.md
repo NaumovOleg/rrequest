@@ -60,6 +60,7 @@ workspace to your **own** Google Drive (it's completely optional and off by defa
 | `RREQUEST: Sign in to Sync` | Sign in with Google for cloud sync |
 | `RREQUEST: Enable Workspace Sync` | Start syncing the active workspace |
 | `RREQUEST: Sync Now` | Pull + push the active workspace immediately |
+| `RREQUEST: Open documentation` | Open the usage guide (scripts reference included) |
 
 ## Settings
 

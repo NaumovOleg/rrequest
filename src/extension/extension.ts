@@ -2,6 +2,19 @@ import * as vscode from 'vscode'
 import { RrequestPanel, ensureBootstrap, getSyncRuntime, getSyncControl } from './panel'
 import { SidebarViewProvider } from './sidebar-view'
 
+// Opens the bundled usage guide (docs/usage.md) in the editor — as rendered
+// Markdown preview when the built-in Markdown extension is available (it is by
+// default), plain text otherwise.
+async function openDocs(context: vscode.ExtensionContext): Promise<void> {
+  const uri = vscode.Uri.joinPath(context.extensionUri, 'docs', 'usage.md')
+  try {
+    await vscode.commands.executeCommand('markdown.showPreview', uri)
+  } catch {
+    const doc = await vscode.workspace.openTextDocument(uri)
+    await vscode.window.showTextDocument(doc)
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('rrequest.open', () => { RrequestPanel.createOrShow(context) }),
@@ -9,6 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('rrequest.openSettings', () => {
       void vscode.commands.executeCommand('workbench.action.openSettings', 'rrequest');
     }),
+    vscode.commands.registerCommand('rrequest.openDocs', () => openDocs(context)),
     vscode.window.registerWebviewViewProvider('rrequest.sidebar', new SidebarViewProvider(context)),
   )
 

@@ -368,6 +368,12 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         const p = picked[0].fsPath;
         return { path: p, filename: p.split(/[\\/]/).pop() ?? p };
       },
+      // The "Read docs" button posts openDocs; the same action is also a
+      // native command (RREQUEST: Open documentation).
+      openDocs: () =>
+        vscode.commands.executeCommand(
+          "rrequest.openDocs"
+        ) as Promise<void>,
       // Response body in a real editor: search, folding and highlighting for
       // free, instead of the webview's readonly <pre>.
       openTextDocument: async ({ content, language }) => {

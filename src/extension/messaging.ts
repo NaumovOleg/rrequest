@@ -32,8 +32,8 @@ export type RouterDeps = {
   enrichWorkspaces?: (list: import('../shared/types').Workspace[]) => Promise<import('../shared/types').Workspace[]>
   getActiveWorkspaceId: () => string
   setActiveWorkspaceId: (id: string) => void
-  runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => { request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }
-  runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => { tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }
+  runPreScript?: (script: string, ctx: { request: import('../shared/types').RestRequest; vars: KeyValue[] }) => Promise<{ request: import('../shared/types').RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }>
+  runTestScript?: (script: string, ctx: { response: import('../shared/types').HttpResponse; vars: KeyValue[] }) => Promise<{ tests: import('../shared/types').TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }>
   ws?: WsManager
   grpcInvoke?: (p: import('./net/grpc-client').GrpcParams) => Promise<import('./net/grpc-client').GrpcResult>
   trash?: import('./stores/trash-store').TrashStore
@@ -51,6 +51,8 @@ export type RouterDeps = {
   // Shows a native save dialog and writes `content` to the picked file.
   // Returns the saved path, or null when the user cancelled / it failed.
   saveBodyToFile?: (opts: { content: string; isBase64: boolean; suggestName: string }) => Promise<string | null>
+  // Opens the bundled usage/scripting docs (markdown) in the editor.
+  openDocs?: () => Promise<void>
 }
 
 // requestId -> the FULL body of its latest response, kept off the webview IPC
@@ -71,6 +73,11 @@ function keepFullBody(requestId: string, full: { text?: string; base64?: string 
     if (oldest !== undefined) fullBodies.delete(oldest)
   }
 }
+
+// requestId -> AbortController of its in-flight sendRequest. Lets a
+// `cancelRequest` from the webview actually abort the running fetch instead of
+// just hiding the spinner in the UI.
+const inflight = new Map<string, AbortController>()
 
 export function createRouter(deps: RouterDeps) {
   async function withCollection(id: string, fn: (c: import('../shared/types').Collection) => void) {
@@ -155,27 +162,67 @@ export function createRouter(deps: RouterDeps) {
         let vars = await activeVars()
         let effective = raw
         if (raw.preRequestScript && deps.runPreScript) {
-          const pre = deps.runPreScript(raw.preRequestScript, { request: raw, vars })
+          const pre = await deps.runPreScript(raw.preRequestScript, { request: raw, vars })
           logs.push(...pre.logs)
-          if (pre.error) logs.push(`[pre-request error] ${pre.error}`)
+          if (pre.error) {
+            // A failed pre-request script must be loud: surface it as the
+            // response error instead of silently sending the raw request.
+            return {
+              type: 'response',
+              requestId: msg.requestId,
+              payload: {
+                status: 0, statusText: 'Pre-request script failed', headers: [], body: '',
+                bodyTruncated: false, timeMs: 0, sizeBytes: 0, cookies: [],
+                error: { kind: 'script', message: pre.error },
+                consoleLogs: logs,
+              },
+            }
+          }
           if (pre.envSets.length) { await persistEnvSets(pre.envSets); vars = await activeVars() }
           effective = pre.request
         }
-        const payload = await deps.send(effective, {
-          vars,
-          onFullBody: (full) => keepFullBody(msg.requestId, full),
-        })
-        let testResults: import('../shared/types').TestResult[] = []
-        if (raw.testScript && deps.runTestScript) {
-          const post = deps.runTestScript(raw.testScript, { response: payload, vars })
-          logs.push(...post.logs)
-          if (post.error) logs.push(`[test error] ${post.error}`)
-          testResults = post.tests
-          if (post.envSets.length) await persistEnvSets(post.envSets)
+        const controller = new AbortController()
+        inflight.set(msg.requestId, controller)
+        try {
+          const payload = await deps.send(effective, {
+            vars,
+            onFullBody: (full) => keepFullBody(msg.requestId, full),
+            externalSignal: controller.signal,
+          })
+          let testResults: import('../shared/types').TestResult[] = []
+          let scriptError: string | undefined
+          if (raw.testScript && deps.runTestScript) {
+            const post = await deps.runTestScript(raw.testScript, { response: payload, vars })
+            logs.push(...post.logs)
+            if (post.error) {
+              // A top-level test-script crash becomes a failed test entry, so
+              // it shows up in the results table instead of vanishing.
+              logs.push(`[test error] ${post.error}`)
+              testResults = [...post.tests, { name: 'test script', passed: false, error: post.error }]
+              scriptError = post.error
+            } else {
+              testResults = post.tests
+            }
+            if (post.envSets.length) await persistEnvSets(post.envSets)
+          }
+          const withMeta = {
+            ...payload,
+            testResults,
+            consoleLogs: logs,
+            // kind 'script' — the panel renders it as a banner above the
+            // response instead of replacing it, so tests stay visible.
+            ...(scriptError ? { error: { kind: 'script' as const, message: scriptError } } : {}),
+          }
+          if (payload.error?.kind !== 'canceled')
+            await deps.history.append(raw, payload.status, deps.getActiveWorkspaceId())
+          return { type: 'response', requestId: msg.requestId, payload: withMeta }
+        } finally {
+          inflight.delete(msg.requestId)
         }
-        const withMeta = { ...payload, testResults, consoleLogs: logs }
-        await deps.history.append(raw, payload.status, deps.getActiveWorkspaceId())
-        return { type: 'response', requestId: msg.requestId, payload: withMeta }
+      }
+      case 'cancelRequest': {
+        inflight.get(msg.requestId)?.abort()
+        return undefined
       }
       case 'loadTree':
         return { type: 'tree', collections: await deps.collections.list() }
@@ -290,6 +337,10 @@ export function createRouter(deps: RouterDeps) {
       case 'pickFile': {
         const f = deps.pickFile ? await deps.pickFile() : null
         return f ? { type: 'pickedFile', path: f.path, filename: f.filename } : undefined
+      }
+      case 'openDocs': {
+        if (deps.openDocs) await deps.openDocs()
+        return undefined
       }
       case 'openRequest': {
         // Opening a request from a collection with a bound environment activates

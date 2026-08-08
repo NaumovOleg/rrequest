@@ -1,6 +1,7 @@
 import { SplitButton } from "../../elements";
 import { AccountsPanel } from "../AccountsPanel/AccountsPanel";
 import { useStore } from "../../state/store";
+import { postToHost } from "../../ipc";
 
 export type SidebarTab = "collections" | "environments" | "history" | "trash";
 
@@ -75,6 +76,15 @@ export function SidebarHeader({
           onClick={() => onTab("trash")}
         >
           <span className="codicon codicon-trash" />
+        </button>
+        <button
+          type="button"
+          className="rm-sbtab rm-sbdocs"
+          aria-label="Open documentation"
+          title="Open documentation (usage guide & scripting reference)"
+          onClick={() => postToHost({ type: "openDocs" })}
+        >
+          <span className="codicon codicon-book" />
         </button>
       </div>
     </header>

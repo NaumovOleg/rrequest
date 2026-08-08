@@ -131,6 +131,19 @@ body {
 .rm-btn--primary:hover {
   background: var(--rm-accent-hover);
 }
+/* Send turns into Cancel while a request is in flight: neutral tones so it
+   reads as an interrupt, not as the primary action. */
+.rm-btn--primary.is-cancelling {
+  background: var(--rm-hover);
+  color: var(--rm-fg);
+  border: 1px solid var(--rm-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rm-btn--primary.is-cancelling .codicon {
+  font-size: 13px;
+}
 .rm-btn--ghost,
 .rm-btn--icon {
   border-color: transparent;
@@ -158,6 +171,23 @@ body {
 .rm-select:focus {
   /* no blue focus ring around fields — the caret + hover affordance is enough */
   outline: none;
+}
+/* Keyboard (Tab) navigation still needs a visible focus indicator — VS Code
+   focus border. Mouse clicks don't trigger :focus-visible, so the cursor
+   stays clean for pointing users. The doubled class on the KV inputs beats
+   their frameless `.rm-kv-input:focus { outline: none }` rule further down
+   regardless of declaration order. */
+.rm-input:focus-visible,
+.rm-select:focus-visible,
+.rm-kv-input:focus-visible,
+.rm-envinput-field:focus-visible,
+.rm-codebox-ta:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--rm-accent));
+  outline-offset: -1px;
+}
+.rm-kv-input.rm-kv-input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--rm-accent));
+  outline-offset: -1px;
 }
 
 /* method colors */
@@ -2073,6 +2103,10 @@ body {
 .rm-sbtab.is-active {
   color: var(--rm-fg);
   border-bottom-color: var(--rm-accent);
+}
+/* "Open documentation" book button: pinned right of the tab strip */
+.rm-sbdocs {
+  margin-left: auto;
 }
 
 /* combo input (input + dropdown list w/ per-item actions) */

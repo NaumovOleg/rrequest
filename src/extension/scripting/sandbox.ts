@@ -4,6 +4,24 @@ import type { HttpResponse, KeyValue, RestRequest, TestResult } from '../../shar
 
 const TIMEOUT = 5000
 
+// The raw, unformatted error as the script saw it (message + full stack), so
+// the user can see exactly what threw and where.
+function errText(e: unknown): string {
+  if (e instanceof Error) return e.stack ?? `${e.name}: ${e.message}`
+  return String(e)
+}
+
+// Scripts can run async (e.g. `await fetch(...)` to obtain a token before the
+// request fires). The script is wrapped in an async IIFE; `vm`'s timeout only
+// guards synchronous execution, so an overall async deadline is enforced here.
+async function runScript(script: string, sandbox: Record<string, unknown>): Promise<void> {
+  const promise = vm.runInNewContext(`(async () => {\n${script}\n})()`, sandbox, { timeout: TIMEOUT }) as Promise<unknown>
+  await Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('script timed out')), TIMEOUT)),
+  ])
+}
+
 function varsMap(vars: KeyValue[]): Map<string, string> {
   const m = new Map<string, string>()
   for (const v of vars) if (v.enabled && v.key) m.set(v.key, v.value)
@@ -21,7 +39,11 @@ function makeEnv(map: Map<string, string>, envSets: KeyValue[]) {
   }
 }
 
-export function runPreScript(script: string, ctx: { request: RestRequest; vars: KeyValue[] }): { request: RestRequest; envSets: KeyValue[]; logs: string[]; error?: string } {
+export async function runPreScript(
+  script: string,
+  ctx: { request: RestRequest; vars: KeyValue[] },
+  deps: { fetch?: typeof fetch } = {},
+): Promise<{ request: RestRequest; envSets: KeyValue[]; logs: string[]; error?: string }> {
   const request: RestRequest = JSON.parse(JSON.stringify(ctx.request))
   const envSets: KeyValue[] = []
   const logs: string[] = []
@@ -38,16 +60,17 @@ export function runPreScript(script: string, ctx: { request: RestRequest; vars: 
     },
     params: request.params,
   }
-  const sandbox: any = { pm: { request: pmRequest, environment: env, variables: { get: (k: string) => map.get(k) } }, console: makeConsole(logs) }
+  const doFetch = deps.fetch ?? globalThis.fetch
+  const sandbox: any = { pm: { request: pmRequest, environment: env, variables: { get: (k: string) => map.get(k) } }, console: makeConsole(logs), fetch: (input: any, init?: any) => doFetch(input, init) }
   try {
-    vm.runInNewContext(script, sandbox, { timeout: TIMEOUT })
+    await runScript(script, sandbox)
   } catch (e: any) {
-    return { request, envSets, logs, error: String(e?.message ?? e) }
+    return { request, envSets, logs, error: errText(e) }
   }
   return { request, envSets, logs }
 }
 
-export function runTestScript(script: string, ctx: { response: HttpResponse; vars: KeyValue[] }): { tests: TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string } {
+export async function runTestScript(script: string, ctx: { response: HttpResponse; vars: KeyValue[] }, deps: { fetch?: typeof fetch } = {}): Promise<{ tests: TestResult[]; envSets: KeyValue[]; logs: string[]; error?: string }> {
   const tests: TestResult[] = []
   const envSets: KeyValue[] = []
   const logs: string[] = []
@@ -58,18 +81,20 @@ export function runTestScript(script: string, ctx: { response: HttpResponse; var
     code: r.status, status: r.statusText, responseTime: r.timeMs,
     headers: r.headers,
     text: () => r.body,
-    json: () => JSON.parse(r.body),
+    json: () => { try { return JSON.parse(r.body) } catch (e: any) { throw new Error(`response body is not JSON: ${e?.message ?? e}`) } },
   }
   const pmTest = (name: string, fn: () => void) => {
     try { fn(); tests.push({ name, passed: true }) }
-    catch (e: any) { tests.push({ name, passed: false, error: String(e?.message ?? e) }) }
+    catch (e: any) { tests.push({ name, passed: false, error: errText(e) }) }
   }
+  const doFetch = deps.fetch ?? globalThis.fetch
   const sandbox: any = {
     pm: { response: pmResponse, test: pmTest, expect, environment: makeEnv(map, envSets), variables: { get: (k: string) => map.get(k) } },
     console: makeConsole(logs),
+    fetch: (input: any, init?: any) => doFetch(input, init),
   }
   try {
-    vm.runInNewContext(script, sandbox, { timeout: TIMEOUT })
+    await runScript(script, sandbox)
   } catch (e: any) {
     return { tests, envSets, logs, error: String(e?.message ?? e) }
   }

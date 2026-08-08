@@ -34,8 +34,8 @@ function deps() {
       delete: vi.fn(async () => {}),
     } as any,
     activeWorkspaceId: 'w1',
-    runPreScript: vi.fn((_s: string, c: any) => ({ request: { ...c.request, url: c.request.url + '?pre=1' }, envSets: [{ key: 'x', value: '1', enabled: true }], logs: ['pre log'] })),
-    runTestScript: vi.fn(() => ({ tests: [{ name: 't', passed: true }], envSets: [], logs: ['post log'] })),
+    runPreScript: vi.fn(async (_s: string, c: any) => ({ request: { ...c.request, url: c.request.url + '?pre=1' }, envSets: [{ key: 'x', value: '1', enabled: true }], logs: ['pre log'] })),
+    runTestScript: vi.fn(async () => ({ tests: [{ name: 't', passed: true }], envSets: [], logs: ['post log'] })),
   }
 }
 
@@ -348,6 +348,25 @@ describe('createRouter sendRequest with scripts', () => {
     expect(d.environments.saveEnvironment).toHaveBeenCalled()
     // history recorded the RAW payload (no ?pre=1):
     expect(d.history.append.mock.calls[0][0].url).toBe('https://api/x')
+  })
+  it('a failed pre-script returns an error response and does NOT send', async () => {
+    const d = deps(); d.activeEnvId = 'e1'
+    d.environments.list = vi.fn(async () => [{ id: 'e1', name: 'Dev', variables: [] }])
+    d.runPreScript = vi.fn(async () => ({ request: { url: '' }, envSets: [], logs: ['sad'], error: 'boom' })) as any
+    const payload: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'https://api/x', params: [], headers: [], body: { mode: 'none' }, preRequestScript: 'x' }
+    const out = await router(d)({ type: 'sendRequest', requestId: 'q1', payload }) as any
+    expect(d.send).not.toHaveBeenCalled()
+    expect(out.type).toBe('response')
+    expect(out.payload.error).toMatchObject({ kind: 'script', message: 'boom' })
+  })
+  it('a crashing test-script surfaces as a failed test entry', async () => {
+    const d = deps(); d.activeEnvId = 'e1'
+    d.environments.list = vi.fn(async () => [{ id: 'e1', name: 'Dev', variables: [] }])
+    d.send = vi.fn(async () => ({ status: 500, statusText: 'e', headers: [], body: '', bodyTruncated: false, timeMs: 1, sizeBytes: 0, cookies: [] })) as any
+    d.runTestScript = vi.fn(async () => ({ tests: [], envSets: [], logs: [], error: 'nope' })) as any
+    const payload: RestRequest = { id: 'r', name: 'x', method: 'GET', url: 'https://api/x', params: [], headers: [], body: { mode: 'none' }, testScript: 'y' }
+    const out = await router(d)({ type: 'sendRequest', requestId: 'q1', payload }) as any
+    expect(out.payload.testResults).toEqual([{ name: 'test script', passed: false, error: 'nope' }])
   })
 })
 

@@ -417,6 +417,10 @@ export function RequestPanel() {
   }>({ id: null, byMode: {} });
   const active = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const isViewer = useStore((s) => s.isViewer());
+  const inFlight = useStore((s) =>
+    s.activeTabId ? s.inFlight.has(s.activeTabId) : false,
+  );
+  const setInFlight = useStore((s) => s.setInFlight);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const update = useStore((s) => s.updateActive);
   const reconcileActiveUrl = useStore((s) => s.reconcileActiveUrl);
@@ -555,10 +559,11 @@ export function RequestPanel() {
       // only gets the content box — compare against that, or the last chip
       // wraps onto a second line instead of switching to the dropdown.
       const cs = getComputedStyle(el);
-      const avail =
-        el.clientWidth -
-        parseFloat(cs.paddingLeft) -
-        parseFloat(cs.paddingRight);
+      const pad = (v: string) => parseFloat(v) || 0;
+      const avail = el.clientWidth - pad(cs.paddingLeft) - pad(cs.paddingRight);
+      // 0 across the board means we can't measure (not mounted / jsdom) —
+      // keep the default chips branch instead of collapsing to the dropdown.
+      if (avail <= 0) return;
       setNavFits(need + 20 <= avail + 1);
     };
     measure();
@@ -590,6 +595,7 @@ export function RequestPanel() {
     );
 
   const send = () => {
+    if (inFlight) return;
     // url already carries the query (kept in sync with params); send the base
     // so the client appends the params exactly once.
     const base = active.url.split("?")[0];
@@ -598,6 +604,11 @@ export function RequestPanel() {
       requestId: active.id,
       payload: { ...active, url: base },
     });
+    setInFlight(active.id, true);
+  };
+  const cancel = () => {
+    postToHost({ type: "cancelRequest", requestId: active.id });
+    setInFlight(active.id, false);
   };
 
   // --- keep params list and the URL query string in sync (both directions) ---
@@ -846,14 +857,28 @@ export function RequestPanel() {
           knownVars={knownVars}
           values={envValues}
         />
-        <button
-          className="rm-btn rm-btn--primary"
-          title="Send (⌘/Ctrl+Enter)"
-          disabled={!active.url}
-          onClick={send}
-        >
-          Send
-        </button>
+        {inFlight ? (
+          <button
+            className="rm-btn rm-btn--primary is-cancelling"
+            title="Cancel the in-flight request"
+            onClick={cancel}
+          >
+            <span
+              className="codicon codicon-loading rm-spin"
+              aria-hidden="true"
+            />
+            Cancel
+          </button>
+        ) : (
+          <button
+            className="rm-btn rm-btn--primary"
+            title="Send (⌘/Ctrl+Enter)"
+            disabled={!active.url}
+            onClick={send}
+          >
+            Send
+          </button>
+        )}
       </div>
 
       <div className="rm-req-split" ref={splitRef}>

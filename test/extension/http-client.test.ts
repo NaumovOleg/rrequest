@@ -111,6 +111,33 @@ describe('sendRequest', () => {
     expect(res.error?.kind).toBe('timeout')
   })
 
+  it('maps an abort from the external signal to error.kind canceled (user cancel)', async () => {
+    const fetchImpl = (async () => {
+      const e = new Error('aborted'); e.name = 'AbortError'; throw e
+    }) as unknown as typeof fetch
+    const controller = new AbortController()
+    controller.abort()
+    const res = await sendRequest(baseReq(), { fetchImpl, externalSignal: controller.signal })
+    expect(res.error?.kind).toBe('canceled')
+  })
+
+  it('aborts the live fetch when the external signal fires after the request started', async () => {
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      // Let the caller abort while this fetch is in flight.
+      await new Promise((r) => setTimeout(r, 20))
+      // The transport must have forwarded the external signal to fetch and the
+      // click must have aborted it before the fetch body finished.
+      expect(init?.signal?.aborted).toBe(true)
+      const e = new Error('aborted'); e.name = 'AbortError'; throw e
+    }) as unknown as typeof fetch
+    const controller = new AbortController()
+    const pending = sendRequest(baseReq(), { fetchImpl, externalSignal: controller.signal })
+    await new Promise((r) => setTimeout(r, 5))
+    controller.abort()
+    const res = await pending
+    expect(res.error?.kind).toBe('canceled')
+  })
+
   it('truncates a body larger than maxBytes and flags it', async () => {
     const big = 'x'.repeat(1000)
     const fetchImpl = (async () => new Response(big, { status: 200 })) as unknown as typeof fetch

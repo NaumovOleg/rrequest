@@ -14,6 +14,9 @@ type Opts = {
   // caller can cache it for a later "save response body to file" without the
   // full payload ever crossing the webview IPC (which is truncated to maxBytes).
   onFullBody?: (full: { text?: string; base64?: string }) => void
+  // External abort signal (e.g. the user clicking Cancel). Aborting it cancels
+  // the fetch and the response comes back as a `canceled` error, not a timeout.
+  externalSignal?: AbortSignal
 }
 
 // Content types whose payload can't be shown as UTF-8 text. Images get a
@@ -151,6 +154,15 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // A user click on Cancel propagates into the same abort path; abort from the
+  // external signal is reported as `canceled`, the timeout one as `timeout`.
+  if (opts.externalSignal) {
+    if (opts.externalSignal.aborted) controller.abort()
+    else {
+      const onAbort = () => controller.abort()
+      opts.externalSignal.addEventListener('abort', onAbort, { once: true })
+    }
+  }
   const started = Date.now()
 
   try {
@@ -223,9 +235,13 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
     }
   } catch (e: any) {
     const kind: HttpError['kind'] =
-      e?.name === 'AbortError' ? 'timeout'
-      : e instanceof TypeError ? 'connection'
-      : 'unknown'
+      e?.name === 'AbortError'
+        ? opts.externalSignal?.aborted
+          ? 'canceled'
+          : 'timeout'
+        : e instanceof TypeError
+        ? 'connection'
+        : 'unknown'
     return {
       status: 0, statusText: '', headers: [], body: '',
       bodyTruncated: false, timeMs: Date.now() - started, sizeBytes: 0,

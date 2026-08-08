@@ -75,8 +75,14 @@ export function EditorApp() {
       else if (m.type === "environments") {
         setEnvironments(m.environments);
         setActiveEnvId(m.activeId);
-      } else if (m.type === "response") setResponse(m.requestId, m.payload);
-      else if (m.type === "openInEditor") {
+      } else if (m.type === "response") {
+        const st = useStore.getState();
+        st.setInFlight(m.requestId, false);
+        // A user cancel keeps whatever response was already on screen — the
+        // "canceled" error is just the transport acknowledging the abort.
+        if (m.payload.error?.kind !== "canceled")
+          st.setResponse(m.requestId, m.payload);
+      } else if (m.type === "openInEditor") {
         const r = m.request;
         // Each request opens in its own editor tab (focus it if already open).
         openLinkedTab(

@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.18
+
+### Patch Changes
+
+- docs
+
 ## 0.0.17
 
 ### Patch Changes

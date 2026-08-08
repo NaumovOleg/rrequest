@@ -2,7 +2,7 @@
   "name": "rrequest",
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "publisher": "olgert",
   "packageManager": "yarn@1.22.22",
   "engines": {
@@ -36,6 +36,10 @@
         "command": "rrequest.openSettings",
         "title": "RREQUEST: Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "rrequest.openDocs",
+        "title": "RREQUEST: Open documentation"
       }
     ],
     "menus": {

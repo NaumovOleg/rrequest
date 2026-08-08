@@ -17,6 +17,7 @@ infra/**
 src/**
 test/**
 docs/**
+!docs/usage.md
 .superpowers/**
 .vscode/**
 .github/**

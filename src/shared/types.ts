@@ -77,7 +77,7 @@ export function defaultHeaders(): KeyValue[] {
 }
 
 export type HttpError = {
-  kind: 'dns' | 'connection' | 'timeout' | 'unknown'
+  kind: 'dns' | 'connection' | 'timeout' | 'canceled' | 'unknown' | 'script'
   message: string
 }
 
@@ -149,6 +149,7 @@ export type HistoryEntry = {
 export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'sendRequest'; requestId: string; payload: RestRequest }
+  | { type: 'cancelRequest'; requestId: string }
   | { type: 'loadTree' }
   | { type: 'saveRequest'; collectionId: string; folderId?: string | null; request: CollectionItem }
   | { type: 'createRequest'; collectionId: string; folderId: string | null; request: CollectionItem }
@@ -209,6 +210,7 @@ export type WebviewMessage =
   | { type: 'enableSync'; workspaceId: string; accountId?: string }
   | { type: 'syncNow'; workspaceId: string }
   | { type: 'setWorkspacePolling'; workspaceId: string; enabled: boolean }
+  | { type: 'openDocs' }
 
 // host -> webview
 export type HostMessage =

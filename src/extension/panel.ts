@@ -14,6 +14,8 @@ import { TrashStore } from "./stores/trash-store";
 import { parseImport, serializeExport } from "./formats/import-export";
 import { Hub } from "./hub";
 import { WsManager, type WsFactory } from "./net/ws-manager";
+import { resolveOAuthToken, fetchOAuthToken, oauthTokenStatus } from "./net/oauth2";
+import type { Auth } from "../shared/types";
 import {
   SyncClient,
   SyncAuthError,
@@ -412,6 +414,25 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       ws: wsManager,
       grpcInvoke,
       trash,
+      oauth: {
+        resolve: (auth: Auth, requestId: string) =>
+          resolveOAuthToken(auth as Extract<Auth, { type: "oauth2" }>, requestId, {
+            secrets: context.secrets,
+            openExternal: async (url: string) =>
+              vscode.env.openExternal(vscode.Uri.parse(url)),
+          }),
+        fetch: (auth: Auth, requestId: string) =>
+          fetchOAuthToken(auth as Extract<Auth, { type: "oauth2" }>, requestId, {
+            secrets: context.secrets,
+            openExternal: async (url: string) =>
+              vscode.env.openExternal(vscode.Uri.parse(url)),
+          }),
+        status: (requestId: string) =>
+          oauthTokenStatus(requestId, {
+            secrets: context.secrets,
+            openExternal: () => Promise.resolve(false),
+          }),
+      },
       // Only enforce a role when signed in. The role cache is loaded from the
       // on-disk sync-state, which survives sign-out; without this gate a former
       // viewer would stay locked out (and the role badge would linger) after

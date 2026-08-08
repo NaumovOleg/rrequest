@@ -53,6 +53,12 @@ export type RouterDeps = {
   saveBodyToFile?: (opts: { content: string; isBase64: boolean; suggestName: string }) => Promise<string | null>
   // Opens the bundled usage/scripting docs (markdown) in the editor.
   openDocs?: () => Promise<void>
+  // OAuth2 host helpers (token resolution / interactive flow / status).
+  oauth?: {
+    resolve(auth: import('../shared/types').Auth, requestId: string): Promise<string>
+    fetch(auth: import('../shared/types').Auth, requestId: string): Promise<{ expiresInSec?: number }>
+    status(requestId: string): Promise<{ ok: boolean; expiresInSec?: number }>
+  }
 }
 
 // requestId -> the FULL body of its latest response, kept off the webview IPC
@@ -245,6 +251,32 @@ export function createRouter(deps: RouterDeps) {
         const controller = new AbortController()
         inflight.set(msg.requestId, controller)
         try {
+          // OAuth2: resolve a usable access token BEFORE sending (scripts may
+          // have changed the auth mid-cascade), inject as the Authorization
+          // header unless the user already set one explicitly.
+          if (effective.auth?.type === 'oauth2' && deps.oauth) {
+            try {
+              const token = await deps.oauth.resolve(effective.auth, msg.requestId)
+              const hasAuth = (effective.headers ?? []).some((h) => h.enabled && h.key.toLowerCase() === 'authorization')
+              if (!hasAuth) {
+                effective = {
+                  ...effective,
+                  headers: [...(effective.headers ?? []), { key: 'Authorization', value: `Bearer ${token}`, enabled: true }],
+                }
+              }
+            } catch (e: any) {
+              return {
+                type: 'response',
+                requestId: msg.requestId,
+                payload: {
+                  status: 0, statusText: 'OAuth2 failed', headers: [], body: '',
+                  bodyTruncated: false, timeMs: 0, sizeBytes: 0, cookies: [],
+                  error: { kind: 'script', message: `OAuth2: ${String(e?.message ?? e)}` },
+                  consoleLogs: logs,
+                },
+              }
+            }
+          }
           const payload = await deps.send(effective, {
             vars,
             onFullBody: (full) => keepFullBody(msg.requestId, full),
@@ -409,6 +441,20 @@ export function createRouter(deps: RouterDeps) {
       case 'openDocs': {
         if (deps.openDocs) await deps.openDocs()
         return undefined
+      }
+      case 'oauthGetToken': {
+        if (!deps.oauth || msg.auth.type !== 'oauth2') return { type: 'oauthResult', requestId: msg.requestId, ok: false, error: 'OAuth2 is not available' }
+        try {
+          const r = await deps.oauth.fetch(msg.auth, msg.requestId)
+          return { type: 'oauthResult', requestId: msg.requestId, ok: true, expiresInSec: r.expiresInSec }
+        } catch (e: any) {
+          return { type: 'oauthResult', requestId: msg.requestId, ok: false, error: String(e?.message ?? e) }
+        }
+      }
+      case 'oauthStatus': {
+        if (!deps.oauth) return { type: 'oauthStatusResult', requestId: msg.requestId, ok: false }
+        const s = await deps.oauth.status(msg.requestId)
+        return { type: 'oauthStatusResult', requestId: msg.requestId, ok: s.ok, expiresInSec: s.expiresInSec }
       }
       case 'openRequest': {
         // Opening a request from a collection with a bound environment activates

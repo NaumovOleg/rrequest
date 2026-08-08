@@ -292,10 +292,14 @@ const KeyValueTable = ({
 const AuthEditor = ({
   auth,
   onChange,
+  requestId,
 }: {
   auth: Auth;
   onChange: (a: Auth) => void;
+  requestId: string;
 }) => {
+  const [oauthStatus, setOauthStatus] = useState<string>("");
+  const [oauthBusy, setOauthBusy] = useState(false);
   const setType = (type: Auth["type"]) => {
     if (type === "none") onChange({ type: "none" });
     else if (type === "bearer")
@@ -309,14 +313,161 @@ const AuthEditor = ({
         username: auth.type === "basic" ? auth.username : "",
         password: auth.type === "basic" ? auth.password : "",
       });
-    else
+    else if (type === "apikey")
       onChange({
         type: "apikey",
         key: auth.type === "apikey" ? auth.key : "",
         value: auth.type === "apikey" ? auth.value : "",
         in: auth.type === "apikey" ? auth.in : "header",
       });
+    else
+      onChange({
+        type: "oauth2",
+        grant: "authorization-code",
+        authUrl: "",
+        tokenUrl: "",
+        clientId: "",
+        scope: "",
+      });
   };
+  const oauthConfigValid = (a: Auth): a is Extract<Auth, { type: "oauth2" }> =>
+    a.type === "oauth2" && !!a.tokenUrl && !!a.clientId && (a.grant === "client-credentials" || !!a.authUrl);
+  const oauth = (
+    o: { grant: "authorization-code" | "client-credentials" } & Partial<Record<"authUrl" | "tokenUrl" | "clientId" | "clientSecret" | "scope", string>>
+  ) => onChange({ type: "oauth2", grant: o.grant, authUrl: o.authUrl ?? "", tokenUrl: o.tokenUrl ?? "", clientId: o.clientId ?? "", clientSecret: o.clientSecret, scope: o.scope });
+  useEffect(() => {
+    if (auth.type !== "oauth2") return;
+    const t = setTimeout(() => {
+      postToHost({ type: "oauthStatus", requestId });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [auth, requestId]);
+
+  if (auth.type === "oauth2") {
+    const valid = oauthConfigValid(auth)
+    return (
+      <div className="rm-section rm-authform">
+        <div className="rm-row">
+          <label>Type</label>
+          <select
+            className="rm-select"
+            aria-label="auth type"
+            value={auth.type}
+            onChange={(e) => setType(e.target.value as Auth["type"])}
+          >
+            <option value="none">No Auth</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">Basic Auth</option>
+            <option value="apikey">API Key</option>
+            <option value="oauth2">OAuth2</option>
+          </select>
+        </div>
+        <div className="rm-row">
+          <label>Grant</label>
+          <select
+            className="rm-select"
+            aria-label="oauth grant"
+            value={auth.grant}
+            onChange={(e) =>
+              oauth({ ...auth, grant: e.target.value as typeof auth.grant })
+            }
+          >
+            <option value="authorization-code">Authorization Code (PKCE)</option>
+            <option value="client-credentials">Client Credentials</option>
+          </select>
+        </div>
+        {auth.grant === "authorization-code" && (
+          <div className="rm-row">
+            <label>Authorization URL</label>
+            <input
+              className="rm-input"
+              aria-label="oauth auth url"
+              value={auth.authUrl}
+              onChange={(e) => oauth({ ...auth, authUrl: e.target.value })}
+            />
+          </div>
+        )}
+        <div className="rm-row">
+          <label>Token URL</label>
+          <input
+            className="rm-input"
+            aria-label="oauth token url"
+            value={auth.tokenUrl}
+            onChange={(e) => oauth({ ...auth, tokenUrl: e.target.value })}
+          />
+        </div>
+        <div className="rm-row">
+          <label>Client ID</label>
+          <input
+            className="rm-input"
+            aria-label="oauth client id"
+            value={auth.clientId}
+            onChange={(e) => oauth({ ...auth, clientId: e.target.value })}
+          />
+        </div>
+        <div className="rm-row">
+          <label>Client Secret</label>
+          <input
+            className="rm-input"
+            type="password"
+            aria-label="oauth client secret"
+            value={auth.clientSecret ?? ""}
+            onChange={(e) => oauth({ ...auth, clientSecret: e.target.value })}
+          />
+        </div>
+        <div className="rm-row">
+          <label>Scope</label>
+          <input
+            className="rm-input"
+            aria-label="oauth scope"
+            value={auth.scope ?? ""}
+            onChange={(e) => oauth({ ...auth, scope: e.target.value })}
+          />
+        </div>
+        <div className="rm-row">
+          <label />
+          <span className="rm-row-actions">
+            <button
+              type="button"
+              className="rm-btn"
+              disabled={oauthBusy || !valid}
+              onClick={async () => {
+                setOauthBusy(true);
+                try {
+                  const r = await new Promise<{ ok: boolean; error?: string; expiresInSec?: number }>((resolve) => {
+                    let done = false;
+                    const onMsg = (msg: any) => {
+                      if (msg?.type === "oauthResult" && msg.requestId === requestId && !done) {
+                        done = true;
+                        window.removeEventListener("message", onMsg);
+                        resolve(msg);
+                      }
+                    };
+                    window.addEventListener("message", onMsg);
+                    postToHost({ type: "oauthGetToken", requestId, auth });
+                  });
+                  if (!r.ok) {
+                    setOauthStatus(`Failed: ${r.error ?? "unknown error"}`);
+                  } else {
+                    setOauthStatus(
+                      r.expiresInSec != null
+                        ? `Token ready (expires in ${Math.round(r.expiresInSec / 60)} min)`
+                        : "Token ready"
+                    );
+                  }
+                } finally {
+                  setOauthBusy(false);
+                }
+              }}
+            >
+              {oauthBusy ? "Fetching…" : "Get token"}
+            </button>
+            {oauthStatus && <span className="rm-hint">{oauthStatus}</span>}
+          </span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="rm-section rm-authform">
       <div className="rm-row">
@@ -331,6 +482,7 @@ const AuthEditor = ({
           <option value="bearer">Bearer Token</option>
           <option value="basic">Basic Auth</option>
           <option value="apikey">API Key</option>
+          <option value="oauth2">OAuth2</option>
         </select>
       </div>
       {auth.type === "bearer" && (
@@ -969,6 +1121,7 @@ export function RequestPanel() {
               <AuthEditor
                 auth={active.auth ?? { type: "none" }}
                 onChange={(auth) => update({ auth })}
+                requestId={active.id}
               />
             )}
             {sub === "headers" && (

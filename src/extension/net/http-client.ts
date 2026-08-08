@@ -57,6 +57,9 @@ function applyAuth(req: RestRequest, headers: Headers, sub: (s: string) => strin
     }
     return ''
   }
+  // oauth2: the resolved Bearer token was injected into headers by messaging
+  // before send (resolveOAuthToken) — nothing to do here.
+  if (a.type === 'oauth2') return ''
   // apikey
   if (!a.key) return ''
   if (a.in === 'header') { headers.set(sub(a.key), sub(a.value)); return '' }

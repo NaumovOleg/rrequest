@@ -12,6 +12,15 @@ export type Auth =
   | { type: 'bearer'; token: string }
   | { type: 'basic'; username: string; password: string }
   | { type: 'apikey'; key: string; value: string; in: 'header' | 'query' }
+  | { type: 'oauth2'; grant: 'authorization-code' | 'client-credentials'; authUrl: string; tokenUrl: string; clientId: string; clientSecret?: string; scope?: string }
+
+/** A stored OAuth2 token payload (kept in VS Code Secret Storage, never in the workspace JSON). */
+export type OAuthToken = {
+  access: string
+  refresh?: string
+  exp?: number // epoch ms of expiry; absent = no expiry known
+  at: number
+}
 
 export type FormDataItem =
   | { kind: 'text'; key: string; value: string; enabled: boolean }
@@ -213,6 +222,8 @@ export type WebviewMessage =
   | { type: 'syncNow'; workspaceId: string }
   | { type: 'setWorkspacePolling'; workspaceId: string; enabled: boolean }
   | { type: 'openDocs' }
+  | { type: 'oauthGetToken'; requestId: string; auth: Auth }
+  | { type: 'oauthStatus'; requestId: string }
 
 // host -> webview
 export type HostMessage =
@@ -239,6 +250,8 @@ export type HostMessage =
   | { type: 'showMembers'; workspaceId: string }
   | { type: 'members'; members: Member[] }
   | { type: 'authState'; accounts: Account[] }
+  | { type: 'oauthResult'; requestId: string; ok: boolean; error?: string; expiresInSec?: number }
+  | { type: 'oauthStatusResult'; requestId: string; ok: boolean; expiresInSec?: number }
   | { type: 'syncStatus'; loading: boolean; scope: SyncScope }
 
 // Which item a sync operation covers, so only the matching widget shows its

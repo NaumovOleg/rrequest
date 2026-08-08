@@ -2,8 +2,9 @@
   "name": "rrequest",
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "publisher": "olgert",
+  "license": "MIT",
   "packageManager": "yarn@1.22.22",
   "engines": {
     "vscode": "^1.85.0"
@@ -177,9 +178,7 @@
     "vite": "^5.1.0",
     "vitest": "^1.4.0",
     "ws": "^8.16.0",
-    "zustand": "^4.5.0"
-  },
-  "dependencies": {
+    "zustand": "^4.5.0",
     "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.8.1"
   }

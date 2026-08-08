@@ -23,8 +23,6 @@ const options = {
     "vscode",
     "bufferutil",
     "utf-8-validate",
-    "@grpc/grpc-js",
-    "@grpc/proto-loader",
   ],
   outfile: "dist/extension.js",
   sourcemap: true,

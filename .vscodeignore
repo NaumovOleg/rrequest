@@ -14,11 +14,14 @@ infra/**
 !**/.env.example
 
 # --- Source, tests, docs, tooling (only the built dist/ + media/ ship) ---
+node_modules/**
 src/**
 test/**
 docs/**
 !docs/usage.md
+.planning/**
 .superpowers/**
+scripts/**
 .vscode/**
 .github/**
 .changeset/**
@@ -36,8 +39,7 @@ tsconfig*.json
 .DS_Store
 *.log
 
-# NOTE: node_modules is intentionally NOT excluded — @grpc/grpc-js and
-# @grpc/proto-loader are marked `external` in esbuild.js and must ship at
-# runtime; vsce prunes devDependencies automatically.
+# NOTE: @grpc/grpc-js and @grpc/proto-loader are bundled into dist/extension.js
+# by esbuild, so node_modules can be excluded entirely.
 # Kept in the package: dist/**, media/**, resources/**, package.json,
-# README*/LICENSE*, and the production node_modules vsce decides to include.
+# README*/LICENSE*.

@@ -1,4 +1,5 @@
 import { newId, itemKind, type CollectionItem, type GrpcRequest, type HostMessage, type KeyValue, type Member, type RestRequest, type WebviewMessage, type WsRequest } from '../shared/types'
+import { interpolate as interpolateStr } from './scripting/interpolate'
 import { isMutating } from './sync/sync-runtime'
 
 // The host message that opens an item in the right kind of editor panel.
@@ -59,6 +60,8 @@ export type RouterDeps = {
     fetch(auth: import('../shared/types').Auth, requestId: string): Promise<{ expiresInSec?: number }>
     status(requestId: string): Promise<{ ok: boolean; expiresInSec?: number }>
   }
+  // HTTP request timeout in ms (from the rrequest.requestTimeoutMs setting).
+  timeoutMs?: number
 }
 
 // requestId -> the FULL body of its latest response, kept off the webview IPC
@@ -281,6 +284,7 @@ export function createRouter(deps: RouterDeps) {
             vars,
             onFullBody: (full) => keepFullBody(msg.requestId, full),
             externalSignal: controller.signal,
+            timeoutMs: deps.timeoutMs,
           })
           let testResults: import('../shared/types').TestResult[] = []
           let scriptError: string | undefined
@@ -512,9 +516,16 @@ export function createRouter(deps: RouterDeps) {
         await deps.trash?.dropByWorkspace(msg.id)
         return await wsSnapshot()
       }
-      case 'wsConnect':
-        deps.ws?.connect(msg.connId, msg.url, msg.headers)
+      case 'wsConnect': {
+        const vars = await activeVars()
+        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
+        deps.ws?.connect(
+          msg.connId,
+          sub(msg.url),
+          msg.headers.map((h) => ({ ...h, key: sub(h.key), value: sub(h.value) })),
+        )
         return undefined
+      }
       case 'wsSend':
         deps.ws?.send(msg.connId, msg.data)
         return undefined
@@ -660,9 +671,13 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'showGrpc' }
       case 'grpcInvoke': {
         if (!deps.grpcInvoke) return { type: 'grpcResponse', requestId: msg.requestId, ok: false, error: 'gRPC is not available', timeMs: 0 }
+        const vars = await activeVars()
+        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
         const r = await deps.grpcInvoke({
-          address: msg.address, proto: msg.proto, service: msg.service,
-          method: msg.method, message: msg.message, metadata: msg.metadata, plaintext: msg.plaintext,
+          address: sub(msg.address), proto: sub(msg.proto), service: sub(msg.service),
+          method: sub(msg.method), message: msg.message,
+          metadata: msg.metadata.map((m) => ({ ...m, key: sub(m.key), value: sub(m.value) })),
+          plaintext: msg.plaintext,
         })
         return { type: 'grpcResponse', requestId: msg.requestId, ok: r.ok, message: r.message, error: r.error, timeMs: r.timeMs }
       }

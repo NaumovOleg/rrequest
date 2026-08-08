@@ -54,6 +54,45 @@ describe('createRouter grpc', () => {
     expect(d.grpcInvoke).toHaveBeenCalled()
     expect(out).toEqual({ type: 'grpcResponse', requestId: 'g1', ok: true, message: '{"message":"hi"}', error: undefined, timeMs: 3 })
   })
+
+  it('interpolates {{vars}} in grpc address, proto, service, method and metadata', async () => {
+    const d: any = deps()
+    d.activeEnvId = 'e1'
+    d.environments.list = vi.fn(async () => [{ id: 'e1', name: 'Dev', variables: [{ key: 'host', value: 'server:50051', enabled: true }, { key: 'svc', value: 'hello.Greeter', enabled: true }] }])
+    d.grpcInvoke = vi.fn(async () => ({ ok: true, message: '{}', timeMs: 1 }))
+    await routerAll(d)({ type: 'grpcInvoke', requestId: 'g2', address: '{{host}}', proto: 'pkg {{svc}}', service: '{{svc}}', method: 'SayHello', message: '{}', metadata: [{ key: 'x-{{svc}}', value: '{{host}}', enabled: true }], plaintext: true })
+    expect(d.grpcInvoke).toHaveBeenCalledWith(expect.objectContaining({
+      address: 'server:50051',
+      proto: 'pkg hello.Greeter',
+      service: 'hello.Greeter',
+      metadata: [{ key: 'x-hello.Greeter', value: 'server:50051', enabled: true }],
+    }))
+  })
+
+  it('interpolates {{vars}} in ws url and headers', async () => {
+    const d: any = deps()
+    d.activeEnvId = 'e1'
+    d.environments.list = vi.fn(async () => [{ id: 'e1', name: 'Dev', variables: [{ key: 'wsHost', value: 'echo.websocket.org', enabled: true }] }])
+    const connected: any[] = []
+    const ws = { connect: vi.fn((...a: any[]) => connected.push(a)), send: vi.fn(), disconnect: vi.fn() } as any
+    const router = createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+      ws })
+    await router({ type: 'wsConnect', connId: 'c1', url: 'wss://{{wsHost}}/socket', headers: [{ key: 'X-{{wsHost}}', value: 'test', enabled: true }] })
+    expect(ws.connect).toHaveBeenCalledWith('c1', 'wss://echo.websocket.org/socket', [{ key: 'X-echo.websocket.org', value: 'test', enabled: true }])
+  })
+
+  it('passes timeoutMs from deps into send', async () => {
+    const d: any = deps()
+    const router = createRouter({ send: d.send, collections: d.collections, history: d.history,
+      environments: d.environments, getActiveEnvId: () => d.activeEnvId, setActiveEnvId: (id: string | null) => { d.activeEnvId = id },
+      workspaces: d.workspaces, getActiveWorkspaceId: () => d.activeWorkspaceId, setActiveWorkspaceId: (id: string) => { d.activeWorkspaceId = id },
+      timeoutMs: 12345 })
+    await router({ type: 'sendRequest', requestId: 'r1', payload: req() })
+    const [, opts] = d.send.mock.calls[0]
+    expect(opts.timeoutMs).toBe(12345)
+  })
 })
 
 describe('createRouter', () => {

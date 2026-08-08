@@ -151,7 +151,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   bootstrapPromise = (async () => {
     const base = context.globalStorageUri.fsPath;
     const collections = new CollectionStore(base);
-    const environments = new EnvironmentStore(base);
+    const environments = new EnvironmentStore(base, context.secrets);
     const history = new HistoryStore(base);
     const workspaces = new WorkspaceStore(base);
     const trash = new TrashStore(base);
@@ -307,6 +307,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
 
     const route = createRouter({
       send: sendRequest,
+      timeoutMs: vscode.workspace
+        .getConfiguration("rrequest")
+        .get<number>("requestTimeoutMs", 30000),
       collections,
       history,
       enrichWorkspaces,

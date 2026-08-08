@@ -92,6 +92,12 @@
           "type": "number",
           "default": 45000,
           "description": "How often (in milliseconds) rrequest polls the sync backend for remote workspace changes"
+        },
+        "rrequest.requestTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "HTTP request timeout in milliseconds (applies to the whole send, headers + body)"
         }
       }
     },

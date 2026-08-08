@@ -1944,6 +1944,63 @@ body {
   justify-content: flex-end;
   gap: var(--rm-sp-2);
 }
+/* example diff modal */
+.rm-diff-modal {
+  width: min(1200px, 94vw);
+  max-height: 90vh;
+}
+.rm-diff-panes {
+  display: flex;
+  gap: var(--rm-sp-3);
+  overflow: auto;
+  min-height: 0;
+}
+.rm-diff-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.rm-diff-pane-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  margin-bottom: var(--rm-sp-1);
+}
+.rm-diff-pre {
+  flex: 1;
+  overflow: auto;
+  max-height: 100%;
+  margin: 0;
+}
+.rm-diff-line {
+  white-space: pre;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rm-diff-line.is-same {
+  color: var(--rm-fg);
+}
+.rm-diff-line.is-del {
+  color: var(--rm-error);
+  background: color-mix(in srgb, var(--rm-error) 12%, transparent);
+}
+.rm-diff-line.is-add {
+  color: var(--rm-success);
+  background: color-mix(in srgb, var(--rm-success) 12%, transparent);
+}
+.rm-example-row {
+  display: flex;
+  align-items: center;
+  cursor: default;
+}
+.rm-example-open {
+  flex: 1;
+  min-width: 0;
+}
 /* right-click context menu */
 .rm-ctxmenu {
   position: fixed;

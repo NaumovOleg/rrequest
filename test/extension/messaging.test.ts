@@ -783,3 +783,59 @@ describe('createRouter cascade scripts', () => {
     expect(calls).toEqual(['test:request-test'])
   })
 })
+
+describe('createRouter examples', () => {
+  function colWith(r: RestRequest) {
+    return { id: 'c1', name: 'C', workspaceId: 'w1', requests: [r], folders: [] }
+  }
+
+  it('saveExample appends to the request (root of collection)', async () => {
+    const d: any = deps()
+    const r: RestRequest = req()
+    const col = colWith(r)
+    d.collections.list = vi.fn(async () => [col])
+    const out = await routerAll(d)({ type: 'saveExample', requestId: r.id, example: { id: 'e1', at: 1, name: '200 OK', status: 200, statusText: 'OK', headers: [], body: '{}' } }) as any
+    expect((r as any).examples).toHaveLength(1)
+    expect(out.type).toBe('tree')
+  })
+
+  it('saveExample finds the request inside a folder', async () => {
+    const d: any = deps()
+    const r: RestRequest = req()
+    const col = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [r] }] }
+    d.collections.list = vi.fn(async () => [col])
+    await routerAll(d)({ type: 'saveExample', requestId: r.id, example: { id: 'e2', at: 1, name: '404', status: 404, statusText: 'Not Found', headers: [], body: '' } })
+    expect((r as any).examples).toHaveLength(1)
+    expect((r as any).examples[0].name).toBe('404')
+  })
+
+  it('caps examples at 50 and trims the oldest', async () => {
+    const d: any = deps()
+    const r: RestRequest = req()
+    const col = colWith(r)
+    d.collections.list = vi.fn(async () => [col])
+    for (let i = 0; i < 55; i++) {
+      await routerAll(d)({ type: 'saveExample', requestId: r.id, example: { id: `e${i}`, at: i, name: `${i}`, status: 200, statusText: 'OK', headers: [], body: '' } })
+    }
+    expect((r as any).examples).toHaveLength(50)
+    expect((r as any).examples[0].id).toBe('e5')
+    expect((r as any).examples[49].id).toBe('e54')
+  })
+
+  it('no-ops when the request is not in any collection', async () => {
+    const d: any = deps()
+    d.collections.list = vi.fn(async () => [])
+    const out = await routerAll(d)({ type: 'saveExample', requestId: 'ghost', example: { id: 'e9', at: 1, name: '200', status: 200, statusText: 'OK', headers: [], body: '' } }) as any
+    expect(out.type).toBe('tree')
+  })
+
+  it('deleteExample removes by id', async () => {
+    const d: any = deps()
+    const r: RestRequest = { ...req(), examples: [{ id: 'a', at: 1, name: 'a', status: 200, statusText: 'OK', headers: [], body: '1' }, { id: 'b', at: 2, name: 'b', status: 201, statusText: 'Created', headers: [], body: '2' }] }
+    const col = colWith(r)
+    d.collections.list = vi.fn(async () => [col])
+    await routerAll(d)({ type: 'deleteExample', requestId: r.id, exampleId: 'a' })
+    expect(r.examples).toHaveLength(1)
+    expect(r.examples![0].id).toBe('b')
+  })
+})

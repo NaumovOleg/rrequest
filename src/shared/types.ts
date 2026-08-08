@@ -33,6 +33,19 @@ export type RequestBody =
   | { mode: 'graphql'; query: string; variables: string }
   | { mode: 'formdata'; items: FormDataItem[] }
 
+/** A saved response snapshot attached to a request ("save response as example"). */
+export type Example = {
+  id: string
+  at: number
+  name: string
+  status: number
+  statusText: string
+  headers: KeyValue[]
+  body: string
+  bodyIsBinary?: boolean
+  bodyBase64?: string
+}
+
 export type RestRequest = {
   id: string
   name: string
@@ -46,6 +59,7 @@ export type RestRequest = {
   cookies?: KeyValue[]
   preRequestScript?: string
   testScript?: string
+  examples?: Example[]
 }
 
 export type GrpcRequest = {
@@ -227,6 +241,8 @@ export type WebviewMessage =
   | { type: 'openDocs' }
   | { type: 'oauthGetToken'; requestId: string; auth: Auth }
   | { type: 'oauthStatus'; requestId: string }
+  | { type: 'saveExample'; requestId: string; example: Example }
+  | { type: 'deleteExample'; requestId: string; exampleId: string }
 
 // host -> webview
 export type HostMessage =

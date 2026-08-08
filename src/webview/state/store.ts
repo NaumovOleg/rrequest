@@ -30,7 +30,7 @@ function isPristineBlank(t: RestRequest): boolean {
 
 // Find an item anywhere in the tree, returning its current location so an open
 // tab can pick up a new collection/folder after a move.
-function locateInTree(tree: Collection[], reqId: string): { item: CollectionItem; collectionId: string; folderId: string | null } | undefined {
+export function locateInTree(tree: Collection[], reqId: string): { item: CollectionItem; collectionId: string; folderId: string | null } | undefined {
   for (const c of tree) {
     const r = c.requests.find((x) => x.id === reqId)
     if (r) return { item: r, collectionId: c.id, folderId: null }

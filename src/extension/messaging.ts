@@ -766,6 +766,32 @@ export function createRouter(deps: RouterDeps) {
       case 'clearHistory':
         await deps.history.clear()
         return await histSnapshot()
+      case 'saveExample': {
+        const all = await deps.collections.list()
+        const found = findRequestIn(all, msg.requestId)
+        if (found) {
+          // Examples belong on HTTP requests only.
+          if (itemKind(found.req) === 'http') {
+            const r = found.req as import('../shared/types').RestRequest
+            const examples = [...(r.examples ?? []), msg.example]
+            // Cap: keep the newest 50 (oldest trimmed) — examples are regression
+            // snapshots, not a log.
+            r.examples = examples.length > 50 ? examples.slice(examples.length - 50) : examples
+            await deps.collections.saveCollection(found.c)
+          }
+        }
+        return { type: 'tree', collections: all }
+      }
+      case 'deleteExample': {
+        const all = await deps.collections.list()
+        const found = findRequestIn(all, msg.requestId)
+        if (found && itemKind(found.req) === 'http') {
+          const r = found.req as import('../shared/types').RestRequest
+          r.examples = (r.examples ?? []).filter((e) => e.id !== msg.exampleId)
+          await deps.collections.saveCollection(found.c)
+        }
+        return { type: 'tree', collections: all }
+      }
       case 'openTextDocument':
         await deps.openTextDocument?.({ content: msg.content, language: msg.language })
         return undefined
@@ -792,6 +818,22 @@ export function createRouter(deps: RouterDeps) {
         return undefined
     }
   }
+}
+
+// A request lives in some collection (root or a folder) — find the first
+// match by id across the tree, so examples editing doesn't need the caller to
+// know the request's exact location.
+function findRequestIn(all: import('../shared/types').Collection[], requestId: string):
+  { c: import('../shared/types').Collection; req: import('../shared/types').CollectionItem } | undefined {
+  for (const c of all) {
+    const direct = c.requests.find((r) => r.id === requestId)
+    if (direct) return { c, req: direct }
+    for (const f of c.folders ?? []) {
+      const inFolder = f.requests.find((r) => r.id === requestId)
+      if (inFolder) return { c, req: inFolder }
+    }
+  }
+  return undefined
 }
 
 function reqBucket(c: import('../shared/types').Collection, folderId: string | null) {

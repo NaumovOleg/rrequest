@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { useStore } from '../../state/store'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useStore, locateInTree } from '../../state/store'
 import { postToHost } from '../../ipc'
-import { newId, type HttpResponse } from '../../../shared/types'
+import { newId, itemKind, type Example, type HttpResponse, type RestRequest } from '../../../shared/types'
 import { JsonTree } from '../../components/JsonTree'
+import { diffLines } from '../../state/diff'
 
 type SubTab = 'body' | 'headers' | 'cookies' | 'test-results' | 'console'
 type BodyView = 'pretty' | 'raw' | 'tree'
@@ -83,15 +84,38 @@ export function ResponsePanel() {
   const [htmlView, setHtmlView] = useState<'preview' | 'raw'>('preview')
   const [search, setSearch] = useState('')
   const [bodyText, setBodyText] = useState<string | null>(null)
+  // The example currently shown in the diff modal (null = closed).
+  const [diffWith, setDiffWith] = useState<Example | null>(null)
+  const [examplesOpen, setExamplesOpen] = useState(false)
+  const examplesRef = useRef<HTMLSpanElement>(null)
   const requestId = useStore((s) => s.activeTabId)
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
   const lastSent = useStore((s) => s.lastSent)
   const openOrReplaceBlank = useStore((s) => s.openOrReplaceBlank)
   const setInFlight = useStore((s) => s.setInFlight)
   const setLastSent = useStore((s) => s.setLastSent)
+  const tree = useStore((s) => s.tree)
+  // Examples attach to the request IN a collection; a blank/unsaved tab has
+  // nowhere to store them, so both the save button and the list stay disabled.
+  const located = requestId ? locateInTree(tree, requestId) : undefined
+  const examples: Example[] =
+    located && itemKind(located.item) === 'http'
+      ? (located.item as RestRequest).examples ?? []
+      : []
   // The Beautify action reformats the body in place; a fresh response (or a
   // different tab) starts from the server bytes again.
   useEffect(() => { setBodyText(null) }, [requestId, resp?.body])
+
+  useEffect(() => {
+    if (!examplesOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (examplesRef.current && !examplesRef.current.contains(e.target as Node)) setExamplesOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExamplesOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [examplesOpen])
 
   const repeat = () => {
     if (!lastSent) return
@@ -165,6 +189,37 @@ export function ResponsePanel() {
       fallbackIsBase64: binary,
       suggestName: 'response',
     })
+
+  const saveExample = () => {
+    if (!resp || !requestId) return
+    postToHost({
+      type: 'saveExample',
+      requestId,
+      example: {
+        id: newId(),
+        at: Date.now(),
+        name: `${resp.status} ${resp.statusText}`,
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: resp.headers,
+        body: resp.body,
+        bodyIsBinary: binary,
+        bodyBase64: resp.bodyBase64,
+      },
+    })
+  }
+
+  const deleteExample = (exampleId: string) => {
+    if (!requestId) return
+    postToHost({ type: 'deleteExample', requestId, exampleId })
+    if (diffWith?.id === exampleId) setDiffWith(null)
+  }
+
+  // The diff modal renders the example against the LIVE response: the example
+  // pane shows removed lines, the live pane shows added ones, shared lines
+  // appear in both. Recomputes whenever the response changes, so re-sending
+  // while the modal is open updates the comparison live.
+  const diffLinesOut = diffWith ? diffLines(diffWith.body, resp.body) : []
 
   return (
     <div className="rm-panel">
@@ -268,6 +323,39 @@ export function ResponsePanel() {
               onClick={saveBody}>
               Save
             </button>
+            <button className="rm-btn rm-btn--sm" disabled={!located} title={located ? 'Save this response as an example on the request' : 'Save the request to a collection first to attach examples'}
+              onClick={saveExample}>
+              Save example
+            </button>
+            <span className="rm-popup" ref={examplesRef} style={{ position: 'relative' }}>
+              <button className="rm-btn rm-btn--sm" disabled={examples.length === 0} title="Open / diff saved examples"
+                onClick={() => setExamplesOpen((o) => !o)}>
+                Examples ({examples.length})
+              </button>
+              {examplesOpen && (
+                <div className="rm-popup-menu" role="menu" aria-label="examples">
+                  <div className="rm-popup-header" role="presentation">Saved examples</div>
+                  {examples.map((e) => (
+                    <div key={e.id} className="rm-example-row" role="presentation">
+                      <button type="button" className="rm-popup-item rm-example-open"
+                        role="menuitem"
+                        title="Diff against the live response"
+                        onClick={() => { setDiffWith(e); setExamplesOpen(false) }}>
+                        <span className="rm-popup-gutter" aria-hidden="true">
+                          <span className="codicon codicon-git-compare" />
+                        </span>
+                        <span className="rm-popup-label">{e.name}</span>
+                        <span className="rm-popup-hint">{new Date(e.at).toLocaleString()}</span>
+                      </button>
+                      <button className="rm-icon-btn" aria-label="delete example" title="Delete example"
+                        onClick={() => deleteExample(e.id)}>
+                        <span className="codicon codicon-trash" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </span>
           </div>
           {resp.bodyTruncated && !binary && <div className="rm-trunc-note">Response too large — showing a truncated preview. Use Save to write the full body to a file.</div>}
           {binary ? (
@@ -366,6 +454,37 @@ export function ResponsePanel() {
       })()}
       {sub === 'console' && (
         <pre className="rm-code">{(resp.consoleLogs ?? []).join('\n')}</pre>
+      )}
+      {diffWith && (
+        <div className="rm-modal-scrim" onClick={() => setDiffWith(null)}>
+          <div className="rm-modal rm-diff-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rm-modal-actions">
+              <span className="rm-modal-title">Diff: {diffWith.name} vs live response</span>
+              <button className="rm-icon-btn" aria-label="close diff" title="Close diff"
+                onClick={() => setDiffWith(null)}>
+                <span className="codicon codicon-close" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="rm-diff-panes">
+              <div className="rm-diff-pane">
+                <div className="rm-diff-pane-title">Example — {diffWith.name}</div>
+                <pre className="rm-code rm-diff-pre">
+                  {diffLinesOut.filter((l) => l.t !== 'add').map((l, i) => (
+                    <div key={i} className={`rm-diff-line is-${l.t}`}>{l.text || '\u00A0'}</div>
+                  ))}
+                </pre>
+              </div>
+              <div className="rm-diff-pane">
+                <div className="rm-diff-pane-title">Live response — {resp.status} {resp.statusText}</div>
+                <pre className="rm-code rm-diff-pre">
+                  {diffLinesOut.filter((l) => l.t !== 'del').map((l, i) => (
+                    <div key={i} className={`rm-diff-line is-${l.t}`}>{l.text || '\u00A0'}</div>
+                  ))}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

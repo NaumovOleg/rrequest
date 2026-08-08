@@ -69,6 +69,7 @@ export function toOpenApi(c: Collection): unknown {
       operationId: opId(req.name),
       responses: { '200': { description: 'OK' } },
     }
+    if (req.description) op.description = req.description
     if (folder) op.tags = [folder]
     const parameters: unknown[] = []
     for (const p of req.params) if (p.enabled && p.key) parameters.push({ name: p.key, in: 'query', required: false, schema: { type: 'string' }, ...(p.value ? { example: p.value } : {}) })
@@ -81,7 +82,7 @@ export function toOpenApi(c: Collection): unknown {
   }
   const doc: Record<string, unknown> = {
     openapi: '3.0.3',
-    info: { title: c.name || 'RREQUEST Collection', version: '1.0.0' },
+    info: { title: c.name || 'RREQUEST Collection', version: '1.0.0', ...(c.description ? { description: c.description } : {}) },
     paths,
   }
   if (servers.size) doc.servers = [...servers].map((url) => ({ url }))
@@ -138,6 +139,7 @@ function operationToRequest(method: string, path: string, op: any, server: strin
     body: bodyFromOpenApi(op.requestBody),
     preRequestScript: '',
     testScript: '',
+    ...(op.description ? { description: String(op.description) } : {}),
   }
 }
 

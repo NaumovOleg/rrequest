@@ -839,3 +839,29 @@ describe('createRouter examples', () => {
     expect(r.examples![0].id).toBe('b')
   })
 })
+
+describe('createRouter descriptions', () => {
+  it('saveCollectionDescription persists and returns the tree', async () => {
+    const d: any = deps()
+    const col = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [], description: undefined as string | undefined }
+    d.collections.list = vi.fn(async () => [col])
+    const out = await routerAll(d)({ type: 'saveCollectionDescription', collectionId: 'c1', description: '# Docs' }) as any
+    expect(col.description).toBe('# Docs')
+    expect(out.type).toBe('tree')
+  })
+
+  it('saveFolderDescription persists on the folder', async () => {
+    const d: any = deps()
+    const col = { id: 'c1', name: 'C', workspaceId: 'w1', requests: [], folders: [{ id: 'f1', name: 'F', requests: [], preRequestScript: '', testScript: '', description: undefined as string | undefined }] }
+    d.collections.list = vi.fn(async () => [col])
+    await routerAll(d)({ type: 'saveFolderDescription', collectionId: 'c1', folderId: 'f1', description: '**bold**' })
+    expect(col.folders![0].description).toBe('**bold**')
+  })
+
+  it('no-ops for a missing collection', async () => {
+    const d: any = deps()
+    d.collections.list = vi.fn(async () => [])
+    const out = await routerAll(d)({ type: 'saveCollectionDescription', collectionId: 'ghost', description: 'x' }) as any
+    expect(out.type).toBe('tree')
+  })
+})

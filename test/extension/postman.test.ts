@@ -79,3 +79,24 @@ describe('fromNative', () => {
     expect((back.requests[0] as any).params).toEqual([{ key: 'q', value: '1', enabled: false }])
   })
 })
+
+describe('descriptions in export/import', () => {
+  it('carries request + collection descriptions on export', () => {
+    const c: Collection = { id: '1', name: 'API', workspaceId: '', description: '**Top docs**', requests: [
+      { id: 'a', name: 'Get', method: 'GET', url: 'https://api.test/x',
+        params: [], headers: [{ key: 'Accept', value: 'json', enabled: true }],
+        body: { mode: 'none' }, description: 'fetch users' },
+    ] }
+    const pm = fromNative(c)
+    expect(pm.info.description).toBe('**Top docs**')
+    expect(pm.item[0].request.description).toBe('fetch users')
+  })
+
+  it('round-trips a request description on import', () => {
+    const c = toNative({
+      info: { name: 'API', schema: 'v2.1' },
+      item: [{ name: 'Get', request: { method: 'GET', url: 'https://api.test/x', description: '# hi' } }],
+    })
+    expect(c.requests[0].description).toBe('# hi')
+  })
+})

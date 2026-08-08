@@ -2001,6 +2001,37 @@ body {
   flex: 1;
   min-width: 0;
 }
+/* docs modal (markdown descriptions) */
+.rm-docs-textarea {
+  font-family: var(--vscode-editor-font-family, monospace);
+  resize: vertical;
+  min-height: 160px;
+}
+.rm-docs-preview {
+  max-height: 60vh;
+  overflow: auto;
+  line-height: 1.5;
+  font-size: 0.95em;
+}
+.rm-docs-h { font-weight: 600; margin: 0.4em 0 0.2em; }
+.rm-docs-h1 { font-size: 1.3em; }
+.rm-docs-h2 { font-size: 1.15em; }
+.rm-docs-h3 { font-size: 1.05em; }
+.rm-docs-p { margin: 0.4em 0; }
+.rm-docs-list { margin: 0.4em 0 0.4em 1.4em; padding: 0; }
+.rm-docs-code {
+  padding: var(--rm-sp-2);
+  margin: 0.4em 0;
+  overflow: auto;
+}
+.rm-docs-preview code {
+  color: var(--rm-fg);
+  background: var(--rm-input-bg);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.rm-docs-preview a { color: var(--rm-accent); }
 /* right-click context menu */
 .rm-ctxmenu {
   position: fixed;

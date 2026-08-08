@@ -571,6 +571,12 @@ export function createRouter(deps: RouterDeps) {
       case 'saveFolderScript':
         await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) { f.preRequestScript = msg.preRequestScript; f.testScript = msg.testScript } })
         return { type: 'tree', collections: await deps.collections.list() }
+      case 'saveCollectionDescription':
+        await withCollection(msg.collectionId, (c) => { c.description = msg.description })
+        return { type: 'tree', collections: await deps.collections.list() }
+      case 'saveFolderDescription':
+        await withCollection(msg.collectionId, (c) => { const f = (c.folders ?? []).find((x) => x.id === msg.folderId); if (f) f.description = msg.description })
+        return { type: 'tree', collections: await deps.collections.list() }
       case 'deleteFolder': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.collectionId)
         const f = (c?.folders ?? []).find((x) => x.id === msg.folderId)

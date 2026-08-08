@@ -60,6 +60,7 @@ export type RestRequest = {
   preRequestScript?: string
   testScript?: string
   examples?: Example[]
+  description?: string
 }
 
 export type GrpcRequest = {
@@ -73,6 +74,7 @@ export type GrpcRequest = {
   message: string
   metadata: KeyValue[]
   plaintext: boolean
+  description?: string
 }
 
 export type WsRequest = {
@@ -81,6 +83,7 @@ export type WsRequest = {
   kind: 'ws'
   url: string
   headers: KeyValue[]
+  description?: string
 }
 
 /** Anything that can live in a collection/folder. */
@@ -131,9 +134,9 @@ export type HttpResponse = {
   bodyBase64?: string
 }
 
-export type Folder = { id: string; name: string; requests: CollectionItem[]; preRequestScript?: string; testScript?: string }
+export type Folder = { id: string; name: string; requests: CollectionItem[]; preRequestScript?: string; testScript?: string; description?: string }
 
-export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string; preRequestScript?: string; testScript?: string }
+export type Collection = { id: string; name: string; workspaceId: string; requests: CollectionItem[]; folders?: Folder[]; environmentId?: string; preRequestScript?: string; testScript?: string; description?: string }
 
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
@@ -208,6 +211,8 @@ export type WebviewMessage =
   | { type: 'renameFolder'; collectionId: string; folderId: string; name: string }
   | { type: 'saveCollectionScript'; collectionId: string; preRequestScript?: string; testScript?: string }
   | { type: 'saveFolderScript'; collectionId: string; folderId: string; preRequestScript?: string; testScript?: string }
+  | { type: 'saveCollectionDescription'; collectionId: string; description: string }
+  | { type: 'saveFolderDescription'; collectionId: string; folderId: string; description: string }
   | { type: 'deleteFolder'; collectionId: string; folderId: string }
   | { type: 'moveRequest'; fromCollectionId: string; fromFolderId: string | null; toCollectionId: string; toFolderId: string | null; requestId: string }
   | { type: 'moveFolder'; fromCollectionId: string; toCollectionId: string; folderId: string }

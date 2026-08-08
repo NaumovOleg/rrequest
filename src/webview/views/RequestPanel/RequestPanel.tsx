@@ -17,6 +17,7 @@ import { generateCode, type Language } from "../../codegen";
 import { methodClass } from "../../method-color";
 import { AssertPanel, emptyRow } from "./AssertPanel";
 import { compileChecks, parseChecks, type CheckRow } from "./test-compile";
+import { DocsModal } from "../Docs/DocsModal";
 
 const METHODS: HttpMethod[] = [
   "GET",
@@ -573,6 +574,7 @@ export function RequestPanel() {
   // the testScript on every edit, so both views read/write the same field.
   const [testMode, setTestMode] = useState<"checks" | "script">("checks");
   const [checkRows, setCheckRows] = useState<CheckRow[]>([]);
+  const [docsOpen, setDocsOpen] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   const bodyCache = useRef<{
     id: string | null;
@@ -1003,6 +1005,13 @@ export function RequestPanel() {
           >
             Save
           </button>
+          <button
+            className={`rm-btn${active.description ? " is-active" : ""}`}
+            title={active.description ? "Edit request docs (markdown)" : "Add request docs (markdown)"}
+            onClick={() => setDocsOpen(true)}
+          >
+            <span className="codicon codicon-book" aria-hidden="true" /> Docs
+          </button>
           <EnvDropdown />
         </div>
       </header>
@@ -1379,6 +1388,15 @@ export function RequestPanel() {
           <ResponsePanel />
         </section>
       </div>
+      {docsOpen && (
+        <DocsModal
+          title={`Request Docs — ${active.name}`}
+          initial={active.description ?? ""}
+          readOnly={isViewer}
+          onClose={() => setDocsOpen(false)}
+          onSave={(text) => { update({ description: text }); setDocsOpen(false) }}
+        />
+      )}
     </div>
   );
 }

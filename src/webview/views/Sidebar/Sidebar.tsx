@@ -8,6 +8,7 @@ import { PopupMenu, type PopupMenuItem } from '../../elements/PopupMenu'
 import { ContextMenu } from '../../elements/ContextMenu'
 import { RenameInput } from '../../elements/RenameInput'
 import { CodeTextarea } from '../../elements/CodeTextarea'
+import { DocsModal } from '../Docs/DocsModal'
 
 function blankRequest(): RestRequest {
   return { id: newId(), name: 'New Request', method: 'GET', url: '', params: [], headers: defaultHeaders(), cookies: [], body: { mode: 'none' }, preRequestScript: '', testScript: '' }
@@ -46,6 +47,7 @@ export function Sidebar() {
   useEffect(() => { setUiState('expandedCollections', [...expandedCollections]) }, [expandedCollections])
   useEffect(() => { setUiState('expandedFolders', [...expandedFolders]) }, [expandedFolders])
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [docsFor, setDocsFor] = useState<{ title: string; collectionId: string; folderId?: string; description: string } | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [ctx, setCtx] = useState<Ctx | null>(null)
   const [query, setQuery] = useState('')
@@ -177,6 +179,7 @@ export function Sidebar() {
     items.push(
       { kind: 'separator' },
       { label: 'Scripts', icon: 'run-all', onClick: () => setScriptsFor({ kind: 'collection', collectionId: c.id, name: c.name, pre: c.preRequestScript ?? '', test: c.testScript ?? '' }) },
+      { label: 'Docs', icon: 'book', onClick: () => setDocsFor({ title: `Collection Docs — ${c.name}`, collectionId: c.id, description: c.description ?? '' }) },
     )
     return items
   }
@@ -200,6 +203,7 @@ export function Sidebar() {
     return [
       { label: 'Add Request', icon: 'add', onClick: () => { expandCollection(collectionId); expandFolder(key); postToHost({ type: 'createRequest', collectionId, folderId: f.id, request: blankRequest() }) } },
       { label: 'Scripts', icon: 'run-all', onClick: () => setScriptsFor({ kind: 'folder', collectionId, folderId: f.id, name: f.name, pre: f.preRequestScript ?? '', test: f.testScript ?? '' }) },
+      { label: 'Docs', icon: 'book', onClick: () => setDocsFor({ title: `Folder Docs — ${f.name}`, collectionId, folderId: f.id, description: f.description ?? '' }) },
       { label: 'Rename', icon: 'edit', onClick: () => setRenamingId(f.id) },
       { label: 'Duplicate', icon: 'copy', onClick: () => postToHost({ type: 'duplicateFolder', collectionId, folderId: f.id }) },
       { label: 'Delete', icon: 'trash', onClick: () => postToHost({ type: 'deleteFolder', collectionId, folderId: f.id }) },
@@ -248,6 +252,9 @@ export function Sidebar() {
               onCommit={(name) => { postToHost({ type: 'renameRequest', collectionId, folderId, requestId: r.id, name }); setRenamingId(null) }}
               onCancel={() => setRenamingId(null)} />
           : <span className="rm-tree-label">{r.name}</span>}
+        {r.description && (
+          <span className="codicon codicon-book rm-script-dot" title="Description set — open the request to view/edit it" aria-hidden="true" />
+        )}
         {!isViewer && (
           <div className="rm-actions">
             <IconButton icon="edit" label={`rename request ${r.name}`} onClick={() => setRenamingId(r.id)} />
@@ -280,6 +287,9 @@ export function Sidebar() {
             : <span className="rm-tree-label">{f.name}</span>}
           {(f.preRequestScript || f.testScript) && (
             <span className="codicon codicon-run-all rm-script-dot" title="Folder scripts set" aria-hidden="true" />
+          )}
+          {f.description && (
+            <span className="codicon codicon-book rm-script-dot" title="Folder description set" aria-hidden="true" />
           )}
           {!isViewer && (
             <div className="rm-actions">
@@ -383,6 +393,9 @@ export function Sidebar() {
                 {(c.preRequestScript || c.testScript) && (
                   <span className="codicon codicon-run-all rm-script-dot" title="Collection scripts set" aria-hidden="true" />
                 )}
+                {c.description && (
+                  <span className="codicon codicon-book rm-script-dot" title="Collection description set" aria-hidden="true" />
+                )}
                 <div className="rm-actions">
                   {!isViewer && (
                     <>
@@ -409,6 +422,22 @@ export function Sidebar() {
             </div>
           )
         })
+      )}
+      {docsFor && (
+        <DocsModal
+          title={docsFor.title}
+          initial={docsFor.description}
+          readOnly={isViewer}
+          onClose={() => setDocsFor(null)}
+          onSave={(text) => {
+            if (docsFor.folderId) {
+              postToHost({ type: 'saveFolderDescription', collectionId: docsFor.collectionId, folderId: docsFor.folderId, description: text })
+            } else {
+              postToHost({ type: 'saveCollectionDescription', collectionId: docsFor.collectionId, description: text })
+            }
+            setDocsFor(null)
+          }}
+        />
       )}
       {scriptsFor && (
         <ScriptsModal

@@ -47,6 +47,7 @@ function pmRequestToNative(it: any): RestRequest {
     params: pmParams(r.url),
     headers: pmHeaders(r.header),
     body: pmBody(r.body),
+    ...(r.description ? { description: String(r.description) } : {}),
   }
 }
 
@@ -99,6 +100,7 @@ function nativeRequestItem(r: RestRequest): any {
     header: r.headers.filter((h) => h.key).map((h) => ({ key: h.key, value: h.value, disabled: !h.enabled })),
     url: nativeUrl(r),
   }
+  if (r.description) request.description = r.description
   const body = nativeBody(r.body)
   if (body) request.body = body
   return { name: r.name, request }
@@ -109,5 +111,5 @@ export function fromNative(c: Collection): any {
   for (const f of c.folders ?? []) {
     item.push({ name: f.name, item: httpOnly(f.requests).map(nativeRequestItem) })
   }
-  return { info: { name: c.name, schema: V21 }, item }
+  return { info: { name: c.name, schema: V21, ...(c.description ? { description: c.description } : {}) }, item }
 }

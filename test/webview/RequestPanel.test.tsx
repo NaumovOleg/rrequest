@@ -99,6 +99,7 @@ describe('RequestPanel', () => {
     fireEvent.change(screen.getByLabelText(/pre-request script/i), { target: { value: 'pm.environment.set("a","1")' } })
     expect(useStore.getState().tabs[0].preRequestScript).toBe('pm.environment.set("a","1")')
     openSubtab('Tests')
+    fireEvent.click(screen.getByRole('button', { name: 'Script' }))
     fireEvent.change(screen.getByLabelText(/test script/i), { target: { value: 'pm.test("t", () => {})' } })
     expect(useStore.getState().tabs[0].testScript).toBe('pm.test("t", () => {})')
   })

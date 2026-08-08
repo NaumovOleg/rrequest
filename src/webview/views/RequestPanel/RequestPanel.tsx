@@ -15,6 +15,8 @@ import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
 import { generateCode, type Language } from "../../codegen";
 import { methodClass } from "../../method-color";
+import { AssertPanel, emptyRow } from "./AssertPanel";
+import { compileChecks, parseChecks, type CheckRow } from "./test-compile";
 
 const METHODS: HttpMethod[] = [
   "GET",
@@ -414,6 +416,11 @@ export function RequestPanel() {
   const [curlText, setCurlText] = useState("");
   const [splitPct, setSplitPct] = useState(50);
   const [showAuto, setShowAuto] = useState(false);
+  // No-code checks mode: 'checks' shows the row table, 'script' the raw textarea.
+  // Rows are parsed from the testScript marker on tab open and recompiled into
+  // the testScript on every edit, so both views read/write the same field.
+  const [testMode, setTestMode] = useState<"checks" | "script">("checks");
+  const [checkRows, setCheckRows] = useState<CheckRow[]>([]);
   const splitRef = useRef<HTMLDivElement>(null);
   const bodyCache = useRef<{
     id: string | null;
@@ -477,6 +484,12 @@ export function RequestPanel() {
   useEffect(() => {
     reconcileActiveUrl();
   }, [active?.id, reconcileActiveUrl]);
+  // Parse check rows out of the testScript when opening a request; edits to the
+  // rows recompile into the script field below, so both stay in step.
+  useEffect(() => {
+    const p = parseChecks(active?.testScript ?? "");
+    setCheckRows(p?.rows ?? []);
+  }, [active?.id]);
   useEffect(() => {
     setSaveCollectionId(pendingSaveCollectionId ?? "");
   }, [pendingSaveCollectionId]);
@@ -626,6 +639,11 @@ export function RequestPanel() {
   const onParamsChange = (params: KeyValue[]) => {
     const base = active.url.split("?")[0];
     update({ params, url: buildUrlFromParams(base, params) });
+  };
+  // No-code checks: rows -> testScript (whole-script rewrite via the marker).
+  const onChecksChange = (rows: CheckRow[]) => {
+    setCheckRows(rows);
+    update({ testScript: compileChecks(rows) });
   };
   // Changing the body keeps the Content-Type header in step with it.
   const setBody = (body: RequestBody) =>
@@ -1129,14 +1147,34 @@ export function RequestPanel() {
               />
             )}
             {sub === "tests" && (
-              <textarea
-                className="rm-input rm-code-input"
-                aria-label="test script"
-                rows={8}
-                style={{ width: "100%" }}
-                value={active.testScript ?? ""}
-                onChange={(e) => update({ testScript: e.target.value })}
-              />
+              <div className="rm-checks-mode">
+                <div className="rm-checks-toggle" role="group" aria-label="tests mode">
+                  <button
+                    className={`rm-chip ${testMode === "checks" ? "is-active" : ""}`}
+                    onClick={() => setTestMode("checks")}
+                  >
+                    Checks
+                  </button>
+                  <button
+                    className={`rm-chip ${testMode === "script" ? "is-active" : ""}`}
+                    onClick={() => setTestMode("script")}
+                  >
+                    Script
+                  </button>
+                </div>
+                {testMode === "checks" ? (
+                  <AssertPanel rows={checkRows} onChange={onChecksChange} />
+                ) : (
+                  <textarea
+                    className="rm-input rm-code-input"
+                    aria-label="test script"
+                    rows={8}
+                    style={{ width: "100%" }}
+                    value={active.testScript ?? ""}
+                    onChange={(e) => update({ testScript: e.target.value })}
+                  />
+                )}
+              </div>
             )}
           </div>
 

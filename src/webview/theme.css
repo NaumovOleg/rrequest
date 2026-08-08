@@ -633,6 +633,55 @@ body {
 .rm-codeview-pre {
   margin: 0 var(--rm-sp-2) var(--rm-sp-2);
 }
+.rm-checks-mode .rm-checks-toggle {
+  display: flex;
+  gap: var(--rm-sp-2);
+  padding: 0 var(--rm-sp-2);
+}
+.rm-checks-toggle .rm-chip {
+  background: transparent;
+  border: 1px solid var(--rm-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.rm-checks-toggle .rm-chip.is-active {
+  background: var(--rm-accent);
+  color: var(--rm-accent-fg);
+}
+.rm-checks {
+  padding: var(--rm-sp-3) var(--rm-sp-2);
+}
+.rm-checks-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--rm-sp-3);
+}
+.rm-checks-tbl th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  padding-bottom: var(--rm-sp-1);
+}
+.rm-checks-tbl td {
+  padding: 2px 4px 2px 0;
+}
+.rm-checks-tbl .rm-op {
+  min-width: 76px;
+}
+.rm-checks-tbl .rm-val {
+  min-width: 140px;
+}
+.rm-checks-pair {
+  display: flex;
+  gap: var(--rm-sp-2);
+}
+.rm-checks-pair .rm-input:first-child {
+  flex: 1;
+}
 .rm-html-preview {
   width: calc(100% - 2 * var(--rm-sp-2));
   height: 60vh;

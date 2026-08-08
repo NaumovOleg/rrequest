@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store";
 import { buildUrlFromParams, parseParamsFromUrl } from "../../state/url-sync";
 import { getUiState, postToHost, setUiState } from "../../ipc";
@@ -7,11 +7,13 @@ import type {
   HttpMethod,
   KeyValue,
   RequestBody,
+  RestRequest,
 } from "../../../shared/types";
 import { FormDataEditor, EnvDropdown } from "../../components";
 import { CodeTextarea, EnvVarInput, MenuRows } from "../../elements";
 import { ResponsePanel } from "../ResponsePanel/ResponsePanel";
 import { parseCurl, toCurl } from "../../curl";
+import { generateCode, type Language } from "../../codegen";
 import { methodClass } from "../../method-color";
 
 const METHODS: HttpMethod[] = [
@@ -31,7 +33,8 @@ type SubTab =
   | "body"
   | "cookies"
   | "pre-request"
-  | "tests";
+  | "tests"
+  | "code";
 
 const SUBTABS: { id: SubTab; label: string; icon: string }[] = [
   { id: "params", label: "Params", icon: "symbol-parameter" },
@@ -41,6 +44,7 @@ const SUBTABS: { id: SubTab; label: string; icon: string }[] = [
   { id: "cookies", label: "Cookies", icon: "archive" },
   { id: "pre-request", label: "Pre-request Script", icon: "run-all" },
   { id: "tests", label: "Tests", icon: "beaker" },
+  { id: "code", label: "Code", icon: "code" },
 ];
 
 // Delicate dropdown fallback for the request section tabs when the chips
@@ -937,6 +941,7 @@ export function RequestPanel() {
                 envValues={envValues}
               />
             )}
+            {sub === "code" && <CodeSnippetView request={active} />}
             {sub === "authorization" && (
               <AuthEditor
                 auth={active.auth ?? { type: "none" }}
@@ -1178,6 +1183,41 @@ export function RequestPanel() {
           <ResponsePanel />
         </section>
       </div>
+    </div>
+  );
+}
+
+// "Code" sub-tab: the current request rendered as copy-paste samples in a few
+// languages. No syntax highlighting - plain blocks are fine for copy targets.
+function CodeSnippetView({ request }: { request: RestRequest }) {
+  const [lang, setLang] = useState<Language>("curl");
+  const pushToast = useStore((s) => s.pushToast);
+  const code = useMemo(() => generateCode(request, lang), [request, lang]);
+  return (
+    <div className="rm-codeview">
+      <div className="rm-codeview-bar">
+        <select
+          className="rm-input rm-codeview-lang"
+          aria-label="code language"
+          value={lang}
+          onChange={(e) => setLang(e.target.value as Language)}
+        >
+          <option value="curl">cURL</option>
+          <option value="javascript">JavaScript (fetch)</option>
+          <option value="python">Python (requests)</option>
+          <option value="go">Go (net/http)</option>
+        </select>
+        <button
+          className="rm-btn"
+          onClick={() => {
+            void navigator.clipboard.writeText(code);
+            pushToast("info", "Code copied to clipboard");
+          }}
+        >
+          Copy
+        </button>
+      </div>
+      <pre className="rm-code rm-codeview-pre">{code}</pre>
     </div>
   );
 }

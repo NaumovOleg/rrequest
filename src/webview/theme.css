@@ -620,6 +620,19 @@ body {
   margin: var(--rm-sp-2);
   font-family: var(--vscode-editor-font-family, monospace);
 }
+.rm-codeview-bar {
+  display: flex;
+  gap: var(--rm-gap);
+  align-items: center;
+  padding: var(--rm-sp-2);
+}
+.rm-codeview-lang {
+  flex: 1;
+  max-width: 220px;
+}
+.rm-codeview-pre {
+  margin: 0 var(--rm-sp-2) var(--rm-sp-2);
+}
 .rm-html-preview {
   width: calc(100% - 2 * var(--rm-sp-2));
   height: 60vh;

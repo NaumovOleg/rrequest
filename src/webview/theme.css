@@ -2222,6 +2222,7 @@ body {
   padding: var(--rm-sp-2) var(--rm-sp-2) var(--rm-sp-1);
 }
 .rm-hist-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--rm-sp-2);
@@ -2235,6 +2236,28 @@ body {
 }
 .rm-hist-row:hover {
   background: var(--rm-hover);
+}
+.rm-hist-row .rm-actions {
+  display: none;
+  position: absolute;
+  right: var(--rm-sp-1);
+  top: 50%;
+  transform: translateY(-50%);
+  padding-left: var(--rm-sp-3);
+  border-radius: var(--rm-radius);
+  background-color: var(--rm-bg);
+  background-image: linear-gradient(var(--rm-hover), var(--rm-hover));
+}
+.rm-hist-row:hover .rm-actions,
+.rm-hist-row:focus-within .rm-actions {
+  display: flex;
+}
+.rm-hist-row .rm-popup-menu {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 320px;
 }
 .rm-hist-label {
   flex: 1;

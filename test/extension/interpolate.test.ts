@@ -35,4 +35,19 @@ describe('interpolate', () => {
     ]
     expect(interpolate('{{a}}', v)).toBe('{{b}}')
   })
+  it('resolves dynamic values even with no env vars', () => {
+    const out = interpolate('{{$uuid}}', [])
+    expect(out).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(interpolate('{{$timestamp}}', [])).toMatch(/^\d{10}$/)
+    expect(interpolate('{{$isoTimestamp}}', [])).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(interpolate('{{$randomInt}}', [])).toMatch(/^\d{4}$/)
+    expect(interpolate('{{$randomHex}}', [])).toMatch(/^[0-9a-f]{16}$/)
+  })
+  it('env vars win over dynamic values', () => {
+    const v: KeyValue[] = [{ key: '$uuid', value: 'fixed', enabled: true }]
+    expect(interpolate('{{$uuid}}', v)).toBe('fixed')
+  })
+  it('leaves unknown $-prefixed placeholders literal', () => {
+    expect(interpolate('{{$nope}}', [])).toBe('{{$nope}}')
+  })
 })

@@ -133,7 +133,7 @@ function extractCookies(h: Headers): KeyValue[] {
 
 export async function sendRequest(request: RestRequest, opts: Opts = {}): Promise<HttpResponse> {
   const vars = opts.vars ?? []
-  const sub = (s: string) => (vars.length ? interpolate(s, vars) : s)
+  const sub = (s: string) => interpolate(s, vars)
   const req: RestRequest = vars.length
     ? {
         ...request,

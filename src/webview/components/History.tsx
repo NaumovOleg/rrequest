@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../state/store";
 import { postToHost } from "../ipc";
 import { MethodBadge } from "../elements/MethodBadge";
+import { PopupMenu, type PopupMenuItem } from "../elements/PopupMenu";
 import type { HistoryEntry } from "../../shared/types";
 
 function sameDay(a: Date, b: Date) {
@@ -41,6 +42,8 @@ function groupByDay(history: HistoryEntry[]): { label: string; items: HistoryEnt
 
 export function History() {
   const history = useStore((s) => s.history);
+  const collections = useStore((s) => s.tree);
+  const pushToast = useStore((s) => s.pushToast);
   const [q, setQ] = useState("");
   const [confirming, setConfirming] = useState(false);
 
@@ -50,6 +53,33 @@ export function History() {
     ? history.filter((e) => haystack(e).includes(q.trim().toLowerCase()))
     : history;
   const groups = groupByDay(shown);
+
+  // A history entry becomes a real collection item. Reuses the existing
+  // saveRequest flow, so it round-trips through the tree like any editor save.
+  const saveTo = (e: HistoryEntry) => (collectionId: string, folderId: string | null) => {
+    postToHost({
+      type: "saveRequest",
+      collectionId,
+      folderId,
+      request: { ...e.request, name: e.request.name || e.request.url || "Untitled" },
+    });
+    pushToast("info", "Saved to collection");
+  };
+  const saveItems = (e: HistoryEntry): PopupMenuItem[] => {
+    const targets = collections.flatMap((c) => [
+      { label: `${c.name} (root)`, onClick: () => saveTo(e)(c.id, null) },
+      ...(c.folders ?? []).map((f) => ({
+        label: `${c.name} / ${f.name}`,
+        onClick: () => saveTo(e)(c.id, f.id),
+      })),
+    ]);
+    return [
+      { kind: "header", label: "Save to collection" },
+      ...(targets.length
+        ? targets
+        : [{ label: "No collections yet", disabled: true, onClick: () => {} }]),
+    ];
+  };
 
   // VS Code webviews don't support window.confirm, so the destructive clear
   // asks via an in-page modal (same pattern as tab close). Confirming only
@@ -97,9 +127,11 @@ export function History() {
                 const label = e.request.name || e.request.url || "Untitled";
                 const open = () => postToHost({ type: "openRequest", request: e.request });
                 return (
-                  <button
+                  <div
                     key={e.id}
                     className="rm-hist-row"
+                    role="button"
+                    tabIndex={0}
                     title={e.request.url}
                     onClick={open}
                     onKeyDown={(ev) => {
@@ -117,7 +149,10 @@ export function History() {
                       </span>
                     )}
                     <span className="rm-hist-time">{timeLabel(e.at)}</span>
-                  </button>
+                    <div className="rm-actions">
+                      <PopupMenu icon="save" label="Save to collection" items={saveItems(e)} />
+                    </div>
+                  </div>
                 );
               })}
             </div>

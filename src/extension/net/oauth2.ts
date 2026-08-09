@@ -6,6 +6,7 @@
 import * as http from 'node:http'
 import * as crypto from 'node:crypto'
 import type { Auth, OAuthToken } from '../../shared/types'
+import { callbackPage } from '../callback-page'
 
 export type SecretsLike = {
   get(key: string): Thenable<string | undefined>
@@ -98,7 +99,7 @@ async function authorizationCode(
       if (!req.url?.startsWith('/callback')) return
       const url = new URL(req.url, `http://127.0.0.1:${port}`)
       res.writeHead(200, { 'content-type': 'text/html' })
-      res.end('<html><body style="font-family:sans-serif;text-align:center;padding-top:80px"><h2>RREQUEST</h2><p>Authorization complete — you can close this tab.</p></body></html>')
+      res.end(callbackPage({ title: 'Authorization complete', message: 'Authorization complete &mdash; return to VS&nbsp;Code to continue.' }))
       clearTimeout(timeout)
       if (url.searchParams.get('state') !== state) {
         server.close()

@@ -1,5 +1,22 @@
 # rrequest
 
+## 0.0.24
+
+### Patch Changes
+
+- r delete,
+  duplicate, and move.
+
+  - **Power user tools**: quick-send palette commands (new request, change env,
+    import cURL), repeat-last-request, code export sub-tab (cURL / JS / Python /
+    Go), no-code Checks panel, and collection/folder scripts with cascade
+    execution.
+  - **Dynamic values**: `{{$uuid}}`, `{{$guid}}`, `{{$timestamp}}`,
+    `{{$isoTimestamp}}`, `{{$randomInt}}`, `{{$randomHex}}` work in any
+    interpolation location (HTTP / WS / gRPC / SSE) with no env vars required.
+  - **History**: save any history entry into a collection or folder.
+  - **Auth polish**: restyled sign-in (Google) and OAuth2 callback pages.
+
 ## 0.0.23
 
 ### Patch Changes

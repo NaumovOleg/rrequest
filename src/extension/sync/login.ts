@@ -1,4 +1,5 @@
 import * as http from 'node:http'
+import { callbackPage } from '../callback-page'
 
 export function extractToken(reqUrl: string): string | undefined {
   const u = new URL(reqUrl, 'http://localhost')
@@ -15,7 +16,7 @@ export function signIn(opts: {
     const server = http.createServer((req, res) => {
       const token = extractToken(req.url ?? '/')
       res.writeHead(200, { 'content-type': 'text/html' })
-      res.end('<html><body>You can close this tab and return to VS Code.</body></html>')
+      res.end(callbackPage({ title: 'Sign-in complete', message: 'You&rsquo;re signed in and syncing. Return to VS&nbsp;Code to continue.' }))
       if (token) {
         clearTimeout(timer)
         server.close()

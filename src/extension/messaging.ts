@@ -519,7 +519,7 @@ export function createRouter(deps: RouterDeps) {
       }
       case 'wsConnect': {
         const vars = await activeVars()
-        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
+        const sub = (s: string) => interpolateStr(s, vars)
         deps.ws?.connect(
           msg.connId,
           sub(msg.url),
@@ -537,7 +537,7 @@ export function createRouter(deps: RouterDeps) {
         return { type: 'showSse' }
       case 'sseConnect': {
         const vars = await activeVars()
-        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
+        const sub = (s: string) => interpolateStr(s, vars)
         deps.sse?.connect(
           msg.connId,
           sub(msg.url),
@@ -694,7 +694,7 @@ export function createRouter(deps: RouterDeps) {
       case 'grpcInvoke': {
         if (!deps.grpcInvoke) return { type: 'grpcResponse', requestId: msg.requestId, ok: false, error: 'gRPC is not available', timeMs: 0 }
         const vars = await activeVars()
-        const sub = vars.length ? (s: string) => interpolateStr(s, vars) : (s: string) => s
+        const sub = (s: string) => interpolateStr(s, vars)
         const r = await deps.grpcInvoke({
           address: sub(msg.address), proto: sub(msg.proto), service: sub(msg.service),
           method: sub(msg.method), message: msg.message,

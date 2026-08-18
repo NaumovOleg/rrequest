@@ -690,10 +690,107 @@ body {
 .rm-codeview-pre {
   margin: 0 var(--rm-sp-2) var(--rm-sp-2);
 }
+/* JSON response tree */
+.rm-json-tree {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 12px);
+  overflow: auto;
+  padding: var(--rm-sp-1);
+  user-select: text;
+}
+.rm-json-row {
+  display: flex;
+  flex-direction: column;
+}
+.rm-json-line {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  min-height: 20px;
+  padding: 1px var(--rm-sp-1);
+  border-radius: var(--rm-radius);
+}
+.rm-json-line:hover {
+  background: var(--rm-hover);
+}
+.rm-json-caret {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--rm-muted);
+  cursor: pointer;
+}
+.rm-json-caret:empty {
+  visibility: hidden;
+}
+.rm-json-caret:hover {
+  color: var(--rm-fg);
+}
+.rm-json-key {
+  color: var(--rm-m-patch);
+}
+.rm-json-index {
+  color: var(--rm-muted);
+}
+.rm-json-colon {
+  color: var(--rm-muted);
+}
+.rm-json-toggle {
+  background: transparent;
+  border: none;
+  color: var(--rm-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  font: inherit;
+}
+.rm-json-toggle:hover {
+  color: var(--rm-fg);
+}
+.rm-json-null {
+  color: var(--rm-muted);
+  font-style: italic;
+}
+.rm-json-bool {
+  color: var(--rm-m-options);
+}
+.rm-json-num {
+  color: var(--rm-m-put);
+}
+.rm-json-str {
+  color: var(--rm-m-get);
+}
+.rm-json-copy {
+  flex: none;
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  margin-left: 6px;
+  background: transparent;
+  border: none;
+  color: var(--rm-muted);
+  cursor: pointer;
+}
+.rm-json-line:hover .rm-json-copy {
+  visibility: visible;
+}
+.rm-json-copy:hover {
+  color: var(--rm-fg);
+}
+.rm-json-root-primitive {
+  padding: var(--rm-sp-1);
+}
 .rm-checks-mode .rm-checks-toggle {
   display: flex;
   gap: var(--rm-sp-2);
-  padding: 0 var(--rm-sp-2);
+  padding: 5px var(--rm-sp-2);
 }
 .rm-checks-toggle .rm-chip {
   background: transparent;
@@ -1882,6 +1979,17 @@ body {
   gap: var(--rm-sp-1);
   align-items: center;
   padding: var(--rm-sp-1) var(--rm-sp-2);
+  position: relative;
+}
+/* hidden same-size action row used only to measure fit (see ResponsePanel) */
+.rm-actions-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  display: inline-flex;
+  gap: var(--rm-sp-1);
+  align-items: center;
+  white-space: nowrap;
 }
 .rm-body-search {
   width: 220px;
@@ -1905,6 +2013,14 @@ body {
 .rm-btn--sm {
   padding: 2px 8px;
   font-size: 0.85em;
+}
+/* response toolbar: keep every button one size (labels don't wrap or shrink) */
+.rm-body-toolbar .rm-btn--sm {
+  flex: none;
+  min-width: 60px;
+  min-height: 24px;
+  white-space: nowrap;
+  justify-content: center;
 }
 .rm-btn--danger {
   background: var(--rm-m-delete, #f14c4c);
@@ -2048,12 +2164,26 @@ body {
   line-height: 1.5;
   font-size: 0.95em;
 }
-.rm-docs-h { font-weight: 600; margin: 0.4em 0 0.2em; }
-.rm-docs-h1 { font-size: 1.3em; }
-.rm-docs-h2 { font-size: 1.15em; }
-.rm-docs-h3 { font-size: 1.05em; }
-.rm-docs-p { margin: 0.4em 0; }
-.rm-docs-list { margin: 0.4em 0 0.4em 1.4em; padding: 0; }
+.rm-docs-h {
+  font-weight: 600;
+  margin: 0.4em 0 0.2em;
+}
+.rm-docs-h1 {
+  font-size: 1.3em;
+}
+.rm-docs-h2 {
+  font-size: 1.15em;
+}
+.rm-docs-h3 {
+  font-size: 1.05em;
+}
+.rm-docs-p {
+  margin: 0.4em 0;
+}
+.rm-docs-list {
+  margin: 0.4em 0 0.4em 1.4em;
+  padding: 0;
+}
 .rm-docs-code {
   padding: var(--rm-sp-2);
   margin: 0.4em 0;
@@ -2066,7 +2196,9 @@ body {
   border-radius: 3px;
   font-family: var(--vscode-editor-font-family, monospace);
 }
-.rm-docs-preview a { color: var(--rm-accent); }
+.rm-docs-preview a {
+  color: var(--rm-accent);
+}
 /* right-click context menu */
 .rm-ctxmenu {
   position: fixed;

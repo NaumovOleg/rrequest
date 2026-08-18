@@ -1076,6 +1076,10 @@ export function RequestPanel() {
             disabled={!active.url}
             onClick={send}
           >
+            <span
+              className="codicon codicon-send"
+              aria-hidden="true"
+            />
             Send
           </button>
         )}

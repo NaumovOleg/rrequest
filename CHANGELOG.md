@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.25
+
+### Patch Changes
+
+- ui fixes
+
 ## 0.0.24
 
 ### Patch Changes

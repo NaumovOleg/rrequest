@@ -4,6 +4,7 @@ import { postToHost } from '../../ipc'
 import { newId, itemKind, type Example, type HttpResponse, type RestRequest } from '../../../shared/types'
 import { JsonTree } from '../../components/JsonTree'
 import { diffLines } from '../../state/diff'
+import { MenuRows } from '../../elements'
 
 type SubTab = 'body' | 'headers' | 'cookies' | 'test-results' | 'console'
 type BodyView = 'pretty' | 'raw' | 'tree'
@@ -88,6 +89,16 @@ export function ResponsePanel() {
   const [diffWith, setDiffWith] = useState<Example | null>(null)
   const [examplesOpen, setExamplesOpen] = useState(false)
   const examplesRef = useRef<HTMLSpanElement>(null)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef = useRef<HTMLSpanElement>(null)
+  // Collapse the body toolbar's action buttons into a single "Actions" popup
+  // when they don't fit beside the search box — same trick as the request
+  // section tabs: a hidden measure row of the buttons is compared against the
+  // bar's remaining width (ResizeObserver keeps it honest on panel resizes).
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [actionsFit, setActionsFit] = useState(true)
   const requestId = useStore((s) => s.activeTabId)
   const resp = useStore((s) => (s.activeTabId ? s.responses[s.activeTabId] : undefined))
   const lastSent = useStore((s) => s.lastSent)
@@ -105,6 +116,43 @@ export function ResponsePanel() {
   // The Beautify action reformats the body in place; a fresh response (or a
   // different tab) starts from the server bytes again.
   useEffect(() => { setBodyText(null) }, [requestId, resp?.body])
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) setActionsOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setActionsOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [actionsOpen])
+
+  // Measure the action buttons against the space left by the search box.
+  // Re-runs whenever the response or the example count changes (buttons
+  // appear/disappear), and on every panel resize via ResizeObserver.
+  useEffect(() => {
+    if (!resp) return
+    const el = toolbarRef.current
+    if (!el) return
+    const measure = () => {
+      const need = measureRef.current?.scrollWidth ?? 0
+      const searchW = searchRef.current?.offsetWidth ?? 0
+      const cs = getComputedStyle(el)
+      const pad = (v: string) => parseFloat(v) || 0
+      const avail = el.clientWidth - pad(cs.paddingLeft) - pad(cs.paddingRight) - searchW
+      if (avail <= 0) return
+      setActionsFit(need + 24 <= avail + 1)
+    }
+    measure()
+    let ro: ResizeObserver | undefined
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure)
+      ro.observe(el)
+    }
+    void document.fonts?.ready.then(measure)
+    return () => ro?.disconnect()
+  }, [resp, examples.length])
 
   useEffect(() => {
     if (!examplesOpen) return
@@ -181,6 +229,11 @@ export function ResponsePanel() {
     setBodyView('pretty')
   }
 
+  const copyBody = () => void navigator.clipboard.writeText(displayed)
+
+  const openInEditor = () =>
+    postToHost({ type: 'openTextDocument', content: displayed, language: bodyLanguage(resp) })
+
   const saveBody = () =>
     postToHost({
       type: 'saveBody',
@@ -218,8 +271,15 @@ export function ResponsePanel() {
   // The diff modal renders the example against the LIVE response: the example
   // pane shows removed lines, the live pane shows added ones, shared lines
   // appear in both. Recomputes whenever the response changes, so re-sending
-  // while the modal is open updates the comparison live.
-  const diffLinesOut = diffWith ? diffLines(diffWith.body, resp.body) : []
+  // while the modal is open updates the comparison live. Both sides are
+  // pretty-printed first when they parse as JSON, so minified bodies diff
+  // line-by-line instead of as one giant run-on line.
+  const diffLinesOut = diffWith
+    ? diffLines(
+        tryFormatJson(diffWith.body) ?? diffWith.body,
+        tryFormatJson(resp.body) ?? resp.body,
+      )
+    : []
 
   return (
     <div className="rm-panel">
@@ -287,10 +347,20 @@ export function ResponsePanel() {
                 onClick={() => setHtmlView('raw')}>Raw</button>
             </div>
           )}
-          <div className="rm-body-toolbar">
+          <div className="rm-body-toolbar" ref={toolbarRef}>
+            {/* hidden same-size action row used only to measure fit */}
+            <div className="rm-actions-measure" ref={measureRef} aria-hidden="true">
+              {canBeautify && <span className="rm-btn rm-btn--sm">Beautify</span>}
+              {!binary && <span className="rm-btn rm-btn--sm">Copy</span>}
+              {!binary && <span className="rm-btn rm-btn--sm">Open in editor</span>}
+              <span className="rm-btn rm-btn--sm">Save</span>
+              <span className="rm-btn rm-btn--sm">Save example</span>
+              <span className="rm-btn rm-btn--sm">Examples ({examples.length})</span>
+            </div>
             {!binary && (
               <>
                 <input
+                  ref={searchRef}
                   className="rm-input rm-body-search"
                   aria-label="search response"
                   placeholder="Search in body"
@@ -301,32 +371,65 @@ export function ResponsePanel() {
               </>
             )}
             <div className="rm-spacer" />
-            {canBeautify && (
-              <button className="rm-btn rm-btn--sm" title="Format the JSON body (pretty print, even from Raw view)"
-                onClick={beautify}>
-                Beautify
-              </button>
+            {actionsFit ? (
+              <>
+                {canBeautify && (
+                  <button className="rm-btn rm-btn--sm" title="Format the JSON body (pretty print, even from Raw view)"
+                    onClick={beautify}>
+                    Beautify
+                  </button>
+                )}
+                {!binary && (
+                  <button className="rm-btn rm-btn--sm" title="Copy the response body"
+                    onClick={copyBody}>
+                    Copy
+                  </button>
+                )}
+                {!binary && (
+                  <button className="rm-btn rm-btn--sm" title="Open the response body in a VS Code editor (search, fold, highlight)"
+                    onClick={openInEditor}>
+                    Open in editor
+                  </button>
+                )}
+                <button className="rm-btn rm-btn--sm" title="Save the response body to a file (the full body, even when the preview is truncated)"
+                  onClick={saveBody}>
+                  Save
+                </button>
+                <button className="rm-btn rm-btn--sm" disabled={!located} title={located ? 'Save this response as an example on the request' : 'Save the request to a collection first to attach examples'}
+                  onClick={saveExample}>
+                  Save example
+                </button>
+              </>
+            ) : (
+              <span className="rm-popup rm-actions-drop" ref={actionsRef} style={{ position: 'relative' }}>
+                <button className="rm-btn rm-btn--sm" aria-haspopup="menu" aria-expanded={actionsOpen}
+                  title="All response body actions"
+                  onClick={() => setActionsOpen((o) => !o)}>
+                  <span className="codicon codicon-ellipsis" aria-hidden="true" /> Actions
+                  <span className={`codicon codicon-chevron-${actionsOpen ? 'up' : 'down'}`} aria-hidden="true" />
+                </button>
+                {actionsOpen && (
+                  <div className="rm-popup-menu" role="menu" aria-label="response actions">
+                    <MenuRows
+                      items={[
+                        ...(canBeautify
+                          ? [{ label: 'Beautify', icon: 'wand' as const, onClick: beautify }]
+                          : []),
+                        ...(!binary
+                          ? [
+                              { label: 'Copy body', icon: 'copy' as const, onClick: copyBody },
+                              { label: 'Open in editor', icon: 'go-to-file' as const, onClick: openInEditor },
+                            ]
+                          : []),
+                        { label: 'Save body', icon: 'save' as const, onClick: saveBody },
+                        { label: 'Save example', icon: 'archive' as const, disabled: !located, onClick: saveExample },
+                      ]}
+                      onPick={() => setActionsOpen(false)}
+                    />
+                  </div>
+                )}
+              </span>
             )}
-            {!binary && (
-              <button className="rm-btn rm-btn--sm" title="Copy the response body"
-                onClick={() => void navigator.clipboard.writeText(displayed)}>
-                Copy
-              </button>
-            )}
-            {!binary && (
-              <button className="rm-btn rm-btn--sm" title="Open the response body in a VS Code editor (search, fold, highlight)"
-                onClick={() => postToHost({ type: 'openTextDocument', content: displayed, language: bodyLanguage(resp) })}>
-                Open in editor
-              </button>
-            )}
-            <button className="rm-btn rm-btn--sm" title="Save the response body to a file (the full body, even when the preview is truncated)"
-              onClick={saveBody}>
-              Save
-            </button>
-            <button className="rm-btn rm-btn--sm" disabled={!located} title={located ? 'Save this response as an example on the request' : 'Save the request to a collection first to attach examples'}
-              onClick={saveExample}>
-              Save example
-            </button>
             <span className="rm-popup" ref={examplesRef} style={{ position: 'relative' }}>
               <button className="rm-btn rm-btn--sm" disabled={examples.length === 0} title="Open / diff saved examples"
                 onClick={() => setExamplesOpen((o) => !o)}>

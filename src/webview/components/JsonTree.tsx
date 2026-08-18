@@ -43,6 +43,17 @@ function childrenOf(v: unknown): [string | number, unknown][] {
   return []
 }
 
+// "{3 keys}" / "[2 items]" for nodes, raw scalar for leaves — the toggle
+// label and the copy tooltip share it.
+function summary(v: unknown): string {
+  if (isArr(v)) return `[${v.length} item${v.length === 1 ? '' : 's'}]`
+  if (isObj(v)) {
+    const n = Object.keys(v).length
+    return `{${n} key${n === 1 ? '' : 's'}}`
+  }
+  return String(v)
+}
+
 type RowProps = {
   /** Root rows render without a label; children carry theirs. */
   root?: boolean
@@ -61,62 +72,65 @@ function Row({ root, keyLabel, value, path, depth, expanded, toggle }: RowProps)
   const [copied, setCopied] = useState(false)
   const children = childrenOf(value)
 
+  // Copy "path = value" (the whole subtree, pretty-printed, for nodes). The
+  // root has no path, so it copies just the value — i.e. the full body.
   const copyPath = () => {
-    void navigator.clipboard.writeText(key)
+    const json = collapsible ? JSON.stringify(value, null, 2) : JSON.stringify(value)
+    void navigator.clipboard.writeText(key ? `${key} = ${json}` : json)
     setCopied(true)
     setTimeout(() => setCopied(false), 1200)
   }
 
   return (
     <div className="rm-json-row" style={{ paddingLeft: depth * 18 }}>
-      <button
-        type="button"
-        className="rm-json-caret"
-        aria-expanded={collapsible ? isOpen : undefined}
-        aria-label={collapsible ? `${isOpen ? 'collapse' : 'expand'} ${key}` : undefined}
-        onClick={() => collapsible && toggle(key)}
-      >
-        {collapsible && (
-          <span className={`codicon codicon-chevron-${isOpen ? 'down' : 'right'}`} aria-hidden="true" />
-        )}
-      </button>
-      {!root && (
-        <>
-          {typeof keyLabel === 'number' ? (
-            <span className="rm-json-index">{keyLabel}</span>
-          ) : (
-            <span className="rm-json-key">"{keyLabel}"</span>
-          )}
-          <span className="rm-json-colon">:</span>{' '}
-        </>
-      )}
-      {collapsible ? (
+      <div className="rm-json-line">
         <button
           type="button"
-          className="rm-json-toggle"
-          aria-label={`${isOpen ? 'collapse' : 'expand'} ${key}`}
-          onClick={() => toggle(key)}
+          className="rm-json-caret"
+          aria-expanded={collapsible ? isOpen : undefined}
+          aria-label={collapsible ? `${isOpen ? 'collapse' : 'expand'} ${key}` : undefined}
+          onClick={() => collapsible && toggle(key)}
         >
-          {isArr(value)
-            ? `[${value.length} item${value.length === 1 ? '' : 's'}]`
-            : `{${Object.keys(value as object).length} key${Object.keys(value as object).length === 1 ? '' : 's'}}`}
+          {collapsible && (
+            <span className={`codicon codicon-chevron-${isOpen ? 'down' : 'right'}`} aria-hidden="true" />
+          )}
         </button>
-      ) : (
-        preview(value)
-      )}
+        {!root && (
+          <>
+            {typeof keyLabel === 'number' ? (
+              <span className="rm-json-index">{keyLabel}</span>
+            ) : (
+              <span className="rm-json-key">"{keyLabel}"</span>
+            )}
+            <span className="rm-json-colon">:</span>{' '}
+          </>
+        )}
+        {collapsible ? (
+          <button
+            type="button"
+            className="rm-json-toggle"
+            aria-label={`${isOpen ? 'collapse' : 'expand'} ${key}`}
+            onClick={() => toggle(key)}
+          >
+          {summary(value)}
+          </button>
+        ) : (
+          preview(value)
+        )}
       <button
         type="button"
         className="rm-json-copy"
-        aria-label={`copy path ${key}`}
-        title={`Copy path: ${key}`}
+        aria-label={key ? `copy ${key} and its value` : 'copy the response body'}
+        title={key ? `Copy: ${key} = ${summary(value)}` : 'Copy the response body'}
         onClick={copyPath}
       >
-        {copied ? (
-          <span className="codicon codicon-check" aria-hidden="true" />
-        ) : (
-          <span className="codicon codicon-copy" aria-hidden="true" />
-        )}
-      </button>
+          {copied ? (
+            <span className="codicon codicon-check" aria-hidden="true" />
+          ) : (
+            <span className="codicon codicon-copy" aria-hidden="true" />
+          )}
+        </button>
+      </div>
       {collapsible && isOpen && (
         <div className="rm-json-children">
           {children.map(([k, v]) => (

@@ -70,6 +70,17 @@ describe("DynamoUserStore", () => {
     expect(found?.refreshToken).toBe("rt3b");
   });
 
+  it("reuses the existing row for the same email with a different googleSub (no duplicate folders per email)", async () => {
+    const first = await store.upsertByGoogle({ googleSub: "g5", email: "e@x.com", refreshToken: "rt5" });
+    // e.g. a duplicate user row from before the fix: same email, new sub.
+    const second = await store.upsertByGoogle({ googleSub: "g5-dup", email: "E@X.COM", refreshToken: "rt5b" });
+    expect(second.id).toBe(first.id);
+    const found = await store.getById(first.id);
+    expect(found?.email).toBe("e@x.com"); // normalized
+    expect(found?.googleSub).toBe("g5-dup");
+    expect(found?.refreshToken).toBe("rt5b");
+  });
+
   it("getByEmail finds the user via the email GSI, or undefined on miss", async () => {
     const u = await store.upsertByGoogle({ googleSub: "g4", email: "d@x.com", refreshToken: "rt4" });
     const found = await store.getByEmail("d@x.com");

@@ -809,6 +809,18 @@ syncControl: {
           const me = await who.me();
           await accounts.add({ id: me.id, email: me.email }, token);
           authWarned.delete(me.id); // fresh token -> allow a future warning again
+          // Collapse pre-existing accounts with the same email (the old
+          // duplicate-user-row bug made one email appear as several accounts /
+          // Drive folders). Drop the stale ones and mark their workspaces
+          // unsynced, exactly like signOut does — their data stays local.
+          for (const dup of accounts.list().filter((a) => a.email === me.email && a.id !== me.id)) {
+            await accounts.remove(dup.id);
+            clientCache.delete(dup.id);
+            for (const [wsId, st] of Object.entries(await syncState.all())) {
+              if (st.accountId === dup.id && st.synced)
+                await syncState.set(wsId, { ...st, synced: false });
+            }
+          }
           clientCache.delete(me.id);
           clientCache.delete("__default__");
           hub.authState(currentAccounts());

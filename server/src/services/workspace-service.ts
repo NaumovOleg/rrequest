@@ -1,6 +1,6 @@
 import type { WorkspaceStore, MembershipStore, UserStore, User, SyncedWorkspace } from "../stores/types.js";
 import type { DriveClient } from "../domain/drive-client.js";
-import { folderNameForUser, DriveAuthError } from "../domain/drive-factory.js";
+import { resolveSyncFolder, DriveAuthError } from "../domain/drive-factory.js";
 import { stripSnapshotSecrets } from "../domain/snapshot.js";
 import { resolveRole, ownerDriveFor, type WorkspaceRole } from "./authz.js";
 
@@ -68,7 +68,7 @@ export class WorkspaceService {
         hashFolderId = existing.hashFolderId;
         revision = updated.revision;
       } else {
-        hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
+        hashFolderId = await resolveSyncFolder(drive, user);
         const created = await drive.createFile(hashFolderId, `${name}-${workspaceId}.json`, clean);
         fileId = created.fileId;
         revision = created.revision;
@@ -157,7 +157,7 @@ export class WorkspaceService {
     let hashFolderId: string;
     let files: Awaited<ReturnType<DriveClient["listFiles"]>>;
     try {
-      hashFolderId = await drive.ensureFolder(folderNameForUser(user.id));
+      hashFolderId = await resolveSyncFolder(drive, user);
       files = await drive.listFiles(hashFolderId);
     } catch (e) {
       if (e instanceof DriveAuthError) return { status: 401 };

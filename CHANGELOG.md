@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.26
+
+### Patch Changes
+
+- authentication fixes
+
 ## 0.0.25
 
 ### Patch Changes

@@ -2,6 +2,8 @@ export type WatchOpts = { channelId: string; address: string; token: string; ttl
 export type WatchInfo = { channelId: string; resourceId: string; expiration: number };
 
 export interface DriveClient {
+  /** Id of an existing (non-trashed) folder with this name, or undefined. */
+  findFolder(name: string): Promise<string | undefined>;
   ensureFolder(name: string): Promise<string>;
   createFile(folderId: string, name: string, content: string): Promise<{ fileId: string; revision: string }>;
   updateFile(fileId: string, content: string): Promise<{ revision: string }>;
@@ -101,12 +103,17 @@ export class GoogleDriveClient implements DriveClient {
     }
   }
 
-  async ensureFolder(name: string): Promise<string> {
+  async findFolder(name: string): Promise<string | undefined> {
     const q = encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const listRes = await this.fetchWithRetry(`${DRIVE}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: await this.auth() });
-    if (!listRes.ok) throw new Error(`Drive list failed: ${listRes.status}`);
-    const list = (await listRes.json()) as { files?: { id: string }[] };
-    if (list.files && list.files[0]) return list.files[0].id;
+    const res = await this.fetchWithRetry(`${DRIVE}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: await this.auth() });
+    if (!res.ok) throw new Error(`Drive list failed: ${res.status}`);
+    const list = (await res.json()) as { files?: { id: string }[] };
+    return list.files?.[0]?.id;
+  }
+
+  async ensureFolder(name: string): Promise<string> {
+    const existing = await this.findFolder(name);
+    if (existing) return existing;
     const createRes = await this.fetchWithRetry(`${DRIVE}/files?fields=id`, {
       method: "POST",
       headers: { ...(await this.auth()), "content-type": "application/json" },
@@ -231,6 +238,9 @@ export class FakeDriveClient implements DriveClient {
   private seq = 0;
   private permSeq = 0;
 
+  async findFolder(name: string): Promise<string | undefined> {
+    return this.folders.get(name);
+  }
   async ensureFolder(name: string): Promise<string> {
     if (!this.folders.has(name)) this.folders.set(name, `folder-${name}`);
     return this.folders.get(name)!;

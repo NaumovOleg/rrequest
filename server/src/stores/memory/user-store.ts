@@ -5,14 +5,17 @@ export class MemoryUserStore implements UserStore {
   private byId = new Map<string, User>();
 
   async upsertByGoogle(input: { googleSub: string; email: string; refreshToken: string }): Promise<User> {
-    const existing = [...this.byId.values()].find((u) => u.googleSub === input.googleSub);
+    const email = input.email.toLowerCase();
+    const existing =
+      [...this.byId.values()].find((u) => u.googleSub === input.googleSub) ??
+      [...this.byId.values()].find((u) => u.email === email);
     if (existing) {
-      const updated: User = { ...existing, email: input.email, refreshToken: input.refreshToken };
+      const updated: User = { ...existing, email, googleSub: input.googleSub, refreshToken: input.refreshToken };
       this.byId.set(existing.id, updated);
       return updated;
     }
     const id = randomUUID();
-    const user: User = { id, email: input.email, googleSub: input.googleSub, refreshToken: input.refreshToken };
+    const user: User = { id, email, googleSub: input.googleSub, refreshToken: input.refreshToken };
     this.byId.set(id, user);
     return user;
   }
@@ -22,6 +25,6 @@ export class MemoryUserStore implements UserStore {
   }
 
   async getByEmail(email: string): Promise<User | undefined> {
-    return [...this.byId.values()].find((u) => u.email === email);
+    return [...this.byId.values()].find((u) => u.email === email.toLowerCase());
   }
 }

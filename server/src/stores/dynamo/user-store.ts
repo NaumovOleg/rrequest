@@ -34,10 +34,15 @@ export class DynamoUserStore implements UserStore {
   }
 
   async upsertByGoogle(input: { googleSub: string; email: string; refreshToken: string }): Promise<User> {
-    const existing = await this.findItemByGoogleSub(input.googleSub);
+    const email = input.email.toLowerCase();
+    // The googleSub GSI is eventually consistent: a login right after the
+    // account's first login (or a re-created table) can miss the row and mint
+    // a SECOND user id -> a second sync folder for the same email. Falling
+    // back to the email GSI collapses those duplicates onto the existing row.
+    const existing = (await this.findItemByGoogleSub(input.googleSub)) ?? (await this.findItemByEmail(email));
     const item: UserItem = {
       userId: existing?.userId ?? randomUUID(),
-      email: input.email,
+      email,
       googleSub: input.googleSub,
       refreshTokenEnc: encrypt(input.refreshToken, this.encKey),
     };
@@ -51,16 +56,7 @@ export class DynamoUserStore implements UserStore {
   }
 
   async getByEmail(email: string): Promise<User | undefined> {
-    const res = await this.doc.send(
-      new QueryCommand({
-        TableName: this.table,
-        IndexName: "gsi_email",
-        KeyConditionExpression: "email = :email",
-        ExpressionAttributeValues: { ":email": email },
-        Limit: 1,
-      }),
-    );
-    const item = res.Items?.[0] as UserItem | undefined;
+    const item = await this.findItemByEmail(email.toLowerCase());
     return item ? this.toUser(item) : undefined;
   }
 
@@ -71,6 +67,19 @@ export class DynamoUserStore implements UserStore {
         IndexName: "gsi_googleSub",
         KeyConditionExpression: "googleSub = :googleSub",
         ExpressionAttributeValues: { ":googleSub": googleSub },
+        Limit: 1,
+      }),
+    );
+    return res.Items?.[0] as UserItem | undefined;
+  }
+
+  private async findItemByEmail(email: string): Promise<UserItem | undefined> {
+    const res = await this.doc.send(
+      new QueryCommand({
+        TableName: this.table,
+        IndexName: "gsi_email",
+        KeyConditionExpression: "email = :email",
+        ExpressionAttributeValues: { ":email": email },
         Limit: 1,
       }),
     );

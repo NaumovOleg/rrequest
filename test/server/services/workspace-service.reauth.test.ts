@@ -11,6 +11,9 @@ import type { User } from "../../../server/src/stores/types.js";
 // was revoked/expired -- what `makeDriveFactory`'s `getAccessToken` closure
 // throws once `oauth.getAccessToken()` fails.
 class AuthFailDriveClient implements DriveClient {
+  async findFolder(): Promise<string | undefined> {
+    throw new DriveAuthError();
+  }
   async ensureFolder(): Promise<string> {
     throw new DriveAuthError();
   }

@@ -12,6 +12,7 @@ import { EnvironmentStore } from "./stores/environment-store";
 import { WorkspaceStore } from "./stores/workspace-store";
 import { TrashStore } from "./stores/trash-store";
 import { parseImport, serializeExport } from "./formats/import-export";
+import { parseEnvImport, serializeEnvExport } from "./formats/environment";
 import { Hub } from "./hub";
 import { WsManager, type WsFactory } from "./net/ws-manager";
 import { SseClient } from "./net/sse-client";
@@ -395,6 +396,43 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         } catch (e: any) {
           void vscode.window.showErrorMessage(
             `rrequest export failed: ${e?.message ?? e}`
+          );
+        }
+      },
+      openEnvImport: async () => {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          filters: { JSON: ["json"] },
+        });
+        if (!picked || !picked[0]) return null;
+        try {
+          const text = await fs.readFile(picked[0].fsPath, "utf8");
+          return parseEnvImport(text);
+        } catch (e: any) {
+          void vscode.window.showErrorMessage(
+            `rrequest environment import failed: ${e?.message ?? e}`
+          );
+          return null;
+        }
+      },
+      runEnvExport: async (e, format) => {
+        const suffix = format === "postman" ? ".postman" : "";
+        const safe = (e.name || "environment").replace(/[^a-z0-9_-]+/gi, "_");
+        const target = await vscode.window.showSaveDialog({
+          filters: { JSON: ["json"] },
+          saveLabel: "Export",
+          defaultUri: vscode.Uri.file(`${safe}${suffix}.json`),
+        });
+        if (!target) return;
+        try {
+          await fs.writeFile(
+            target.fsPath,
+            serializeEnvExport(e, format),
+            "utf8"
+          );
+        } catch (err: any) {
+          void vscode.window.showErrorMessage(
+            `rrequest environment export failed: ${err?.message ?? err}`
           );
         }
       },

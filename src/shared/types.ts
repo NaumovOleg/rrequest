@@ -193,6 +193,8 @@ export type WebviewMessage =
   | { type: 'setActiveEnv'; id: string | null }
   | { type: 'importCollection' }
   | { type: 'exportCollection'; id: string; format: 'native' | 'postman' | 'openapi' }
+  | { type: 'importEnvironment' }
+  | { type: 'exportEnvironment'; id: string; format: 'native' | 'postman' }
   | { type: 'pickFile' }
   | { type: 'openRequest'; request: CollectionItem; targetCollectionId?: string; targetFolderId?: string | null }
   | { type: 'loadWorkspaces' }

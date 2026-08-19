@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.27
+
+### Patch Changes
+
+- env export/import
+
 ## 0.0.26
 
 ### Patch Changes

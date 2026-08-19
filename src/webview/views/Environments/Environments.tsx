@@ -4,6 +4,7 @@ import { postToHost } from '../../ipc'
 import type { KeyValue } from '../../../shared/types'
 import { IconButton } from '../../elements/IconButton'
 import { RenameInput } from '../../elements/RenameInput'
+import { PopupMenu } from '../../elements/PopupMenu'
 
 function blankVar(secret: boolean): KeyValue {
   return { key: '', value: '', enabled: true, secret }
@@ -54,6 +55,8 @@ export function Environments() {
       <aside className="rm-env-list">
         <div className="rm-tree-head">
           <span className="rm-section-title">Environments</span>
+          <IconButton icon="import" label="import environment"
+            onClick={() => postToHost({ type: 'importEnvironment' })} />
           <IconButton icon="add" label="add environment"
             onClick={() => postToHost({ type: 'createEnvironment', name: 'New Environment' })} />
         </div>
@@ -65,6 +68,10 @@ export function Environments() {
                   onCancel={() => setRenamingId(null)} />
               : <button type="button" className="rm-tree-label rm-linklike" onClick={() => startEdit(env.id)}>{env.name}</button>}
             <div className="rm-actions">
+              <PopupMenu icon="export" label={`export ${env.name}`} items={[
+                { label: 'Native', icon: 'json', onClick: () => postToHost({ type: 'exportEnvironment', id: env.id, format: 'native' }) },
+                { label: 'Postman', icon: 'json', onClick: () => postToHost({ type: 'exportEnvironment', id: env.id, format: 'postman' }) },
+              ]} />
               <IconButton icon="edit" label={`rename ${env.name}`} onClick={() => setRenamingId(env.id)} />
               <IconButton icon="trash" label={`delete ${env.name}`}
                 onClick={() => { postToHost({ type: 'deleteEnvironment', id: env.id }); if (editingId === env.id) setEditingId(null) }} />

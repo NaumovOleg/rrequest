@@ -25,6 +25,8 @@ export type RouterDeps = {
   setActiveEnvId: (id: string | null) => void
   openImport?: () => Promise<import('../shared/types').Collection | null>
   runExport?: (c: import('../shared/types').Collection, format: 'native' | 'postman' | 'openapi') => Promise<void>
+  openEnvImport?: () => Promise<import('../shared/types').Environment | null>
+  runEnvExport?: (e: import('../shared/types').Environment, format: 'native' | 'postman') => Promise<void>
   pickFile?: () => Promise<{ path: string; filename: string } | null>
   workspaces: WorkspaceStore
   // Tags each workspace with its sync fields (accountId/accountEmail/role/
@@ -437,6 +439,16 @@ export function createRouter(deps: RouterDeps) {
       case 'exportCollection': {
         const c = (await deps.collections.list()).find((x) => x.id === msg.id)
         if (c && deps.runExport) await deps.runExport(c, msg.format)
+        return undefined
+      }
+      case 'importEnvironment': {
+        const env = deps.openEnvImport ? await deps.openEnvImport() : null
+        if (env) await deps.environments.saveEnvironment({ ...env, workspaceId: deps.getActiveWorkspaceId() })
+        return await envSnapshot()
+      }
+      case 'exportEnvironment': {
+        const env = (await deps.environments.list()).find((x) => x.id === msg.id)
+        if (env && deps.runEnvExport) await deps.runEnvExport(env, msg.format)
         return undefined
       }
       case 'pickFile': {

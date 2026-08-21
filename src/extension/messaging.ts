@@ -77,7 +77,10 @@ const MAX_KEPT_FULL_BYTES = 64 * 1024 * 1024
 const fullBodies = new Map<string, { text?: string; base64?: string; sizeBytes: number }>()
 
 function keepFullBody(requestId: string, full: { text?: string; base64?: string }): void {
-  const sizeBytes = full.text ? Buffer.byteLength(full.text, 'utf8') : (full.base64 ? full.base64.length * 0.75 : 0)
+  // For text, measure the raw UTF-8 byte length.  For base64, measure the
+  // *string* length (the actual memory the V8 string occupies), not the
+  // decoded size — the cap is about keeping memory bounded.
+  const sizeBytes = full.text ? Buffer.byteLength(full.text, 'utf8') : (full.base64 ? full.base64.length : 0)
   if (sizeBytes > MAX_KEPT_FULL_BYTES) return // too big to cache — save falls back to the preview
   fullBodies.set(requestId, { ...full, sizeBytes })
   if (fullBodies.size > MAX_KEPT_FULL_BODIES) {
@@ -192,6 +195,12 @@ export function createRouter(deps: RouterDeps) {
         const logs: string[] = []
         let vars = await activeVars()
         let effective = raw
+        // Preserve the request's own script strings before the cascade mutates
+        // the request object — cascade pre-scripts may return a new request
+        // that doesn't carry these fields, but the request-level scripts must
+        // always run (they belong to the request, not the cascade).
+        const requestPreScript = raw.preRequestScript
+        const requestTestScript = raw.testScript
         // Collection/folder scripts run around the request's own script in
         // sandwich order: pre top-down (collection -> folder -> request),
         // test bottom-up (request -> folder -> collection). Each pre script
@@ -234,8 +243,8 @@ export function createRouter(deps: RouterDeps) {
             },
           }
         }
-        if (raw.preRequestScript && deps.runPreScript) {
-          const pre = await deps.runPreScript(raw.preRequestScript, { request: raw, vars })
+        if (requestPreScript && deps.runPreScript) {
+          const pre = await deps.runPreScript(requestPreScript, { request: effective, vars })
           logs.push(...pre.logs)
           if (pre.error) {
             // A failed pre-request script must be loud: surface it as the
@@ -309,7 +318,7 @@ export function createRouter(deps: RouterDeps) {
           // Sandwich order: request tests first, then folder, then collection.
           // cascade.test = [folder, collection] (folder unshifted last), so
           // request -> test[0] (folder) -> test[1] (collection).
-          await runTest(raw.testScript ?? '')
+          await runTest(requestTestScript ?? '')
           await runTest(cascade.test[0])
           await runTest(cascade.test[1])
           const withMeta = {

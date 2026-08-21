@@ -91,6 +91,8 @@ function deletedIdsFromMessage(msg: WebviewMessage): string[] {
 // workspace-filtered tree + environments + workspaces + history, and creates a
 // singleton Hub shared by both the editor panel and the sidebar view.
 let bootstrapPromise: Promise<Hub> | undefined;
+let bootstrapFailedAt = 0;
+const BOOTSTRAP_RETRY_COOLDOWN_MS = 5_000;
 let syncRuntimeRef: ReturnType<typeof createSyncRuntime> | undefined;
 export function getSyncRuntime():
   | ReturnType<typeof createSyncRuntime>
@@ -164,6 +166,10 @@ export function explainSyncError(e: unknown): string {
 
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise;
+  // After a failure, wait before retrying to avoid hammering a broken state.
+  if (bootstrapFailedAt && Date.now() - bootstrapFailedAt < BOOTSTRAP_RETRY_COOLDOWN_MS) {
+    return Promise.reject(new Error('Bootstrap failed recently — retrying soon'));
+  }
   bootstrapPromise = (async () => {
     const base = context.globalStorageUri.fsPath;
     const collections = new CollectionStore(base);
@@ -536,20 +542,20 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // runtime/hub, which don't exist yet at createRouter time), so this is a
       // deferred-closure thunk over syncControlRef — same pattern as isReadOnly.
 syncControl: {
-        signIn: () => syncControlRef!.signIn(),
+        signIn: () => syncControlRef?.signIn() ?? Promise.resolve(),
         // Forward accountId — dropping it broke per-account sign-out and bound
         // enabled workspaces to the wrong/undefined account (so they never
         // pulled for the account that was actually picked).
-        signOut: (accountId?: string) => syncControlRef!.signOut(accountId),
+        signOut: (accountId?: string) => syncControlRef?.signOut(accountId) ?? Promise.resolve(),
         enable: (id: string, accountId?: string) =>
-          syncControlRef!.enable(id, accountId),
-        syncNow: (id: string) => syncControlRef!.syncNow(id),
+          syncControlRef?.enable(id, accountId) ?? Promise.resolve(),
+        syncNow: (id: string) => syncControlRef?.syncNow(id) ?? Promise.resolve(),
         syncAccount: (accountId: string) =>
-          syncControlRef!.syncAccount(accountId),
+          syncControlRef?.syncAccount(accountId) ?? Promise.resolve(),
         setPolling: (id: string, enabled: boolean) =>
-          syncControlRef!.setPolling(id, enabled),
+          syncControlRef?.setPolling(id, enabled) ?? Promise.resolve(),
         setSyncMode: (id: string, mode: 'full' | 'pull' | 'push' | 'stop') =>
-          syncControlRef!.setSyncMode(id, mode),
+          syncControlRef?.setSyncMode(id, mode) ?? Promise.resolve(),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
       // workspace when it's deleted; never blocks the local delete (see below).
@@ -557,13 +563,17 @@ syncControl: {
         onWorkspaceDeletedRef?.(id) ?? Promise.resolve(),
     });
 
-    const snapshot = async (): Promise<HostMessage[]> => {
+    // Cache snapshot for 200ms so rapid dispatches (e.g. two panels mutating at
+    // once) don't repeat five disk reads.  refresh() clears the cache to force
+    // fresh data after sync pulls.
+    let snapshotCache: { ts: number; data: Promise<HostMessage[]> } | null = null
+    const SNAPSHOT_CACHE_MS = 200
+
+    const computeSnapshot = async (): Promise<HostMessage[]> => {
       const ws = context.globalState.get<string>(
         "rrequest.activeWorkspaceId",
         ""
       );
-      // Per-workspace sync state (which account it's bound to, etc.) for the
-      // workspaces snapshot below.
       const states = isAuthed() ? await syncState.all() : {};
       const cols = (await collections.list()).filter(
         (c) => (c.workspaceId || ws) === ws
@@ -598,8 +608,17 @@ syncControl: {
       ];
     };
 
+    const snapshot = async (): Promise<HostMessage[]> => {
+      const now = Date.now()
+      if (snapshotCache && now - snapshotCache.ts < SNAPSHOT_CACHE_MS) return snapshotCache.data
+      const data = computeSnapshot()
+      snapshotCache = { ts: now, data }
+      return data
+    };
+
     const hub = new Hub(route, snapshot);
     hubRef = hub;
+    hub.setSnapshotCacheClearer(() => { snapshotCache = null })
     // Each "open" reply gets its own editor panel (native tab). Requests are keyed
     // by request id so re-opening focuses the existing tab; env/ws are singletons.
     hub.setOpen((m) => {
@@ -1041,8 +1060,10 @@ syncControl: {
 
     return hub;
   })();
-  bootstrapPromise.catch(() => {
+  bootstrapPromise.catch((e) => {
+    bootstrapFailedAt = Date.now();
     bootstrapPromise = undefined;
+    syncLog().appendLine(`[bootstrap] FAILED: ${String(e?.message ?? e)}`);
   });
   return bootstrapPromise;
 }

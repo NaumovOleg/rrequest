@@ -69,18 +69,24 @@ export function parseCurl(cmd: string): Partial<RestRequest> {
   return out
 }
 
+function shellEscape(s: string): string {
+  // Escape for single-quoted shell context: end the quote, add an escaped
+  // single quote, restart the quote.  `'it'\''s'` → it's
+  return `'${s.replace(/'/g, "'\\''")}'`
+}
+
 export function toCurl(req: RestRequest): string {
-  const parts: string[] = [`curl -X ${req.method} '${buildUrlFromParams(req.url, req.params)}'`]
-  for (const h of req.headers) if (h.enabled && h.key) parts.push(`-H '${h.key}: ${h.value}'`)
-  if (req.body.mode === 'raw' && req.body.text) parts.push(`--data '${req.body.text}'`)
+  const parts: string[] = [`curl -X ${req.method} ${shellEscape(buildUrlFromParams(req.url, req.params))}`]
+  for (const h of req.headers) if (h.enabled && h.key) parts.push(`-H ${shellEscape(`${h.key}: ${h.value}`)}`)
+  if (req.body.mode === 'raw' && req.body.text) parts.push(`--data ${shellEscape(req.body.text)}`)
   else if (req.body.mode === 'urlencoded') {
     const s = req.body.items.filter((i) => i.enabled && i.key).map((i) => `${i.key}=${i.value}`).join('&')
-    if (s) parts.push(`--data '${s}'`)
+    if (s) parts.push(`--data ${shellEscape(s)}`)
   } else if (req.body.mode === 'formdata') {
     for (const it of req.body.items) {
       if (!it.enabled || !it.key) continue
-      if (it.kind === 'text') parts.push(`-F '${it.key}=${it.value}'`)
-      else parts.push(`-F '${it.key}=@${it.path}'`)
+      if (it.kind === 'text') parts.push(`-F ${shellEscape(`${it.key}=${it.value}`)}`)
+      else parts.push(`-F ${shellEscape(`${it.key}=@${it.path}`)}`)
     }
   }
   return parts.join(' ')

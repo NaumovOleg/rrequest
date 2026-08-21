@@ -45,11 +45,13 @@ export class SseClient {
       res = await this.fetcher(url, { headers, signal: ctrl.signal })
     } catch (e: any) {
       if (ctrl.signal.aborted) {
-        this.conns.delete(connId)
+        // Only delete if this connection's ctrl is still the current one —
+        // a rapid reconnect may have replaced it.
+        if (this.conns.get(connId) === ctrl) this.conns.delete(connId)
         this.emit({ type: 'sseClosed', connId, reason: 'disconnected' })
       } else {
         fail(String(e?.message ?? e))
-        this.conns.delete(connId)
+        if (this.conns.get(connId) === ctrl) this.conns.delete(connId)
       }
       return
     }
@@ -81,11 +83,11 @@ export class SseClient {
       this.emit({ type: 'sseClosed', connId, reason: 'stream ended' })
     } catch (e: any) {
       if (ctrl.signal.aborted) {
-        this.conns.delete(connId)
+        if (this.conns.get(connId) === ctrl) this.conns.delete(connId)
         this.emit({ type: 'sseClosed', connId, reason: 'disconnected' })
       } else {
         fail(String(e?.message ?? e))
-        this.conns.delete(connId)
+        if (this.conns.get(connId) === ctrl) this.conns.delete(connId)
       }
     }
   }

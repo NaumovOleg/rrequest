@@ -57,26 +57,45 @@ export class SyncManager {
   // since the last successful push. Sync is otherwise a pure union merge that
   // never drops remote data, so this set is the ONLY way a delete reaches the
   // remote: pruned out of the pushed snapshot, then cleared once the push lands.
-  private pendingDeletes = new Set<string>()
+  private pendingDeletes = new Map<string, number>()
   // Tombstones that must apply to ONE workspace only. A collection moved from
   // workspace A to B is "deleted" in A's remote while still living in B's — an
   // unscoped tombstone would prune it out of B's push too, losing the move.
-  private scopedDeletes = new Map<string, Set<string>>()
+  private scopedDeletes = new Map<string, Map<string, number>>()
+  // Tombstones older than this are pruned to prevent unbounded memory growth
+  // after repeated failed pushes. 5 min covers well beyond a push cycle.
+  private static readonly TOMBSTONE_TTL_MS = 5 * 60_000
 
   recordDeletion(ids: string[], workspaceId?: string): void {
-    let set = this.pendingDeletes
+    let map = this.pendingDeletes
     if (workspaceId) {
-      set = this.scopedDeletes.get(workspaceId) ?? new Set<string>()
-      this.scopedDeletes.set(workspaceId, set)
+      map = this.scopedDeletes.get(workspaceId) ?? new Map<string, number>()
+      this.scopedDeletes.set(workspaceId, map)
     }
-    for (const id of ids) if (id) set.add(id)
+    const now = Date.now()
+    for (const id of ids) if (id) map.set(id, now)
+  }
+
+  private pruneStaleTombstones(): void {
+    const cutoff = Date.now() - SyncManager.TOMBSTONE_TTL_MS
+    for (const [id, ts] of this.pendingDeletes) {
+      if (ts < cutoff) this.pendingDeletes.delete(id)
+    }
+    for (const [, scoped] of this.scopedDeletes) {
+      for (const [id, ts] of scoped) {
+        if (ts < cutoff) scoped.delete(id)
+      }
+    }
   }
 
   // Tombstones in effect for one workspace: the unscoped set plus its own.
   // Always a COPY — a delete recorded while a push is in flight must not be
   // cleared by that push, or its tombstone dies before it ever propagated.
   private deletesFor(workspaceId: string): Set<string> {
-    return new Set([...this.pendingDeletes, ...(this.scopedDeletes.get(workspaceId) ?? [])])
+    return new Set([
+      ...this.pendingDeletes.keys(),
+      ...(this.scopedDeletes.get(workspaceId)?.keys() ?? []),
+    ])
   }
 
   /** Forget tombstones for ids that came back to a workspace (e.g. a move back). */
@@ -206,6 +225,7 @@ export class SyncManager {
 
   async push(workspaceId: string): Promise<void> {
     if (!this.authed()) return
+    this.pruneStaleTombstones()
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
     if (state.pushEnabled === false) return

@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.29
+
+### Patch Changes
+
+- bug fixes
+
 ## 0.0.28
 
 ### Patch Changes

@@ -27,6 +27,10 @@ export class Hub {
   private lastSweep = 0
   private onOpen?: (m: HostMessage) => void
   private afterDispatch?: (msg: WebviewMessage) => void
+  private clearSnapshotCache?: () => void
+  // Serialise dispatches so concurrent webview messages don't overlap on
+  // snapshot() or afterDispatch (which may trigger schedulePush).
+  private dispatchChain: Promise<void> = Promise.resolve()
   constructor(
     private readonly route: (m: WebviewMessage) => Promise<HostMessage | undefined>,
     private readonly snapshot: () => Promise<HostMessage[]>,
@@ -67,8 +71,12 @@ export class Hub {
   // The host wires this to trigger sync (e.g. schedule a push) after a mutation.
   setAfterDispatch(fn: (msg: WebviewMessage) => void): void { this.afterDispatch = fn }
 
+  // Wire a cache-clearing callback so refresh() always reads fresh data.
+  setSnapshotCacheClearer(fn: () => void): void { this.clearSnapshotCache = fn }
+
   // Re-broadcast the current snapshot to all sinks (used after an incoming sync pull).
   async refresh(): Promise<void> {
+    this.clearSnapshotCache?.()
     for (const m of await this.snapshot()) this.broadcast(m)
   }
 
@@ -95,7 +103,12 @@ export class Hub {
   // live panel whose only activity is *receiving* snapshots.
   private broadcast(m: HostMessage) { for (const id of this.sinks.keys()) this.postTo(id, m) }
 
-  async dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
+  dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
+    this.dispatchChain = this.dispatchChain.then(() => this.doDispatch(fromId, msg))
+    return this.dispatchChain
+  }
+
+  private async doDispatch(fromId: string, msg: WebviewMessage): Promise<void> {
     this.touch(fromId)
     this.sweep()
     const reply = await this.route(msg)

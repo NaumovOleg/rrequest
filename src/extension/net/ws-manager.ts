@@ -37,7 +37,7 @@ export class WsManager {
     // Perf: also strip listeners on a server-side close — the socket object
     // becomes garbage as soon as the map entry is gone, and dropping its
     // handler closures lets it collect instead of lingering.
-    socket.on('close', (code, reason) => { this.conns.delete(connId); socket.removeAllListeners?.(); this.emit({ type: 'wsClosed', connId, code: code ?? 0, reason: String(reason ?? '') }) })
+    socket.on('close', (code, reason) => { this.conns.delete(connId); socket.removeAllListeners?.(); this.emit({ type: 'wsClosed', connId, code: code ?? 1006, reason: String(reason ?? '') }) })
     socket.on('error', (err: any) => this.emit({ type: 'wsError', connId, message: String(err?.message ?? err) }))
   }
 

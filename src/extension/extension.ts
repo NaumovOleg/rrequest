@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { RrequestPanel, ensureBootstrap, getSyncRuntime, getSyncControl } from './panel'
+import { RrequestPanel, ensureBootstrap, getSyncRuntime, getSyncControl, deactivateRuntime } from './panel'
 import { SidebarViewProvider } from './sidebar-view'
 
 // Opens the bundled usage guide (docs/usage.md) in the editor — as rendered
@@ -90,4 +90,10 @@ export function activate(context: vscode.ExtensionContext) {
   )
 }
 
-export function deactivate() {}
+// Perf: VS Code gives us one shutdown hook — use it. Stops the sync poll
+// interval and closes live WS/SSE connections so nothing keeps polling or
+// holding sockets after the extension host tears the extension down
+// (previously deactivate() was empty and the poll loop ran on forever).
+export function deactivate() {
+  deactivateRuntime()
+}

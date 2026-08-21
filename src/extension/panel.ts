@@ -119,6 +119,19 @@ export function getSyncControl(): SyncControlPort | undefined {
 // runtime exists, so deleteWorkspace's sync hook is a closure over this ref,
 // assigned once the SyncManager + SyncStateStore are constructed below.
 let onWorkspaceDeletedRef: ((id: string) => Promise<void>) | undefined;
+// Perf: module-level handles for everything that runs on its own timer or
+// socket. deactivate() (extension.ts) calls deactivateRuntime() to stop them —
+// previously the poll loop's setInterval survived deactivation and kept
+// burning CPU/network in a zombie extension host.
+let pollLoopRef: ReturnType<typeof createPollLoop> | undefined;
+let wsManagerRef: WsManager | undefined;
+let sseClientRef: SseClient | undefined;
+export function deactivateRuntime(): void {
+  pollLoopRef?.stop();
+  pollLoopRef = undefined;
+  wsManagerRef?.disconnectAll();
+  sseClientRef?.disconnectAll();
+}
 // One shared output channel. Sync failures used to exist only as a webview
 // toast, which is easy to miss (the accounts popup closes on the same click) and
 // carries no detail — "it just went local" with nothing to go on. Everything
@@ -219,6 +232,8 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     let hubRef: Hub | undefined;
     const wsManager = new WsManager((m) => hubRef?.emitTo("ws", m), wsFactory);
     const sseClient = new SseClient((m) => hubRef?.emitTo("sse", m), fetch);
+    wsManagerRef = wsManager;
+    sseClientRef = sseClient;
 
     // syncClient is constructed early (it has no Hub dependency) so the router's
     // members port can be built over it below; the rest of the sync runtime
@@ -766,6 +781,7 @@ syncControl: {
       },
       intervalMs: pollIntervalMs,
     });
+    pollLoopRef = pollLoop;
     pollLoop.start();
 
     const syncControlPort: SyncControlPort = {
@@ -1104,7 +1120,7 @@ export class RrequestPanel {
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
-    key: string
+    private readonly key: string
   ) {
     const scriptUri = panel.webview
       .asWebviewUri(
@@ -1173,7 +1189,17 @@ export class RrequestPanel {
         return;
       }
       const hub = await ensureBootstrap(context);
-      await hub.dispatch(key, msg);
+      // Self-heal after a hub idle-eviction (perf GC safety net): if this
+      // panel's sink was dropped while everything sat silent, the next message
+      // from it re-registers, so replies/snapshots keep flowing.
+      if (!hub.has(this.key)) {
+        this.unregister?.();
+        this.unregister = hub.register(this.key, (m) => {
+          void panel.webview.postMessage(m);
+        });
+        this.registered = true;
+      }
+      await hub.dispatch(this.key, msg);
     });
 
     panel.onDidDispose(() => {

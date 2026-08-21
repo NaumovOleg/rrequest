@@ -23,6 +23,12 @@ export class SseClient {
     this.conns.get(connId)?.abort()
   }
 
+  // Perf: bulk teardown for extension deactivate.
+  disconnectAll(): void {
+    for (const ctrl of this.conns.values()) ctrl.abort()
+    this.conns.clear()
+  }
+
   private async open(
     connId: string,
     url: string,

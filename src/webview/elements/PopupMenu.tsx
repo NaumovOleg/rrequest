@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { IconButton } from './IconButton'
 
 /**
@@ -71,22 +71,39 @@ export function MenuRows({ items, onPick }: { items: PopupMenuItem[]; onPick: ()
   )
 }
 
-export function PopupMenu({ icon, label, items }: { icon: string; label: string; items: PopupMenuItem[] }) {
+export function PopupMenu({ icon, label, items, anchorRight }: { icon: string; label: string; items: PopupMenuItem[]; anchorRight?: boolean }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+
+  const calcPos = useCallback(() => {
+    if (!btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    setPos({
+      top: r.bottom + 2,
+      left: anchorRight ? r.right : r.left,
+    })
+  }, [anchorRight])
+
   useEffect(() => {
     if (!open) return
+    calcPos()
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onScroll = () => calcPos()
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
-  }, [open])
+    window.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); window.removeEventListener('scroll', onScroll, true) }
+  }, [open, calcPos])
+
   return (
-    <span className="rm-popup" ref={ref} style={{ position: 'relative' }}>
+    <span className="rm-popup" ref={ref}>
       <IconButton icon={icon} label={label} onClick={() => setOpen((o) => !o)} />
       {open && (
-        <div className="rm-popup-menu" role="menu" aria-label={label}>
+        <div className="rm-popup-menu" role="menu" aria-label={label}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 100 }}>
           <MenuRows items={items} onPick={() => setOpen(false)} />
         </div>
       )}

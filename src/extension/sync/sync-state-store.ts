@@ -11,9 +11,11 @@ export type SyncState = {
   // on pre-multi-account state -> resolves to the sole account as a fallback.
   accountId?: string
   // Per-workspace opt-out of the auto-poll (background pull). Absent/true ->
-  // polled on the schedule; false -> skipped by the poll loop. Pushes are never
-  // affected -- local edits still hit the server whenever they're made.
+  // polled on the schedule; false -> skipped by the poll loop.
   pollEnabled?: boolean
+  // Per-workspace opt-out of auto-push. Absent/true -> local edits push;
+  // false -> local edits are queued but never sent.
+  pushEnabled?: boolean
 }
 
 export class SyncStateStore {

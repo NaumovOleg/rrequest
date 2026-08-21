@@ -1225,6 +1225,10 @@ body {
 .rm-acct-ws:focus-within .rm-acct-ws-actions {
   opacity: 1;
 }
+/* Keep the popup menu above sibling workspace rows and allow it to overflow. */
+.rm-acct-ws-actions:has(.rm-popup-menu) {
+  z-index: 40;
+}
 .rm-sync-enable:hover {
   color: var(--rm-fg);
 }

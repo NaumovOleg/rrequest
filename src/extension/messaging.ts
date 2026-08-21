@@ -46,7 +46,7 @@ export type RouterDeps = {
   openTextDocument?: (opts: { content: string; language: string }) => Promise<void>
   isReadOnly?: (workspaceId: string) => boolean
   members?: { list(workspaceId: string): Promise<Member[]>; add(workspaceId: string, email: string, role: 'editor' | 'viewer'): Promise<void>; remove(workspaceId: string, memberId: string): Promise<void> }
-  syncControl?: { signIn(): Promise<void>; signOut(accountId?: string): Promise<void>; enable(workspaceId: string, accountId?: string): Promise<void>; syncNow(workspaceId: string): Promise<void>; syncAccount(accountId: string): Promise<void>; setPolling(workspaceId: string, enabled: boolean): Promise<void> }
+  syncControl?: { signIn(): Promise<void>; signOut(accountId?: string): Promise<void>; enable(workspaceId: string, accountId?: string): Promise<void>; syncNow(workspaceId: string): Promise<void>; syncAccount(accountId: string): Promise<void>; setPolling(workspaceId: string, enabled: boolean): Promise<void>; setSyncMode(workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop'): Promise<void> }
   // Best-effort hook fired when a workspace is deleted locally, so the host
   // can also trash its Drive file + server rows if it was synced. Must never
   // reject (the sync side already swallows its own errors) and never blocks
@@ -832,6 +832,7 @@ export function createRouter(deps: RouterDeps) {
       case 'enableSync': await deps.syncControl?.enable(msg.workspaceId, msg.accountId); return undefined
       case 'syncNow': await deps.syncControl?.syncNow(msg.workspaceId); return undefined
       case 'setWorkspacePolling': await deps.syncControl?.setPolling(msg.workspaceId, msg.enabled); return undefined
+      case 'setSyncMode': await deps.syncControl?.setSyncMode(msg.workspaceId, msg.mode); return undefined
       default:
         return undefined
     }

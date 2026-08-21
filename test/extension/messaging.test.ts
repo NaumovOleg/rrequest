@@ -674,6 +674,7 @@ describe('createRouter sync control routes', () => {
       syncNow: async (id: string) => { calls.push('syncNow:' + id) },
       syncAccount: async (id: string) => { calls.push('syncAccount:' + id) },
       setPolling: async (id: string, enabled: boolean) => { calls.push(`setPolling:${id}:${enabled}`) },
+      setSyncMode: async (id: string, mode: string) => { calls.push(`setSyncMode:${id}:${mode}`) },
     }
     const d = deps()
     const route = createRouter({ send: d.send, collections: d.collections, history: d.history,

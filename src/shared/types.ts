@@ -142,7 +142,7 @@ export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
 export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
 
 export type Account = { id: string; email: string }
-export type Workspace = { id: string; name: string; role?: WorkspaceRole; synced?: boolean; accountId?: string; accountEmail?: string; pollEnabled?: boolean }
+export type Workspace = { id: string; name: string; role?: WorkspaceRole; synced?: boolean; accountId?: string; accountEmail?: string; pollEnabled?: boolean; pushEnabled?: boolean }
 
 // A deleted thing kept for restore. `data` is the full snapshot (collections and
 // folders keep their children); `path` records ancestors so a folder/request can
@@ -245,6 +245,7 @@ export type WebviewMessage =
   | { type: 'enableSync'; workspaceId: string; accountId?: string }
   | { type: 'syncNow'; workspaceId: string }
   | { type: 'setWorkspacePolling'; workspaceId: string; enabled: boolean }
+  | { type: 'setSyncMode'; workspaceId: string; mode: 'full' | 'pull' | 'push' | 'stop' }
   | { type: 'openDocs' }
   | { type: 'oauthGetToken'; requestId: string; auth: Auth }
   | { type: 'oauthStatus'; requestId: string }

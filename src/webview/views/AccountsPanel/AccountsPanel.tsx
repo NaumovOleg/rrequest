@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { IconButton, PopupMenu } from "../../elements";
+import type { PopupMenuItem } from "../../elements/PopupMenu";
 import { RenameInput } from "../../elements/RenameInput";
 import { useStore } from "../../state/store";
 import { useWorkspace } from "../../state/useWorkspace";
@@ -36,6 +37,22 @@ function initialsOf(email: string): string {
   const caps = s.match(/[A-Z0-9]/g) ?? [];
   return (caps.length >= 2 ? caps[0] + caps[1] : s.slice(0, 2)).toUpperCase();
 }
+
+function syncMode(w: Workspace): 'full' | 'pull' | 'push' | 'stop' {
+  const pullOn = w.pollEnabled !== false;
+  const pushOn = w.pushEnabled !== false;
+  if (pullOn && pushOn) return 'full';
+  if (pullOn && !pushOn) return 'pull';
+  if (!pullOn && pushOn) return 'push';
+  return 'stop';
+}
+
+const SYNC_MODE_ITEMS: { mode: 'full' | 'pull' | 'push' | 'stop'; icon: string; label: string; title: string }[] = [
+  { mode: 'full', icon: 'arrow-swap', label: 'Full sync', title: 'Full sync — pull and push automatically' },
+  { mode: 'pull', icon: 'arrow-down', label: 'Pull only', title: 'Pull only — receive remote changes, local edits won\'t push' },
+  { mode: 'push', icon: 'arrow-up', label: 'Push only', title: 'Push only — send local changes, won\'t pull remote' },
+  { mode: 'stop', icon: 'circle-slash', label: 'Stop sync', title: 'Stop sync — no pull, no push' },
+];
 
 /** Inline "new workspace" row: type a name, Enter creates, Escape cancels. */
 function WorkspaceCreateRow({
@@ -208,20 +225,19 @@ export function AccountsPanel() {
         />
       )}
       {w.synced && (
-        <IconButton
-          icon={w.pollEnabled === false ? "sync-ignored" : "debug-pause"}
-          label={
-            w.pollEnabled === false
-              ? `Resume auto-sync for “${w.name}” — pull it on a schedule again`
-              : `Pause auto-sync for “${w.name}” — stop pulling it (pushes still work)`
-          }
-          onClick={() =>
-            postToHost({
-              type: "setWorkspacePolling",
-              workspaceId: w.id,
-              enabled: w.pollEnabled === false,
-            })
-          }
+        <PopupMenu
+          icon={syncMode(w) === 'full' ? 'arrow-swap' : syncMode(w) === 'pull' ? 'arrow-down' : syncMode(w) === 'push' ? 'arrow-up' : 'circle-slash'}
+          label={`Sync mode for "${w.name}"`}
+          anchorRight
+          items={[
+            { kind: 'header', label: 'Sync mode' },
+            ...SYNC_MODE_ITEMS.map((it) => ({
+              label: it.label,
+              icon: it.icon,
+              checked: syncMode(w) === it.mode,
+              onClick: () => postToHost({ type: 'setSyncMode', workspaceId: w.id, mode: it.mode }),
+            } as PopupMenuItem)),
+          ]}
         />
       )}
       {w.role !== "viewer" && !isEditing && (

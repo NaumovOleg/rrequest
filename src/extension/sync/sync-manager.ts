@@ -184,10 +184,31 @@ export class SyncManager {
     await this.deps.state.set(workspaceId, { ...state })
   }
 
+  /** Set the sync mode for a workspace: 'full' | 'pull' | 'push' | 'stop'. */
+  async setSyncMode(workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop'): Promise<void> {
+    const state = await this.deps.state.get(workspaceId)
+    if (!state?.synced) return
+    if (mode === 'full') {
+      delete state.pollEnabled
+      delete state.pushEnabled
+    } else if (mode === 'pull') {
+      delete state.pollEnabled
+      state.pushEnabled = false
+    } else if (mode === 'push') {
+      state.pollEnabled = false
+      delete state.pushEnabled
+    } else {
+      state.pollEnabled = false
+      state.pushEnabled = false
+    }
+    await this.deps.state.set(workspaceId, { ...state })
+  }
+
   async push(workspaceId: string): Promise<void> {
     if (!this.authed()) return
     const state = await this.deps.state.get(workspaceId)
     if (!state?.synced) return
+    if (state.pushEnabled === false) return
     const accountId = state.accountId
     if (!this.tokenReady(accountId)) return
     try {

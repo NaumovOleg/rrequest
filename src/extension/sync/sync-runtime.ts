@@ -17,13 +17,14 @@ export function createSyncRuntime(deps: {
   manager: SyncManager
   onPulled: () => Promise<void>
   debounceMs?: number
-  state?: { all(): Promise<Record<string, { role?: string; synced?: boolean; pollEnabled?: boolean }>> }
+  state?: { all(): Promise<Record<string, { role?: string; synced?: boolean; pollEnabled?: boolean; pushEnabled?: boolean }>> }
 }) {
   const debounceMs = deps.debounceMs ?? 1500
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
   const schedulePush = (workspaceId: string): void => {
     if (!workspaceId) return
+    if (pushPaused.has(workspaceId)) return
     clearTimeout(timers.get(workspaceId))
     timers.set(workspaceId, setTimeout(() => { void deps.manager.push(workspaceId) }, debounceMs))
   }
@@ -31,21 +32,25 @@ export function createSyncRuntime(deps: {
   const roles = new Map<string, string>()
   const synced = new Map<string, boolean>()
   const paused = new Map<string, boolean>()
+  const pushPaused = new Map<string, boolean>()
   const refreshRoleCache = async (): Promise<void> => {
     roles.clear()
     synced.clear()
     paused.clear()
+    pushPaused.clear()
     const all = (await deps.state?.all()) ?? {}
     for (const [id, s] of Object.entries(all)) {
       if (s.role) roles.set(id, s.role)
       if (s.synced) synced.set(id, true)
       if (s.pollEnabled === false) paused.set(id, true)
+      if (s.pushEnabled === false) pushPaused.set(id, true)
     }
   }
   const roleOf = (id: string) => roles.get(id) as 'owner' | 'editor' | 'viewer' | undefined
   const isReadOnly = (id: string) => roleOf(id) === 'viewer'
   const syncedOf = (id: string) => synced.get(id) === true
   const pollingOf = (id: string) => !paused.has(id)
+  const pushEnabledOf = (id: string) => !pushPaused.has(id)
 
   return {
     manager: deps.manager,
@@ -61,5 +66,6 @@ export function createSyncRuntime(deps: {
     isReadOnly,
     syncedOf,
     pollingOf,
+    pushEnabledOf,
   }
 }

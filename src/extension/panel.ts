@@ -104,6 +104,7 @@ type SyncControlPort = {
   syncNow(workspaceId: string): Promise<void>;
   syncAccount(accountId: string): Promise<void>;
   setPolling(workspaceId: string, enabled: boolean): Promise<void>;
+  setSyncMode(workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop'): Promise<void>;
   // Connected accounts, so the command-palette path can ask WHICH one to sync
   // to instead of giving up when more than one is signed in.
   accounts(): Account[];
@@ -347,6 +348,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
           synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
           pollEnabled: isAuthed() ? syncRuntimeRef?.pollingOf(w.id) : undefined,
+          pushEnabled: isAuthed() ? syncRuntimeRef?.pushEnabledOf(w.id) : undefined,
           accountId: st?.accountId,
           accountEmail: accounts.emailOf(st?.accountId),
         };
@@ -546,6 +548,8 @@ syncControl: {
           syncControlRef!.syncAccount(accountId),
         setPolling: (id: string, enabled: boolean) =>
           syncControlRef!.setPolling(id, enabled),
+        setSyncMode: (id: string, mode: 'full' | 'pull' | 'push' | 'stop') =>
+          syncControlRef!.setSyncMode(id, mode),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
       // workspace when it's deleted; never blocks the local delete (see below).
@@ -984,8 +988,9 @@ syncControl: {
         if (!requireServerUrl()) return;
         hub.syncStatus(true, { kind: "workspace", id });
         try {
-          await manager.pull(id);
-          await manager.push(id);
+          const state = await syncState.get(id);
+          if (state?.pollEnabled !== false) await manager.pull(id);
+          if (state?.pushEnabled !== false) await manager.push(id);
           await runtime.refreshRoleCache();
           await runtime.refresh();
           hub.toast("info", "Sync completed.");
@@ -1023,6 +1028,11 @@ syncControl: {
       // working either way — they're triggered by local edits, not the poll.
       setPolling: async (workspaceId: string, enabled: boolean) => {
         await manager.setPolling(workspaceId, enabled);
+        await runtime.refreshRoleCache();
+        await runtime.refresh();
+      },
+      setSyncMode: async (workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop') => {
+        await manager.setSyncMode(workspaceId, mode);
         await runtime.refreshRoleCache();
         await runtime.refresh();
       },

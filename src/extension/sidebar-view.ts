@@ -43,6 +43,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const hub = await ensureBootstrap(this.context)
     if (disposed) return
     unregister = hub.register('sidebar', (m) => { void view.webview.postMessage(m) })
-    view.webview.onDidReceiveMessage((msg: WebviewMessage) => { void hub.dispatch('sidebar', msg) })
+    view.webview.onDidReceiveMessage((msg: WebviewMessage) => {
+      void ensureBootstrap(this.context).then((h) => {
+        // Self-heal after a hub idle-eviction (perf GC safety net).
+        if (!h.has('sidebar')) {
+          unregister?.()
+          unregister = h.register('sidebar', (m) => { void view.webview.postMessage(m) })
+        }
+        return h.dispatch('sidebar', msg)
+      })
+    })
   }
 }

@@ -77,3 +77,60 @@ describe('Hub', () => {
     expect(sidebar.find((m) => m.type === 'wsOpen')).toBeUndefined()
   })
 })
+
+describe('Hub sink GC (idle eviction)', () => {
+  const msg: WebviewMessage = { type: 'loadWorkspaces' }
+  it('evicts sinks idle past the timeout and reports has()', async () => {
+    vi.useFakeTimers()
+    try {
+      const hub = new Hub(async () => undefined, snapshot, { sinkIdleMs: 10_000, sweepEveryMs: 5_000 })
+      const got: HostMessage[] = []
+      hub.register('a', (m) => got.push(m))
+      hub.register('b', (m) => got.push(m))
+      await hub.dispatch('a', msg)
+      expect(got).toHaveLength(8) // 4 snapshots × 2 sinks
+      vi.advanceTimersByTime(70_000) // total silence past idle + sweep windows
+      await hub.dispatch('other', msg) // piggybacks the sweep
+      expect(hub.has('a')).toBe(false)
+      expect(hub.has('b')).toBe(false)
+      expect(got).toHaveLength(8) // post-eviction broadcast went nowhere
+      // A live surface re-registers itself (see panel self-heal) and works again.
+      hub.register('a', (m) => got.push(m))
+      await hub.dispatch('a', msg)
+      expect(got).toHaveLength(12) // 4 new snapshots to re-registered a
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('traffic keeps sinks alive across sweeps', async () => {
+    vi.useFakeTimers()
+    try {
+      const hub = new Hub(async () => undefined, snapshot, { sinkIdleMs: 10_000, sweepEveryMs: 5_000 })
+      hub.register('a', () => {})
+      hub.register('b', () => {})
+      for (let i = 0; i < 3; i++) {
+        await hub.dispatch('a', msg) // every dispatch broadcasts -> touches a AND b
+        vi.advanceTimersByTime(6_000) // past the sweep interval, under idle timeout
+      }
+      expect(hub.has('a')).toBe(true)
+      // b never dispatched but kept receiving deliveries, so it stays warm too.
+      expect(hub.has('b')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('re-registering over an evicted id works and has() reflects it', async () => {
+    vi.useFakeTimers()
+    try {
+      const hub = new Hub(async () => undefined, snapshot, { sinkIdleMs: 10_000, sweepEveryMs: 5_000 })
+      hub.register('a', () => {})
+      vi.advanceTimersByTime(70_000)
+      await hub.dispatch('x', msg)
+      expect(hub.has('a')).toBe(false)
+      hub.register('a', () => {})
+      expect(hub.has('a')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

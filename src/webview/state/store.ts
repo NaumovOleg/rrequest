@@ -2,6 +2,21 @@ import { create } from 'zustand'
 import { reconcileUrlParams } from './url-sync'
 import { newId, defaultHeaders, itemKind, type Collection, type CollectionItem, type Environment, type HistoryEntry, type HttpResponse, type KeyValue, type Account, type Member, type RestRequest, type SyncScope, type TrashEntry, type Workspace, type WorkspaceRole, type WsRequest, type GrpcRequest } from '../../shared/types'
 
+// Perf caps: the webview lives as long as VS Code does (days), so every
+// unbounded collection here was a slow memory leak that also slowed React
+// re-renders down. Newest entries always win.
+export const MAX_LOG_ENTRIES = 500
+export const MAX_RESPONSE_ENTRIES = 150
+export const MAX_HISTORY_ENTRIES = 500
+
+// Append with a hard cap: drop the oldest beyond `max`. The O(n) slice per
+// append is fine at n<=500; a real ring buffer isn't worth it here.
+function pushCapped<T>(arr: T[], entry: T, max: number): T[] {
+  const next = arr.length >= max ? arr.slice(arr.length - max + 1) : arr.slice()
+  next.push(entry)
+  return next
+}
+
 // Payload for opening the WebSocket / gRPC editor panels. `request` null = a
 // fresh "New" request. `seq` bumps on every open so the panel re-applies even
 // when the same request is opened twice in a row. EditorApp stashes this in the
@@ -283,7 +298,19 @@ wsLog: [],
     }),
   })),
 
-  setResponse: (id, resp) => set((s) => ({ responses: { ...s.responses, [id]: resp } })),
+  setResponse: (id, resp) => set((s) => {
+    // LRU response cache capped at MAX_RESPONSE_ENTRIES. Plain-object key
+    // order is insertion order; deleting a key before re-inserting moves it
+    // to the end ("most recently used"). On a miss at cap, the first key
+    // (least recently used) is evicted.
+    const responses = { ...s.responses }
+    const existed = id in responses
+    if (existed) delete responses[id] // pull from current slot to re-insert at end
+    const ids = Object.keys(responses)
+    if (!existed && ids.length >= MAX_RESPONSE_ENTRIES) delete responses[ids[0]]
+    responses[id] = resp
+    return { responses }
+  }),
 
   setInFlight: (tabId, v) => set((s) => {
     const next = new Set(s.inFlight)
@@ -292,7 +319,9 @@ wsLog: [],
   }),
   setLastSent: (r) => set({ lastSent: r }),
 
-  setHistory: (entries) => set({ history: entries }),
+  // Host pushes the full history snapshot; keep only the newest slice so a
+  // 10k-entry history file doesn't live (and re-render) in the webview.
+  setHistory: (entries) => set({ history: entries.length > MAX_HISTORY_ENTRIES ? entries.slice(-MAX_HISTORY_ENTRIES) : entries }),
 
   setTrash: (entries) => set({ trash: entries }),
 
@@ -316,14 +345,17 @@ wsLog: [],
   setWsInput: (wsInput) => set({ wsInput }),
   wsStartConnect: (connId) => set({ wsConnId: connId, wsStatus: 'connecting', wsLog: [] }),
   wsSetStatus: (wsStatus) => set({ wsStatus }),
-  wsAppendLog: (entry) => set((s) => ({ wsLog: [...s.wsLog, entry] })),
+  // Circular-buffer semantics: cap at MAX_LOG_ENTRIES so a chatty socket
+  // streaming thousands of frames/sec can't grow the array unbounded.
+  wsAppendLog: (entry) => set((s) => ({ wsLog: pushCapped(s.wsLog, entry, MAX_LOG_ENTRIES) })),
   wsClear: () => set({ wsLog: [] }),
   setSseMode: (sseMode) => set({ sseMode }),
   setSseUrl: (sseUrl) => set({ sseUrl }),
   setSseHeaders: (sseHeaders) => set({ sseHeaders }),
   sseStartConnect: (connId) => set({ sseConnId: connId, sseStatus: 'connecting', sseLog: [] }),
   sseSetStatus: (sseStatus) => set({ sseStatus }),
-  sseAppendLog: (entry) => set((s) => ({ sseLog: [...s.sseLog, entry] })),
+  // Same cap as wsLog — an SSE stream can run for hours.
+  sseAppendLog: (entry) => set((s) => ({ sseLog: pushCapped(s.sseLog, entry, MAX_LOG_ENTRIES) })),
   sseClear: () => set({ sseLog: [] }),
 
   setPendingSaveFolderId: (pendingSaveFolderId) => set({ pendingSaveFolderId }),

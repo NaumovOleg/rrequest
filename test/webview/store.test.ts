@@ -76,6 +76,58 @@ describe('webview store', () => {
   })
 })
 
+describe('store memory caps', () => {
+  const histEntry = (i: number) => ({
+    id: `h${i}`,
+    workspaceId: 'w1',
+    request: { id: `r${i}`, name: 'H', method: 'GET' as const, url: 'https://api/hist', params: [], headers: [], body: { mode: 'none' as const } },
+    status: 200,
+    at: i,
+  })
+  const resp = () => ({ status: 200, statusText: 'OK', headers: [], body: 'ok', bodyTruncated: false, timeMs: 1, sizeBytes: 2, cookies: [] })
+
+  it('wsAppendLog keeps at most 500 entries (newest win)', () => {
+    for (let i = 0; i < 1000; i++) useStore.getState().wsAppendLog({ dir: 'in', data: String(i), at: i })
+    const log = useStore.getState().wsLog
+    expect(log).toHaveLength(500)
+    expect(log[0].data).toBe('500') // oldest survivors, not the first messages
+    expect(log.at(-1)?.data).toBe('999')
+  })
+  it('sseAppendLog keeps at most 500 entries (newest win)', () => {
+    for (let i = 0; i < 1200; i++) useStore.getState().sseAppendLog({ dir: 'in', event: 'message', data: String(i), at: i })
+    const log = useStore.getState().sseLog
+    expect(log).toHaveLength(500)
+    expect(log[0].data).toBe('700')
+    expect(log.at(-1)?.data).toBe('1199')
+  })
+  it('response cache holds at most 150 request ids, FIFO eviction', () => {
+    for (let i = 0; i < 200; i++) useStore.getState().setResponse(`r${i}`, resp())
+    const responses = useStore.getState().responses
+    expect(Object.keys(responses)).toHaveLength(150)
+    expect(responses['r0']).toBeUndefined()
+    expect(responses['r49']).toBeUndefined()
+    expect(responses['r50']).toBeDefined()
+    expect(responses['r199']).toBeDefined()
+  })
+  it('re-sending to an existing tab updates without evicting it', () => {
+    for (let i = 0; i < 150; i++) useStore.getState().setResponse(`r${i}`, resp())
+    useStore.getState().setResponse('r0', { ...resp(), status: 201 }) // existing id
+    useStore.getState().setResponse('r150', resp()) // new id evicts r1, not r0
+    const responses = useStore.getState().responses
+    expect(Object.keys(responses)).toHaveLength(150)
+    expect(responses['r0']?.status).toBe(201)
+    expect(responses['r1']).toBeUndefined()
+    expect(responses['r150']).toBeDefined()
+  })
+  it('setHistory keeps only the newest 500 entries', () => {
+    useStore.getState().setHistory(Array.from({ length: 700 }, (_, i) => histEntry(i)))
+    const history = useStore.getState().history
+    expect(history).toHaveLength(500)
+    expect(history[0].at).toBe(200)
+    expect(history.at(-1)?.at).toBe(699)
+  })
+})
+
 describe('store environments slice', () => {
   it('setEnvironments and setActiveEnvId update state; __reset clears them', () => {
     const st = useStore.getState()

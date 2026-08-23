@@ -328,8 +328,10 @@ export class SyncManager {
           const local = await this.buildLocalSnapshot(w.id, accountId)
           const merged = pruneDeleted(mergeSnapshots(pulled.snapshot, local), this.deletesFor(w.id))
           await this.applyMergedLocally(w.id, merged)
+          const prev = await this.deps.state.get(w.id)
           await this.deps.state.set(w.id, {
-            driveFileId: w.driveFileId ?? '',
+            ...prev,
+            driveFileId: w.driveFileId ?? prev?.driveFileId ?? '',
             ownerEmail: this.deps.email(accountId),
             role: w.role ?? 'owner',
             lastRevision: pulled.revision,

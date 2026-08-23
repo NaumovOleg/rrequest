@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.0.30
+
+### Patch Changes
+
+- persistant sync mode
+
 ## 0.0.29
 
 ### Patch Changes

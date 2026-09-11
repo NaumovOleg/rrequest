@@ -2,7 +2,7 @@
   "name": "rrequest",
   "displayName": "RREQUEST",
   "description": "A Postman-style REST client for VS Code",
-  "version": "0.0.30",
+  "version": "0.0.31",
   "publisher": "olgert",
   "license": "MIT",
   "packageManager": "yarn@1.22.22",

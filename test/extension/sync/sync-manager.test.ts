@@ -221,6 +221,20 @@ describe('SyncManager', () => {
     expect(box.applied.collections.map((c: any) => c.id).sort()).toEqual(['c-local', 'c-remote']) // adopted locally too
   })
 
+  it('enable preserves an existing pollEnabled/pushEnabled preference instead of resetting it', async () => {
+    const client = { enableSync: vi.fn(async () => ({ driveFileId: 'f1', revision: '1' })), push: vi.fn(), pull: pullGone() } as any
+    const { port } = stores({ collections: [], environments: [] })
+    const state = new SyncStateStore(dir)
+    // Simulate a workspace that was synced before, dropped, with the user
+    // having paused both poll and push via setSyncMode('stop').
+    await state.set('w1', { driveFileId: 'old', ownerEmail: 'a@x.com', role: 'owner', lastRevision: '9', synced: false, pollEnabled: false, pushEnabled: false })
+    await new SyncManager({ client, state, stores: port, email: () => 'a@x.com' }).enable('w1')
+    const after = await state.get('w1')
+    expect(after?.synced).toBe(true)
+    expect(after?.pollEnabled).toBe(false)
+    expect(after?.pushEnabled).toBe(false)
+  })
+
   it('adoptRemoteWorkspaces pulls each server workspace down, ensures it locally, and marks it synced', async () => {
     const remoteSnap = JSON.stringify({ version: 1, workspaceId: 'w1', name: 'W', collections: [{ id: 'c1', name: 'C', workspaceId: 'w1', requests: [] }], environments: [], updatedAt: 1, updatedBy: 'other' })
     const ensured: string[] = []

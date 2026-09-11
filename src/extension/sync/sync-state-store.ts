@@ -20,6 +20,16 @@ export type SyncState = {
 
 export class SyncStateStore {
   private readonly file: string
+  // read-modify-write on the shared JSON file can't be concurrent — and unlike
+  // most stores, writes here come from genuinely unserialized callers (the poll
+  // loop's timer, a debounced schedulePush, a direct command) that can overlap
+  // for real. Same fix as HistoryStore's lock().
+  private tail: Promise<unknown> = Promise.resolve()
+  private lock<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(fn, fn)
+    this.tail = run.catch(() => {})
+    return run
+  }
   constructor(baseDir: string) { this.file = path.join(baseDir, 'sync-state.json') }
 
   async all(): Promise<Record<string, SyncState>> {
@@ -28,9 +38,11 @@ export class SyncStateStore {
   async get(workspaceId: string): Promise<SyncState | undefined> {
     return (await this.all())[workspaceId]
   }
-  async set(workspaceId: string, state: SyncState): Promise<void> {
-    const all = await this.all()
-    all[workspaceId] = state
-    await writeJsonAtomic(this.file, all)
+  set(workspaceId: string, state: SyncState): Promise<void> {
+    return this.lock(async () => {
+      const all = await this.all()
+      all[workspaceId] = state
+      await writeJsonAtomic(this.file, all)
+    })
   }
 }

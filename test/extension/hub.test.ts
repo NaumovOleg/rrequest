@@ -76,6 +76,40 @@ describe('Hub', () => {
     expect(editor).toContainEqual({ type: 'wsOpen', connId: 'c1' })
     expect(sidebar.find((m) => m.type === 'wsOpen')).toBeUndefined()
   })
+  it('a route() that throws surfaces an error toast to the sender instead of hanging', async () => {
+    const { hub, editor } = setup(async () => { throw new Error('boom') })
+    await hub.dispatch('req:1', { type: 'sendRequest', requestId: 'q', payload: {} as any })
+    expect(editor.find((m) => m.type === 'toast' && m.level === 'error')).toBeTruthy()
+  })
+  it('a route() that throws does not poison future dispatches (the hub keeps working)', async () => {
+    const { hub, editor } = setup(async (m) => { if (m.type === 'sendRequest') throw new Error('boom'); return undefined })
+    await hub.dispatch('req:1', { type: 'sendRequest', requestId: 'q', payload: {} as any })
+    editor.length = 0
+    await hub.dispatch('req:1', { type: 'loadWorkspaces' })
+    // The second dispatch must still broadcast the snapshot — proof the hub
+    // wasn't left permanently stuck after the first dispatch's error.
+    expect(editor.map((m) => m.type)).toEqual(['tree', 'environments', 'workspaces', 'history'])
+  })
+  it('route() calls run concurrently — a slow dispatch on one panel does not block another panel', async () => {
+    let releaseSlow: () => void = () => {}
+    const slowGate = new Promise<void>((resolve) => { releaseSlow = resolve })
+    const order: string[] = []
+    const hub = new Hub(async (m) => {
+      if (m.type === 'sendRequest') { order.push('slow-start'); await slowGate; order.push('slow-end') }
+      else order.push('fast')
+      return undefined
+    }, snapshot)
+    hub.register('req:1', () => {})
+    hub.register('req:2', () => {})
+    const slow = hub.dispatch('req:1', { type: 'sendRequest', requestId: 'q', payload: {} as any })
+    // The fast dispatch on a DIFFERENT panel must complete without waiting for
+    // the slow one to release — proves route() isn't serialized across panels.
+    await hub.dispatch('req:2', { type: 'loadWorkspaces' })
+    expect(order).toEqual(['slow-start', 'fast'])
+    releaseSlow()
+    await slow
+    expect(order).toEqual(['slow-start', 'fast', 'slow-end'])
+  })
 })
 
 describe('Hub sink GC (idle eviction)', () => {

@@ -103,15 +103,35 @@ export class Hub {
   // live panel whose only activity is *receiving* snapshots.
   private broadcast(m: HostMessage) { for (const id of this.sinks.keys()) this.postTo(id, m) }
 
+  // route() itself runs unserialized — otherwise a slow in-flight request
+  // (an HTTP send, a gRPC call) in one panel would stall every message from
+  // every OTHER panel (rename, tree loads, another tab's send...) until it
+  // finishes. Only the tail that touches shared hub state (the snapshot
+  // broadcast + afterDispatch, e.g. schedulePush) is serialized, per the
+  // original intent of dispatchChain.
   dispatch(fromId: string, msg: WebviewMessage): Promise<void> {
-    this.dispatchChain = this.dispatchChain.then(() => this.doDispatch(fromId, msg))
-    return this.dispatchChain
+    return this.doDispatch(fromId, msg)
   }
 
   private async doDispatch(fromId: string, msg: WebviewMessage): Promise<void> {
     this.touch(fromId)
     this.sweep()
-    const reply = await this.route(msg)
+    let reply: HostMessage | undefined
+    try {
+      reply = await this.route(msg)
+    } catch (e: any) {
+      // A thrown route() must not go unanswered — surface it to the sender
+      // instead of leaving the UI hanging with no response.
+      this.postTo(fromId, { type: 'toast', level: 'error', message: `rrequest: ${e?.message ?? e}` })
+    }
+    // Chained (not awaited inline) so a rejection here can never poison future
+    // dispatches — .catch keeps dispatchChain always resolved.
+    const run = this.dispatchChain.then(() => this.finishDispatch(fromId, msg, reply))
+    this.dispatchChain = run.catch(() => {})
+    return run
+  }
+
+  private async finishDispatch(fromId: string, msg: WebviewMessage, reply: HostMessage | undefined): Promise<void> {
     if (reply) {
       if (reply.type === 'response' || reply.type === 'pickedFile' || reply.type === 'grpcResponse' || reply.type === 'members' || reply.type === 'toast') this.postTo(fromId, reply)
       else if (reply.type === 'openInEditor' || reply.type === 'openGrpcRequest' || reply.type === 'openWsRequest' || reply.type === 'showEnvironments' || reply.type === 'showWebSocket' || reply.type === 'showGrpc' || reply.type === 'showSse' || reply.type === 'showMembers') {

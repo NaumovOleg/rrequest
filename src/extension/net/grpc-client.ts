@@ -14,9 +14,17 @@ export type GrpcParams = {
   message: string
   metadata: KeyValue[]
   plaintext: boolean
+  // Overridable for tests; production callers get DEFAULT_DEADLINE_MS.
+  deadlineMs?: number
 }
 
 export type GrpcResult = { ok: boolean; message?: string; error?: string; timeMs: number }
+
+// Unlike sendRequest (http-client), a unary gRPC call had no deadline: a
+// server that never responds left the call — and this function's promise —
+// pending forever, with no cancel path from the UI. Match http-client's
+// default request timeout.
+const DEFAULT_DEADLINE_MS = 30_000
 
 // Walk a dotted path (e.g. "pkg.Service") through the loaded package object.
 function resolvePath(root: unknown, dotted: string): any {
@@ -50,9 +58,10 @@ export async function grpcInvoke(p: GrpcParams): Promise<GrpcResult> {
     const fn = typeof client[p.method] === 'function' ? client[p.method] : client[camel]
     if (typeof fn !== 'function') return { ok: false, error: `Method "${p.method}" not found on service (unary only)`, timeMs: elapsed() }
 
+    const options = { deadline: Date.now() + (p.deadlineMs ?? DEFAULT_DEADLINE_MS) }
     return await new Promise<GrpcResult>((resolve) => {
       try {
-        fn.call(client, payload, md, (err: any, resp: unknown) => {
+        fn.call(client, payload, md, options, (err: any, resp: unknown) => {
           if (err) resolve({ ok: false, error: `${err.code != null ? `[${err.code}] ` : ''}${err.details ?? err.message ?? String(err)}`, timeMs: elapsed() })
           else resolve({ ok: true, message: JSON.stringify(resp, null, 2), timeMs: elapsed() })
           try { client.close?.() } catch { /* ignore */ }

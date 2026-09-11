@@ -24,4 +24,16 @@ describe('SyncStateStore', () => {
     expect(Object.keys(all).sort()).toEqual(['w1', 'w2'])
     expect(all.w2.driveFileId).toBe('f2')
   })
+  it('survives concurrent set() calls for different workspaces (no lost update)', async () => {
+    // Unserialized callers (poll loop, debounced push, direct commands) can
+    // legitimately call set() at the same time for different workspaces — a
+    // read-modify-write without a lock would let one overwrite the other.
+    const s = new SyncStateStore(dir)
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) => s.set(`w${i}`, st({ driveFileId: `f${i}` }))),
+    )
+    const all = await s.all()
+    expect(Object.keys(all).sort()).toEqual(Array.from({ length: 20 }, (_, i) => `w${i}`).sort())
+    for (let i = 0; i < 20; i++) expect(all[`w${i}`].driveFileId).toBe(`f${i}`)
+  })
 })

@@ -194,6 +194,18 @@ describe('sendRequest', () => {
     const headers = new Headers(seenInit.headers)
     expect(headers.get('content-type')).toBe('application/json')
   })
+
+  it('bails on a declared Content-Length past the hard cap instead of buffering it into memory', async () => {
+    // The body itself is tiny — only the declared header matters, so the test
+    // doesn't actually need to allocate 200MB+ to prove the guard fires.
+    const fetchImpl = (async () =>
+      new Response('tiny', { status: 200, headers: { 'content-length': String(300 * 1024 * 1024) } })
+    ) as unknown as typeof fetch
+    const res = await sendRequest(baseReq(), { fetchImpl })
+    expect(res.status).toBe(200)
+    expect(res.body).toBe('')
+    expect(res.error?.message).toMatch(/too large/i)
+  })
 })
 
 describe('sendRequest with env vars', () => {

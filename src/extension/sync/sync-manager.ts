@@ -186,7 +186,12 @@ export class SyncManager {
       await this.applyMergedLocally(workspaceId, toWrite)
     }
     const { driveFileId, revision } = await this.cli(accountId).enableSync(workspaceId, toWrite.name, JSON.stringify(toWrite))
-    await this.deps.state.set(workspaceId, { driveFileId, ownerEmail: this.deps.email(accountId), role: 'owner', lastRevision: revision, synced: true, accountId })
+    // Preserve pollEnabled/pushEnabled etc. from a prior state (e.g.
+    // re-enabling after a drop) — same class of bug as the adoptRemoteWorkspaces
+    // fix above: a bare overwrite here silently resets the user's sync-mode
+    // choice back to defaults.
+    const prev = await this.deps.state.get(workspaceId)
+    await this.deps.state.set(workspaceId, { ...prev, driveFileId, ownerEmail: this.deps.email(accountId), role: 'owner', lastRevision: revision, synced: true, accountId })
   }
 
   private async dropSync(workspaceId: string): Promise<void> {

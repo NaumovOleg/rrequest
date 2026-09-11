@@ -4,6 +4,14 @@ import * as fs from 'node:fs/promises'
 
 const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
+// Absolute ceiling on what gets buffered into the extension host's memory for
+// ANY response, independent of the (much smaller) preview truncation above —
+// without it, a server advertising a huge Content-Length gets read fully into
+// memory before truncation ever kicks in, risking an OOM of the whole host.
+// ponytail: Content-Length-only guard (a chunked response with no declared
+// length still buffers unbounded) — a streaming reader with a hard byte cap
+// would close that gap if it ever bites.
+const HARD_DOWNLOAD_LIMIT_BYTES = 200 * 1024 * 1024
 
 type Opts = {
   timeoutMs?: number
@@ -205,6 +213,14 @@ export async function sendRequest(request: RestRequest, opts: Opts = {}): Promis
     // Reading the body (arrayBuffer) completes the total; the delta is the
     // download phase. Both are wall-clock, matching the pre-existing timeMs.
     const ttfbMs = Date.now() - started
+    const declaredLength = Number(resp.headers.get('content-length'))
+    if (Number.isFinite(declaredLength) && declaredLength > HARD_DOWNLOAD_LIMIT_BYTES) {
+      return {
+        status: resp.status, statusText: resp.statusText, headers: headersToKeyValues(resp.headers), body: '',
+        bodyTruncated: false, timeMs: Date.now() - started, sizeBytes: declaredLength, cookies: [],
+        error: { kind: 'unknown', message: `Response too large to load (${Math.round(declaredLength / (1024 * 1024))} MB, limit ${HARD_DOWNLOAD_LIMIT_BYTES / (1024 * 1024)} MB)` },
+      }
+    }
     const bytes = new Uint8Array(await resp.arrayBuffer())
     const totalMs = Date.now() - started
     const sizeBytes = bytes.byteLength

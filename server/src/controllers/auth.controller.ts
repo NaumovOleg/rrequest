@@ -1,4 +1,12 @@
-import { Controller, Get, QueryParam, Req, Res } from "@heliosjs/core";
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  QueryParam,
+  Req,
+  Res,
+} from "@heliosjs/core";
 import type { Request, Response } from "@heliosjs/core";
 import { authService } from "../deps.js";
 import { requireUser } from "../auth-plugin.js";
@@ -14,7 +22,10 @@ import { requireUser } from "../auth-plugin.js";
 @Controller("/")
 export class AuthController {
   @Get("/auth/start")
-  start(@QueryParam("cb") cb: string | undefined, @Res() res: Response): { status: number; error?: string } {
+  start(
+    @QueryParam("cb") cb: string | undefined,
+    @Res() res: Response
+  ): { status: number; error?: string } {
     try {
       const url = authService.startUrl(cb ?? "");
       res.setHeader("location", url);
@@ -28,9 +39,10 @@ export class AuthController {
   async callback(
     @QueryParam("code") code: string | undefined,
     @QueryParam("state") state: string | undefined,
-    @Res() res: Response,
+    @Res() res: Response
   ): Promise<{ status: number; error?: string }> {
-    if (!code || !state) return { status: 400, error: "invalid or expired state" };
+    if (!code || !state)
+      return { status: 400, error: "invalid or expired state" };
     try {
       const { redirectUrl } = await authService.callback(code, state);
       res.setHeader("location", redirectUrl);
@@ -40,8 +52,23 @@ export class AuthController {
     }
   }
 
+  // Unauthenticated (the access token is what's expired): exchange a refresh
+  // token for a fresh access token. Lives under /api/auth/* so authPlugin skips it.
+  @Post("/auth/refresh")
+  async refresh(
+    @Body() body: { refresh?: string }
+  ): Promise<{ token: string } | { status: number; error: string }> {
+    const refresh = body?.refresh;
+    if (!refresh) return { status: 400, error: "refresh token required" };
+    const result = await authService.refresh(refresh);
+    if (!result) return { status: 401, error: "unauthorized" };
+    return result;
+  }
+
   @Get("/me")
-  async me(@Req() req: Request): Promise<{ id: string; email: string } | { status: 401; error: string }> {
+  async me(
+    @Req() req: Request
+  ): Promise<{ id: string; email: string } | { status: 401; error: string }> {
     const authUser = requireUser(req);
     const me = await authService.me(authUser.id);
     if (!me) return { status: 401, error: "unauthorized" };

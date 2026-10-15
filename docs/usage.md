@@ -234,6 +234,12 @@ of ordinary request fields.
 Without a backend URL in settings, sync shows a warning with a shortcut to
 configure it.
 
+**Session expiry.** Sign-in is long-lived: the access token lasts 30 days and
+the extension renews it automatically in the background using a refresh token
+(valid ~1 year), so syncing continues without interruption. Only when both
+have lapsed does it prompt that your sync sign-in expired — sign in again to
+resume.
+
 ## Connect an AI agent (MCP)
 
 RREQUEST can run a local **MCP** server so Claude, Cursor, Copilot or any MCP

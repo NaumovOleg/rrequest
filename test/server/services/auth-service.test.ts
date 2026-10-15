@@ -1,16 +1,30 @@
 import { describe, it, expect, vi } from "vitest";
-import { AuthService, signState, verifyState, isLoopbackCb } from "../../../server/src/services/auth-service.js";
+import {
+  AuthService,
+  signState,
+  verifyState,
+  isLoopbackCb,
+} from "../../../server/src/services/auth-service.js";
 import { MemoryUserStore } from "../../../server/src/stores/memory/user-store.js";
 import { MemoryMembershipStore } from "../../../server/src/stores/memory/membership-store.js";
-import type { GoogleOAuth, GoogleProfile } from "../../../server/src/domain/google-oauth.js";
-import { verifySession } from "../../../server/src/domain/jwt.js";
+import type {
+  GoogleOAuth,
+  GoogleProfile,
+} from "../../../server/src/domain/google-oauth.js";
+import {
+  signSession,
+  signRefresh,
+  verifySession,
+  verifyRefresh,
+} from "../../../server/src/domain/jwt.js";
 
 const JWT_SECRET = "test-jwt-secret";
 const STATE_SECRET = "test-state-secret";
 
 function makeGoogle(profile: GoogleProfile): GoogleOAuth {
   return {
-    authUrl: (state: string) => `https://accounts.google.com/o/oauth2/auth?state=${state}`,
+    authUrl: (state: string) =>
+      `https://accounts.google.com/o/oauth2/auth?state=${state}`,
     exchange: async (_code: string) => profile,
   } as unknown as GoogleOAuth;
 }
@@ -18,7 +32,11 @@ function makeGoogle(profile: GoogleProfile): GoogleOAuth {
 function makeService(opts?: { profile?: GoogleProfile; google?: GoogleOAuth }) {
   const users = new MemoryUserStore();
   const memberships = new MemoryMembershipStore();
-  const profile: GoogleProfile = opts?.profile ?? { googleSub: "sub-1", email: "alice@example.com", refreshToken: "rt-1" };
+  const profile: GoogleProfile = opts?.profile ?? {
+    googleSub: "sub-1",
+    email: "alice@example.com",
+    refreshToken: "rt-1",
+  };
   const google = opts?.google ?? makeGoogle(profile);
   const service = new AuthService({
     users,
@@ -88,9 +106,13 @@ describe("AuthService.startUrl", () => {
   it("returns google.authUrl(signState(cb)) for a loopback cb", () => {
     const { service } = makeService();
     const url = service.startUrl("http://localhost:5555/cb");
-    expect(url).toMatch(/^https:\/\/accounts\.google\.com\/o\/oauth2\/auth\?state=/);
+    expect(url).toMatch(
+      /^https:\/\/accounts\.google\.com\/o\/oauth2\/auth\?state=/
+    );
     const state = new URL(url).searchParams.get("state")!;
-    expect(verifyState(state, STATE_SECRET)).toEqual({ cb: "http://localhost:5555/cb" });
+    expect(verifyState(state, STATE_SECRET)).toEqual({
+      cb: "http://localhost:5555/cb",
+    });
   });
 });
 
@@ -98,7 +120,12 @@ describe("AuthService.callback", () => {
   it("upserts the user, resolves pending memberships for that email, and redirects with a token", async () => {
     const { service, users, memberships, profile } = makeService();
 
-    const pending = await memberships.add({ workspaceId: "ws-1", pendingEmail: profile.email, role: "editor", permissionId: "perm-1" });
+    const pending = await memberships.add({
+      workspaceId: "ws-1",
+      pendingEmail: profile.email,
+      role: "editor",
+      permissionId: "perm-1",
+    });
 
     const state = signState("http://localhost:5555/cb", STATE_SECRET);
     const { redirectUrl } = await service.callback("auth-code", state);
@@ -111,9 +138,15 @@ describe("AuthService.callback", () => {
     const decoded = verifySession(token!, JWT_SECRET);
     expect(decoded).not.toBeNull();
 
+    // A long-lived refresh token is handed out alongside the access token so
+    // the client can auto-renew without a fresh Google sign-in.
+    const refresh = url.searchParams.get("refresh");
+    expect(refresh).toBeTruthy();
+
     const user = await users.getByEmail(profile.email);
     expect(user).toBeDefined();
     expect(decoded!.userId).toBe(user!.id);
+    expect(verifyRefresh(refresh!, JWT_SECRET)).toEqual({ userId: user!.id });
 
     const updated = await memberships.getById(pending.id);
     expect(updated!.userId).toBe(user!.id);
@@ -122,7 +155,9 @@ describe("AuthService.callback", () => {
 
   it("throws on an invalid/tampered state", async () => {
     const { service } = makeService();
-    await expect(service.callback("auth-code", "garbage-state")).rejects.toThrow();
+    await expect(
+      service.callback("auth-code", "garbage-state")
+    ).rejects.toThrow();
   });
 
   it("throws on an expired state", async () => {
@@ -139,10 +174,50 @@ describe("AuthService.callback", () => {
   });
 });
 
+describe("AuthService.refresh", () => {
+  it("exchanges a valid refresh token for a fresh access token", async () => {
+    const { service, users } = makeService();
+    const user = await users.upsertByGoogle({
+      googleSub: "sub-9",
+      email: "c@example.com",
+      refreshToken: "rt-9",
+    });
+    const out = await service.refresh(signRefresh(user.id, JWT_SECRET));
+    expect(out).not.toBeNull();
+    expect(verifySession(out!.token, JWT_SECRET)).toEqual({ userId: user.id });
+  });
+
+  it("rejects an invalid refresh token", async () => {
+    const { service } = makeService();
+    expect(await service.refresh("garbage")).toBeNull();
+  });
+
+  it("rejects a refresh token whose user no longer exists", async () => {
+    const { service } = makeService();
+    expect(
+      await service.refresh(signRefresh("ghost-user", JWT_SECRET))
+    ).toBeNull();
+  });
+
+  it("rejects an access token used as a refresh token", async () => {
+    const { service, users } = makeService();
+    const user = await users.upsertByGoogle({
+      googleSub: "sub-10",
+      email: "d@example.com",
+      refreshToken: "rt-10",
+    });
+    expect(await service.refresh(signSession(user.id, JWT_SECRET))).toBeNull();
+  });
+});
+
 describe("AuthService.me", () => {
   it("returns id + email for a known user", async () => {
     const { service, users } = makeService();
-    const user = await users.upsertByGoogle({ googleSub: "sub-2", email: "bob@example.com", refreshToken: "rt-2" });
+    const user = await users.upsertByGoogle({
+      googleSub: "sub-2",
+      email: "bob@example.com",
+      refreshToken: "rt-2",
+    });
     const result = await service.me(user.id);
     expect(result).toEqual({ id: user.id, email: user.email });
   });

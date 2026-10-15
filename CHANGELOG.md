@@ -1,5 +1,11 @@
 # rrequest
 
+## 0.1.0
+
+### Minor Changes
+
+- Added mcp server, reworked refresh authorization
+
 ## 0.0.31
 
 ### Patch Changes

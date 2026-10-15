@@ -1,10 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { AccountStore, subOf, type Account } from '../../../src/extension/sync/account-store'
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  AccountStore,
+  subOf,
+  isExpired,
+  type Account,
+} from "../../../src/extension/sync/account-store";
 
 // In-memory fakes for VS Code secrets + globalState.
 function fakes() {
-  const secrets = new Map<string, string>()
-  const state = new Map<string, unknown>()
+  const secrets = new Map<string, string>();
+  const state = new Map<string, unknown>();
   return {
     secrets: {
       get: async (k: string) => secrets.get(k),
@@ -16,59 +21,123 @@ function fakes() {
       update: async (k: string, v: unknown) => void state.set(k, v),
     },
     _secrets: secrets,
-  }
+  };
 }
 
 // A JWT with payload { sub: 'user-1' } (header/sig irrelevant — subOf doesn't verify).
-function jwt(sub: string): string {
-  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
-  return `${b64({ alg: 'HS256' })}.${b64({ sub })}.sig`
+function jwt(sub: string, exp?: number): string {
+  const b64 = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
+  const payload = exp === undefined ? { sub } : { sub, exp };
+  return `${b64({ alg: "HS256" })}.${b64(payload)}.sig`;
 }
 
-describe('AccountStore', () => {
-  let ctx: ReturnType<typeof fakes>
-  beforeEach(() => { ctx = fakes() })
+const past = (): number => Math.floor(Date.now() / 1000) - 60;
+const future = (): number => Math.floor(Date.now() / 1000) + 60;
 
-  it('subOf decodes the JWT sub without verifying', () => {
-    expect(subOf(jwt('user-42'))).toBe('user-42')
-    expect(subOf('not-a-jwt')).toBeUndefined()
-  })
+describe("AccountStore", () => {
+  let ctx: ReturnType<typeof fakes>;
+  beforeEach(() => {
+    ctx = fakes();
+  });
 
-  it('adds accounts, caches tokens, and lists them', async () => {
-    const store = new AccountStore(ctx)
-    await store.add({ id: 'a1', email: 'a@x.com' }, 'tok-a')
-    await store.add({ id: 'a2', email: 'b@x.com' }, 'tok-b')
-    expect(store.ids().sort()).toEqual(['a1', 'a2'])
-    expect(store.getToken('a1')).toBe('tok-a')
-    expect(store.emailOf('a2')).toBe('b@x.com')
-    expect(store.isEmpty()).toBe(false)
-  })
+  it("subOf decodes the JWT sub without verifying", () => {
+    expect(subOf(jwt("user-42"))).toBe("user-42");
+    expect(subOf("not-a-jwt")).toBeUndefined();
+  });
 
-  it('getToken() with no id falls back to the sole account, undefined when ambiguous', async () => {
-    const store = new AccountStore(ctx)
-    await store.add({ id: 'a1', email: 'a@x.com' }, 'tok-a')
-    expect(store.getToken()).toBe('tok-a') // sole account
-    await store.add({ id: 'a2', email: 'b@x.com' }, 'tok-b')
-    expect(store.getToken()).toBeUndefined() // ambiguous
-  })
+  it("adds accounts, caches tokens, and lists them", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "tok-a");
+    await store.add({ id: "a2", email: "b@x.com" }, "tok-b");
+    expect(store.ids().sort()).toEqual(["a1", "a2"]);
+    expect(store.getToken("a1")).toBe("tok-a");
+    expect(store.emailOf("a2")).toBe("b@x.com");
+    expect(store.isEmpty()).toBe(false);
+  });
 
-  it('remove drops the token + list entry', async () => {
-    const store = new AccountStore(ctx)
-    await store.add({ id: 'a1', email: 'a@x.com' }, 'tok-a')
-    await store.remove('a1')
-    expect(store.ids()).toEqual([])
-    expect(store.getToken('a1')).toBeUndefined()
-    expect(store.isEmpty()).toBe(true)
-  })
+  it("getToken() with no id falls back to the sole account, undefined when ambiguous", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "tok-a");
+    expect(store.getToken()).toBe("tok-a"); // sole account
+    await store.add({ id: "a2", email: "b@x.com" }, "tok-b");
+    expect(store.getToken()).toBeUndefined(); // ambiguous
+  });
 
-  it('load() migrates a legacy single-account session into the registry', async () => {
+  it("remove drops the token + list entry", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "tok-a");
+    await store.remove("a1");
+    expect(store.ids()).toEqual([]);
+    expect(store.getToken("a1")).toBeUndefined();
+    expect(store.isEmpty()).toBe(true);
+  });
+
+  it("load() migrates a legacy single-account session into the registry", async () => {
     // Seed the pre-multi-account keys.
-    ctx._secrets.set('rrequest.syncToken', jwt('legacy-user'))
-    await ctx.globalState.update('rrequest.syncEmail', 'legacy@x.com')
-    const store = new AccountStore(ctx)
-    await store.load()
-    expect(store.list()).toEqual<Account[]>([{ id: 'legacy-user', email: 'legacy@x.com' }])
-    expect(store.getToken('legacy-user')).toBe(jwt('legacy-user'))
-    expect(ctx._secrets.has('rrequest.syncToken')).toBe(false) // legacy key cleared
-  })
-})
+    ctx._secrets.set("rrequest.syncToken", jwt("legacy-user"));
+    await ctx.globalState.update("rrequest.syncEmail", "legacy@x.com");
+    const store = new AccountStore(ctx);
+    await store.load();
+    expect(store.list()).toEqual<Account[]>([
+      { id: "legacy-user", email: "legacy@x.com" },
+    ]);
+    expect(store.getToken("legacy-user")).toBe(jwt("legacy-user"));
+    expect(ctx._secrets.has("rrequest.syncToken")).toBe(false); // legacy key cleared
+  });
+
+  it("stores and loads a refresh token alongside the access token", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "access-1", "refresh-1");
+    expect(store.getRefreshToken("a1")).toBe("refresh-1");
+
+    // A fresh store re-reads both from secret storage.
+    const reloaded = new AccountStore(ctx);
+    await reloaded.load();
+    expect(reloaded.getToken("a1")).toBe("access-1");
+    expect(reloaded.getRefreshToken("a1")).toBe("refresh-1");
+  });
+
+  it("re-adding an account without a refresh token keeps the stored one", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "access-1", "refresh-1");
+    await store.add({ id: "a1", email: "a@x.com" }, "access-2");
+    expect(store.getToken("a1")).toBe("access-2");
+    expect(store.getRefreshToken("a1")).toBe("refresh-1");
+  });
+
+  it("setToken swaps the access token and keeps the refresh token", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "access-1", "refresh-1");
+    await store.setToken("a1", "access-2");
+    expect(store.getToken("a1")).toBe("access-2");
+    expect(store.getRefreshToken("a1")).toBe("refresh-1");
+
+    const reloaded = new AccountStore(ctx);
+    await reloaded.load();
+    expect(reloaded.getToken("a1")).toBe("access-2");
+  });
+
+  it("remove drops the refresh token too", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, "access-1", "refresh-1");
+    await store.remove("a1");
+    expect(store.getRefreshToken("a1")).toBeUndefined();
+    expect(ctx._secrets.has("rrequest.syncToken.a1.refresh")).toBe(false);
+  });
+
+  it("isExpired reads the JWT exp claim", () => {
+    expect(isExpired(jwt("u", past()))).toBe(true);
+    expect(isExpired(jwt("u", future()))).toBe(false);
+    expect(isExpired(jwt("u"))).toBe(false); // no exp -> can't tell -> not expired
+    expect(isExpired("not-a-jwt")).toBe(false);
+  });
+
+  it("hasFreshToken is false for an expired access token", async () => {
+    const store = new AccountStore(ctx);
+    await store.add({ id: "a1", email: "a@x.com" }, jwt("u", past()));
+    expect(store.hasFreshToken("a1")).toBe(false);
+    await store.setToken("a1", jwt("u", future()));
+    expect(store.hasFreshToken("a1")).toBe(true);
+  });
+});

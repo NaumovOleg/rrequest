@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { signSession } from "../domain/jwt.js";
+import { signSession, signRefresh, verifyRefresh } from "../domain/jwt.js";
 import type { GoogleOAuth } from "../domain/google-oauth.js";
 import type { UserStore, MembershipStore } from "../stores/types.js";
 
@@ -8,7 +8,13 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export function isLoopbackCb(cb: string): boolean {
   try {
     const u = new URL(cb);
-    return u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]" || u.hostname === "::1");
+    return (
+      u.protocol === "http:" &&
+      (u.hostname === "localhost" ||
+        u.hostname === "127.0.0.1" ||
+        u.hostname === "[::1]" ||
+        u.hostname === "::1")
+    );
   } catch {
     return false;
   }
@@ -19,27 +25,41 @@ function hmac(payload: string, secret: string): string {
 }
 
 export function signState(cb: string, secret: string): string {
-  const payload = { cb, nonce: randomBytes(16).toString("hex"), exp: Date.now() + STATE_TTL_MS };
-  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const payload = {
+    cb,
+    nonce: randomBytes(16).toString("hex"),
+    exp: Date.now() + STATE_TTL_MS,
+  };
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString(
+    "base64url"
+  );
   const sig = hmac(encoded, secret);
   return `${encoded}.${sig}`;
 }
 
-export function verifyState(token: string, secret: string): { cb: string } | null {
+export function verifyState(
+  token: string,
+  secret: string
+): { cb: string } | null {
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [encoded, sig] = parts;
   const expectedSig = hmac(encoded, secret);
   const sigBuf = Buffer.from(sig, "base64url");
   const expectedBuf = Buffer.from(expectedSig, "base64url");
-  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
+  if (
+    sigBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(sigBuf, expectedBuf)
+  )
+    return null;
   let payload: { cb?: string; nonce?: string; exp?: number };
   try {
     payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
   } catch {
     return null;
   }
-  if (typeof payload.cb !== "string" || typeof payload.exp !== "number") return null;
+  if (typeof payload.cb !== "string" || typeof payload.exp !== "number")
+    return null;
   if (Date.now() > payload.exp) return null;
   return { cb: payload.cb };
 }
@@ -60,16 +80,35 @@ export class AuthService {
     return this.deps.google.authUrl(state);
   }
 
-  async callback(code: string, state: string): Promise<{ redirectUrl: string }> {
+  async callback(
+    code: string,
+    state: string
+  ): Promise<{ redirectUrl: string }> {
     const verified = verifyState(state, this.deps.config.stateSecret);
     if (!verified) throw new Error("invalid or expired state");
     const profile = await this.deps.google.exchange(code);
     const user = await this.deps.users.upsertByGoogle(profile);
     await this.deps.memberships.resolvePending(user.email, user.id);
     const token = signSession(user.id, this.deps.config.jwtSecret);
+    const refresh = signRefresh(user.id, this.deps.config.jwtSecret);
     const url = new URL(verified.cb);
     url.searchParams.set("token", token);
+    url.searchParams.set("refresh", refresh);
     return { redirectUrl: url.toString() };
+  }
+
+  /**
+   * Exchange a (long-lived) refresh token for a fresh access token. Returns
+   * null when the refresh token is invalid/expired or its user is gone — the
+   * client then falls back to a full re-login. Does NOT rotate the refresh
+   * token, so a refresh keeps working for the same 365d window.
+   */
+  async refresh(refreshToken: string): Promise<{ token: string } | null> {
+    const verified = verifyRefresh(refreshToken, this.deps.config.jwtSecret);
+    if (!verified) return null;
+    const user = await this.deps.users.getById(verified.userId);
+    if (!user) return null;
+    return { token: signSession(user.id, this.deps.config.jwtSecret) };
   }
 
   async me(userId: string): Promise<{ id: string; email: string } | undefined> {

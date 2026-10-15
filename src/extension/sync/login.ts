@@ -1,38 +1,55 @@
-import * as http from 'node:http'
-import { callbackPage } from '../callback-page'
+import * as http from "node:http";
+import { callbackPage } from "../callback-page";
+
+export type SignInResult = { token: string; refreshToken?: string };
 
 export function extractToken(reqUrl: string): string | undefined {
-  const u = new URL(reqUrl, 'http://localhost')
-  return u.searchParams.get('token') ?? undefined
+  const u = new URL(reqUrl, "http://localhost");
+  return u.searchParams.get("token") ?? undefined;
+}
+
+export function extractRefreshToken(reqUrl: string): string | undefined {
+  const u = new URL(reqUrl, "http://localhost");
+  return u.searchParams.get("refresh") ?? undefined;
 }
 
 export function signIn(opts: {
-  baseUrl: string
-  openExternal: (url: string) => void
-  timeoutMs?: number
-}): Promise<string> {
-  const timeoutMs = opts.timeoutMs ?? 120000
-  return new Promise<string>((resolve, reject) => {
+  baseUrl: string;
+  openExternal: (url: string) => void;
+  timeoutMs?: number;
+}): Promise<SignInResult> {
+  const timeoutMs = opts.timeoutMs ?? 120000;
+  return new Promise<SignInResult>((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      const token = extractToken(req.url ?? '/')
-      res.writeHead(200, { 'content-type': 'text/html' })
-      res.end(callbackPage({ title: 'Sign-in complete', message: 'You&rsquo;re signed in and syncing. Return to VS&nbsp;Code to continue.' }))
+      const token = extractToken(req.url ?? "/");
+      const refreshToken = extractRefreshToken(req.url ?? "/");
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(
+        callbackPage({
+          title: "Sign-in complete",
+          message:
+            "You&rsquo;re signed in and syncing. Return to VS&nbsp;Code to continue.",
+        })
+      );
       if (token) {
-        clearTimeout(timer)
-        server.close()
-        resolve(token)
+        clearTimeout(timer);
+        server.close();
+        resolve({ token, refreshToken });
       }
-    })
-    const timer = setTimeout(() => { server.close(); reject(new Error('sign-in timed out')) }, timeoutMs)
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address()
-      const port = typeof addr === 'object' && addr ? addr.port : 0
+    });
+    const timer = setTimeout(() => {
+      server.close();
+      reject(new Error("sign-in timed out"));
+    }, timeoutMs);
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
       // Use 127.0.0.1, not "localhost": the server listens on IPv4 (127.0.0.1),
       // but "localhost" can resolve to IPv6 (::1) first in the browser, so the
       // OAuth redirect back would hit a dead IPv6 socket -> connection refused.
-      const cb = `http://127.0.0.1:${port}`
-      const base = opts.baseUrl.replace(/\/$/, '')
-      opts.openExternal(`${base}/auth/start?cb=${encodeURIComponent(cb)}`)
-    })
-  })
+      const cb = `http://127.0.0.1:${port}`;
+      const base = opts.baseUrl.replace(/\/$/, "");
+      opts.openExternal(`${base}/auth/start?cb=${encodeURIComponent(cb)}`);
+    });
+  });
 }

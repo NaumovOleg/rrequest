@@ -1,31 +1,45 @@
 export class SyncForbiddenError extends Error {
-  constructor(message = 'forbidden') { super(message); this.name = 'SyncForbiddenError' }
+  constructor(message = "forbidden") {
+    super(message);
+    this.name = "SyncForbiddenError";
+  }
 }
 
 export class SyncAuthError extends Error {
-  constructor(message = 'unauthorized') { super(message); this.name = 'SyncAuthError' }
+  constructor(message = "unauthorized") {
+    super(message);
+    this.name = "SyncAuthError";
+  }
 }
 
 export class SyncGoneError extends Error {
-  constructor(message = 'gone') { super(message); this.name = 'SyncGoneError' }
+  constructor(message = "gone") {
+    super(message);
+    this.name = "SyncGoneError";
+  }
 }
 
-export type WorkspaceRole = 'owner' | 'editor' | 'viewer'
-export type Member = { id?: string; email: string; role: WorkspaceRole; pending: boolean }
+export type WorkspaceRole = "owner" | "editor" | "viewer";
+export type Member = {
+  id?: string;
+  email: string;
+  role: WorkspaceRole;
+  pending: boolean;
+};
 
 export type RemoteWorkspace = {
-  id: string
-  name: string
-  ownerUserId: string
-  driveFileId: string
-  revision: string
-  updatedAt: number
-  role?: WorkspaceRole
-}
+  id: string;
+  name: string;
+  ownerUserId: string;
+  driveFileId: string;
+  revision: string;
+  updatedAt: number;
+  role?: WorkspaceRole;
+};
 
 export type PushResult =
   | { ok: true; revision: string }
-  | { ok: false; conflict: true; snapshot: string; revision: string }
+  | { ok: false; conflict: true; snapshot: string; revision: string };
 
 // The Helios (@heliosjs/aws) backend wraps Function-URL responses in an
 // envelope `{ success, data, timestamp }`, so the real payload is nested under
@@ -34,87 +48,188 @@ export type PushResult =
 // shapes work.
 function unwrapEnvelope(json: unknown): unknown {
   if (
-    typeof json === 'object' &&
+    typeof json === "object" &&
     json !== null &&
-    'success' in json &&
-    'data' in json &&
-    typeof (json as { success: unknown }).success === 'boolean'
+    "success" in json &&
+    "data" in json &&
+    typeof (json as { success: unknown }).success === "boolean"
   ) {
-    return (json as { data: unknown }).data
+    return (json as { data: unknown }).data;
   }
-  return json
+  return json;
+}
+
+/**
+ * Exchange a long-lived refresh token for a fresh access token. Resolves
+ * undefined when the refresh token is rejected (expired/revoked) — the caller
+ * falls back to a full re-login. Standalone so it needs no SyncClient instance.
+ */
+export async function refreshSession(
+  baseUrl: string,
+  refreshToken: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string | undefined> {
+  const res = await fetchImpl(`${baseUrl.replace(/\/$/, "")}/auth/refresh`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ refresh: refreshToken }),
+  });
+  if (!res.ok) return undefined;
+  const body = unwrapEnvelope(await res.json()) as { token?: unknown };
+  return typeof body?.token === "string" ? body.token : undefined;
 }
 
 export class SyncClient {
-  private baseUrl: string
-  private getToken: () => string | undefined
-  private fetchImpl: typeof fetch
-  constructor(opts: { baseUrl: string; getToken: () => string | undefined; fetchImpl?: typeof fetch }) {
-    this.baseUrl = opts.baseUrl.replace(/\/$/, '')
-    this.getToken = opts.getToken
-    this.fetchImpl = opts.fetchImpl ?? fetch
+  private baseUrl: string;
+  private getToken: () => string | undefined;
+  private fetchImpl: typeof fetch;
+  // Called on a 401 to obtain a fresh access token (refreshing the session).
+  // Returns undefined when refresh isn't possible — the 401 then stands.
+  private onAuth: (() => Promise<string | undefined>) | undefined;
+  // In-flight refresh, so a burst of 401s shares one refresh instead of firing
+  // N requests (and N token writes) at once.
+  private refreshing: Promise<string | undefined> | null = null;
+
+  constructor(opts: {
+    baseUrl: string;
+    getToken: () => string | undefined;
+    fetchImpl?: typeof fetch;
+    onAuth?: () => Promise<string | undefined>;
+  }) {
+    this.baseUrl = opts.baseUrl.replace(/\/$/, "");
+    this.getToken = opts.getToken;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.onAuth = opts.onAuth;
   }
 
-  private async call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method: init.method ?? 'GET',
+  private request(
+    path: string,
+    init: { method?: string; body?: unknown },
+    token?: string
+  ): Promise<Response> {
+    return this.fetchImpl(`${this.baseUrl}${path}`, {
+      method: init.method ?? "GET",
       headers: {
-        authorization: `Bearer ${this.getToken() ?? ''}`,
-        ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        authorization: `Bearer ${token ?? ""}`,
+        ...(init.body !== undefined
+          ? { "content-type": "application/json" }
+          : {}),
       },
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-    })
-    if (res.status === 401) throw new SyncAuthError()
-    if (res.status === 403) throw new SyncForbiddenError()
-    if (res.status === 404) throw new SyncGoneError()
-    if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
-    return unwrapEnvelope(await res.json()) as T
+    });
+  }
+
+  private auth(): Promise<string | undefined> {
+    if (!this.refreshing) {
+      this.refreshing = this.onAuth!()
+        .catch(() => undefined)
+        .finally(() => {
+          this.refreshing = null;
+        });
+    }
+    return this.refreshing;
+  }
+
+  // Issue the request; on a 401, refresh once (if wired) and retry with the new
+  // token. Only ONE retry — a still-401 response becomes a SyncAuthError.
+  private async authedRequest(
+    path: string,
+    init: { method?: string; body?: unknown }
+  ): Promise<Response> {
+    let res = await this.request(path, init, this.getToken());
+    if (res.status === 401 && this.onAuth) {
+      const fresh = await this.auth();
+      if (fresh) res = await this.request(path, init, fresh);
+    }
+    return res;
+  }
+
+  private async call<T>(
+    path: string,
+    init: { method?: string; body?: unknown } = {}
+  ): Promise<T> {
+    const res = await this.authedRequest(path, init);
+    if (res.status === 401) throw new SyncAuthError();
+    if (res.status === 403) throw new SyncForbiddenError();
+    if (res.status === 404) throw new SyncGoneError();
+    if (!res.ok) throw new Error(`sync request failed: ${res.status}`);
+    return unwrapEnvelope(await res.json()) as T;
   }
 
   me(): Promise<{ id: string; email: string }> {
-    return this.call('/me')
+    return this.call("/me");
   }
   /** Rebuild the server workspace index from the user's Drive files (recovers a desync). */
   recover(): Promise<{ recovered: string[]; total: number }> {
-    return this.call('/workspaces/recover', { method: 'POST' })
+    return this.call("/workspaces/recover", { method: "POST" });
   }
   listWorkspaces(): Promise<RemoteWorkspace[]> {
-    return this.call('/workspaces')
+    return this.call("/workspaces");
   }
-  enableSync(workspaceId: string, name: string, snapshot: string): Promise<{ driveFileId: string; revision: string }> {
-    return this.call('/workspaces', { method: 'POST', body: { workspaceId, name, snapshot } })
+  enableSync(
+    workspaceId: string,
+    name: string,
+    snapshot: string
+  ): Promise<{ driveFileId: string; revision: string }> {
+    return this.call("/workspaces", {
+      method: "POST",
+      body: { workspaceId, name, snapshot },
+    });
   }
-  async push(id: string, snapshot: string, baseRevision: string): Promise<PushResult> {
-    const res = await this.fetchImpl(`${this.baseUrl}/workspaces/${id}`, {
-      method: 'PUT',
-      headers: { authorization: `Bearer ${this.getToken() ?? ''}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ snapshot, baseRevision }),
-    })
+  async push(
+    id: string,
+    snapshot: string,
+    baseRevision: string
+  ): Promise<PushResult> {
+    const res = await this.authedRequest(`/workspaces/${id}`, {
+      method: "PUT",
+      body: { snapshot, baseRevision },
+    });
     if (res.status === 409) {
-      const body = unwrapEnvelope(await res.json()) as { snapshot: string; revision: string }
-      return { ok: false, conflict: true, snapshot: body.snapshot, revision: body.revision }
+      const body = unwrapEnvelope(await res.json()) as {
+        snapshot: string;
+        revision: string;
+      };
+      return {
+        ok: false,
+        conflict: true,
+        snapshot: body.snapshot,
+        revision: body.revision,
+      };
     }
-    if (res.status === 401) throw new SyncAuthError()
-    if (res.status === 403) throw new SyncForbiddenError()
-    if (res.status === 404) throw new SyncGoneError()
-    if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
-    const body = unwrapEnvelope(await res.json()) as { revision: string }
-    return { ok: true, revision: body.revision }
+    if (res.status === 401) throw new SyncAuthError();
+    if (res.status === 403) throw new SyncForbiddenError();
+    if (res.status === 404) throw new SyncGoneError();
+    if (!res.ok) throw new Error(`sync request failed: ${res.status}`);
+    const body = unwrapEnvelope(await res.json()) as { revision: string };
+    return { ok: true, revision: body.revision };
   }
-  pull(id: string): Promise<{ snapshot: string; revision: string; role?: WorkspaceRole }> {
-    return this.call(`/workspaces/${id}`)
+  pull(
+    id: string
+  ): Promise<{ snapshot: string; revision: string; role?: WorkspaceRole }> {
+    return this.call(`/workspaces/${id}`);
   }
   async listMembers(id: string): Promise<Member[]> {
-    const body = await this.call<{ members: Member[] }>(`/workspaces/${id}/members`)
-    return body.members
+    const body = await this.call<{ members: Member[] }>(
+      `/workspaces/${id}/members`
+    );
+    return body.members;
   }
-  addMember(id: string, input: { email: string; role: 'editor' | 'viewer' }): Promise<Member> {
-    return this.call(`/workspaces/${id}/members`, { method: 'POST', body: input })
+  addMember(
+    id: string,
+    input: { email: string; role: "editor" | "viewer" }
+  ): Promise<Member> {
+    return this.call(`/workspaces/${id}/members`, {
+      method: "POST",
+      body: input,
+    });
   }
   async removeMember(id: string, memberId: string): Promise<void> {
-    await this.call(`/workspaces/${id}/members/${memberId}`, { method: 'DELETE' })
+    await this.call(`/workspaces/${id}/members/${memberId}`, {
+      method: "DELETE",
+    });
   }
   async deleteWorkspace(id: string): Promise<void> {
-    await this.call(`/workspaces/${id}`, { method: 'DELETE' })
+    await this.call(`/workspaces/${id}`, { method: "DELETE" });
   }
 }

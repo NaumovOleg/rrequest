@@ -10,7 +10,14 @@ import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 // network endpoints -- `GET /api/auth/start` only builds a local auth URL.
 // Required env vars are set here, before the dynamic import, since a static
 // `import` would be hoisted above any `process.env` assignment.
-let handler: (event: APIGatewayProxyEventV2, context: Context) => Promise<{ statusCode: number; headers?: Record<string, string>; body?: string }>;
+let handler: (
+  event: APIGatewayProxyEventV2,
+  context: Context
+) => Promise<{
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: string;
+}>;
 
 beforeAll(async () => {
   process.env.JWT_SECRET = "smoke-jwt-secret";
@@ -22,7 +29,9 @@ beforeAll(async () => {
   handler = mod.handler as typeof handler;
 });
 
-function makeEvent(overrides: Partial<APIGatewayProxyEventV2> = {}): APIGatewayProxyEventV2 {
+function makeEvent(
+  overrides: Partial<APIGatewayProxyEventV2> = {}
+): APIGatewayProxyEventV2 {
   return {
     version: "2.0",
     routeKey: "$default",
@@ -96,6 +105,53 @@ describe("apiFn handler smoke", () => {
       } as unknown as APIGatewayProxyEventV2["requestContext"],
     });
     const res = await handler(event, context);
+    expect(res.statusCode).toBe(401);
+  });
+
+  // POST /api/auth/refresh — unauthenticated (the access token is what expired),
+  // lives under /api/auth/* so the auth plugin skips it. Both cases below avoid
+  // any Dynamo/Google touch: no token -> 400, a bogus token never verifies -> 401.
+  function refreshEvent(body: string): APIGatewayProxyEventV2 {
+    return makeEvent({
+      rawPath: "/api/auth/refresh",
+      rawQueryString: "",
+      queryStringParameters: undefined,
+      body,
+      headers: {
+        host: "example.execute-api.us-east-1.amazonaws.com",
+        "content-type": "application/json",
+      },
+      requestContext: {
+        accountId: "123456789012",
+        apiId: "test-api",
+        domainName: "example.execute-api.us-east-1.amazonaws.com",
+        domainPrefix: "example",
+        http: {
+          method: "POST",
+          path: "/api/auth/refresh",
+          protocol: "HTTP/1.1",
+          sourceIp: "127.0.0.1",
+          userAgent: "vitest",
+        },
+        requestId: "req-refresh",
+        routeKey: "$default",
+        stage: "$default",
+        time: "19/Jul/2026:00:00:00 +0000",
+        timeEpoch: Date.now(),
+      } as unknown as APIGatewayProxyEventV2["requestContext"],
+    });
+  }
+
+  it("400s POST /api/auth/refresh with no refresh token", async () => {
+    const res = await handler(refreshEvent(JSON.stringify({})), context);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("401s POST /api/auth/refresh with an invalid refresh token", async () => {
+    const res = await handler(
+      refreshEvent(JSON.stringify({ refresh: "garbage" })),
+      context
+    );
     expect(res.statusCode).toBe(401);
   });
 

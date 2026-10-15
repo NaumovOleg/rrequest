@@ -28,9 +28,10 @@ import {
   SyncAuthError,
   SyncForbiddenError,
   SyncGoneError,
+  refreshSession,
 } from "./sync/sync-client";
 import { SyncStateStore, type SyncState } from "./sync/sync-state-store";
-import { AccountStore } from "./sync/account-store";
+import { AccountStore, isExpired } from "./sync/account-store";
 import { SyncManager } from "./sync/sync-manager";
 import { makeToastThrottle } from "./sync/toast-throttle";
 import { createPollLoop } from "./sync/poll-loop";
@@ -332,6 +333,25 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     // clientFor / the members port), so it's constructed here rather than later.
     const syncState = new SyncStateStore(base);
 
+    // Silently renew an account's access token with its stored refresh token.
+    // Wired into every SyncClient below, which calls it on a 401 and retries
+    // with the returned token. Returns undefined when renewal isn't possible
+    // (no refresh token, or the server rejected it) — the 401 then stands and
+    // surfaces as the re-login prompt in onAuthLost.
+    const refreshAccessToken = async (
+      accountId?: string
+    ): Promise<string | undefined> => {
+      const rt = accounts.getRefreshToken(accountId);
+      if (!rt) return undefined;
+      const token = await refreshSession(syncBaseUrl(), rt);
+      const id = accountId ?? accounts.ids()[0];
+      if (token && id) {
+        await accounts.setToken(id, token);
+        authWarned.delete(id); // fresh token -> allow a future warning again
+      }
+      return token;
+    };
+
     // One SyncClient per account — the account's token is baked into its
     // getToken closure. A missing accountId resolves to the sole account.
     const clientCache = new Map<string, SyncClient>();
@@ -342,6 +362,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
         c = new SyncClient({
           baseUrl: syncBaseUrl(),
           getToken: () => accounts.getToken(accountId),
+          onAuth: () => refreshAccessToken(accountId),
         });
         clientCache.set(key, c);
       }
@@ -839,6 +860,30 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           authToastSilent = false;
         });
     }
+    // Fallback for a stale session: an account whose access AND refresh tokens
+    // are both expired/gone can't sync at all and won't self-heal. The silent
+    // startup sweep would otherwise hide it, leaving the account shown as
+    // "connected" while nothing ever syncs. Warn once with an actionable
+    // re-login. An account with a still-valid refresh token is skipped — its
+    // next sync renews the access token transparently.
+    if (syncBaseUrl()) {
+      const dead = accounts.list().filter((a) => {
+        const t = accounts.getToken(a.id);
+        const r = accounts.getRefreshToken(a.id);
+        return (!t || isExpired(t)) && (!r || isExpired(r));
+      });
+      if (dead.length) {
+        const emails = dead.map((a) => a.email).join(", ");
+        const msg = `RREQUEST: your sync sign-in expired (${emails}) — sign in again to resume syncing.`;
+        logLine(msg);
+        void vscode.window
+          .showWarningMessage(msg, "Sign in again", "Show log")
+          .then((pick) => {
+            if (pick === "Sign in again") void syncControlRef?.signIn();
+            if (pick === "Show log") syncLog().show(true);
+          });
+      }
+    }
     // Owner-delete: when a locally-synced workspace is deleted, also trash the
     // Drive file + server rows (best-effort — deleteSync already swallows its
     // own errors via onSyncError and never throws, so the local delete in
@@ -949,7 +994,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // OAuth flow decides which account; we identify it via /me and register it.
       signIn: async () => {
         if (!requireServerUrl()) return;
-        const token = await signIn({
+        const { token, refreshToken } = await signIn({
           baseUrl: syncBaseUrl(),
           openExternal: (u) =>
             void vscode.env.openExternal(vscode.Uri.parse(u)),
@@ -960,7 +1005,11 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
             getToken: () => token,
           });
           const me = await who.me();
-          await accounts.add({ id: me.id, email: me.email }, token);
+          await accounts.add(
+            { id: me.id, email: me.email },
+            token,
+            refreshToken
+          );
           authWarned.delete(me.id); // fresh token -> allow a future warning again
           // Collapse pre-existing accounts with the same email (the old
           // duplicate-user-row bug made one email appear as several accounts /
@@ -1083,11 +1132,31 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       },
       syncNow: async (id: string) => {
         if (!requireServerUrl()) return;
+        const state = await syncState.get(id);
+        // manager.pull/push no-op (and swallow a 401) when the workspace isn't
+        // synced or its token can't be renewed — reporting "Sync completed."
+        // then was a lie. Say what's actually wrong instead.
+        if (!state?.synced) {
+          hub.toast("error", "This workspace isn't synced to an account.");
+          return;
+        }
+        if (
+          !accounts.hasFreshToken(state.accountId) &&
+          !accounts.getRefreshToken(state.accountId)
+        ) {
+          const email = accounts.emailOf(state.accountId);
+          hub.toast(
+            "error",
+            email
+              ? `Sync sign-in for ${email} expired — sign in again to resume syncing.`
+              : "Your sync sign-in expired — sign in again to resume syncing."
+          );
+          return;
+        }
         hub.syncStatus(true, { kind: "workspace", id });
         try {
-          const state = await syncState.get(id);
-          if (state?.pollEnabled !== false) await manager.pull(id);
-          if (state?.pushEnabled !== false) await manager.push(id);
+          if (state.pollEnabled !== false) await manager.pull(id);
+          if (state.pushEnabled !== false) await manager.push(id);
           await runtime.refreshRoleCache();
           await runtime.refresh();
           hub.toast("info", "Sync completed.");

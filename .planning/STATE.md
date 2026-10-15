@@ -59,11 +59,33 @@ Post-summary changes (requested):
 - Auth callback pages (Google sign-in, OAuth2) restyled: logo, card, "Done"
   pill — `src/extension/callback-page.ts`.
 
+## Sync session fix (2026-10-15, beyond roadmap)
+
+Bug: after ~30 days a signed-in user's Drive sync silently stopped — the server
+401'd an expired JWT, the client never checked `exp`, and the UI kept showing
+"connected"/"Sync completed." Root cause: `server/src/domain/jwt.ts` signed a
+30-day `expiresIn` and nothing refreshed it.
+
+- Server: access token (30d, `typ:"access"`) + new refresh token (365d,
+  `typ:"refresh"`); OAuth callback returns `refresh`; unauthenticated
+  `POST /api/auth/refresh` mints a new access token. Legacy typ-less tokens
+  still verify.
+- Extension: `SyncClient` refreshes once on 401 (`onAuth`) and retries;
+  `account-store` stores the refresh token (Secret Storage) and gains
+  `isExpired`/`hasFreshToken`/`setToken`; `signIn` returns `{token, refreshToken}`.
+- Fallback: when an account's access **and** refresh tokens are both dead, a
+  one-time startup warning offers "Sign in again"; `syncNow` now says what's
+  actually wrong instead of a false "Sync completed."
+- `sync-manager` unchanged — auto-refresh self-heals push/pull/adopt. Refresh
+  token is **not** rotated. Remaining: manual F5 verification of the expiry →
+  renew → re-login path.
+
 ## Test status
 
-- `yarn test`: 86 files / 620 tests green (33 of them MCP); `yarn test:all`
-  (server + infra) green.
-- `tsc --noEmit -p tsconfig.json` clean; `yarn build` (vite + esbuild) green.
+- `yarn test`: 88 files / 640 tests green (33 of them MCP); `yarn test:server`
+  21 files / 144 tests green.
+- `tsc --noEmit` (extension) + `yarn typecheck:server` clean; `yarn build`
+  (vite + esbuild) green.
 
 ## Key facts from codebase revision (2026-08-08)
 

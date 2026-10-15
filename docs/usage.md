@@ -47,11 +47,11 @@ Top to bottom:
 
 ### Keyboard shortcuts
 
-| Shortcut        | Action                    |
-| --------------- | ------------------------- |
-| ⌘/Ctrl+S        | Save the request          |
-| ⌘/Ctrl+Enter    | Send / cancel             |
-| ⌘/Ctrl+E        | Focus the environment picker |
+| Shortcut     | Action                       |
+| ------------ | ---------------------------- |
+| ⌘/Ctrl+S     | Save the request             |
+| ⌘/Ctrl+Enter | Send / cancel                |
+| ⌘/Ctrl+E     | Focus the environment picker |
 
 ---
 
@@ -85,23 +85,28 @@ fetch(...)` to obtain a token or probe an endpoint first.
 
 ```js
 // Fetch a token first, then attach it
-const auth = await (await fetch('https://auth.example.com/token', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ clientId: 'rrequest' }),
-})).json();
-pm.environment.set('token', auth.access_token);
+const auth = await (
+  await fetch("https://auth.example.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ clientId: "rrequest" }),
+  })
+).json();
+pm.environment.set("token", auth.access_token);
 
 // Read/write the request itself
-pm.request.method = 'POST';
-pm.request.url = pm.request.url + '?ts=' + Date.now();
-pm.request.headers.add({ key: 'Authorization', value: 'Bearer ' + pm.environment.get('token') });
-pm.request.headers.get('X-Source'); // "rrequest"
-pm.request.body = { mode: 'raw', type: 'json', text: '{"ping":1}' };
-pm.request.params.push({ key: 'a', value: '1', enabled: true });
+pm.request.method = "POST";
+pm.request.url = pm.request.url + "?ts=" + Date.now();
+pm.request.headers.add({
+  key: "Authorization",
+  value: "Bearer " + pm.environment.get("token"),
+});
+pm.request.headers.get("X-Source"); // "rrequest"
+pm.request.body = { mode: "raw", type: "json", text: '{"ping":1}' };
+pm.request.params.push({ key: "a", value: "1", enabled: true });
 
 // Debug
-console.log('about to send', pm.request.url);
+console.log("about to send", pm.request.url);
 ```
 
 ### Test script
@@ -110,46 +115,46 @@ Runs against the response, right after it arrives. Tests can also `await
 fetch(...)` (e.g. to compare the response against an external source).
 
 ```js
-pm.test('status is 200', () => {
+pm.test("status is 200", () => {
   pm.expect(pm.response.code).to.equal(200);
 });
 
-pm.test('returns a token', () => {
-  const body = pm.response.json();          // throws -> test fails
-  pm.expect(body.token).to.be.a('string');
+pm.test("returns a token", () => {
+  const body = pm.response.json(); // throws -> test fails
+  pm.expect(body.token).to.be.a("string");
   pm.expect(body.token.length).to.be.above(10);
 });
 
-pm.test('fast enough', () => {
+pm.test("fast enough", () => {
   pm.expect(pm.response.responseTime).to.be.below(500);
 });
 
 // capture a value into the environment for later requests
-pm.environment.set('refreshToken', pm.response.json().refresh_token);
+pm.environment.set("refreshToken", pm.response.json().refresh_token);
 ```
 
 ### `pm` API reference
 
-| Member | Type | Description |
-| --- | --- | --- |
-| `pm.request.method` | get/set | HTTP method (`'GET'`, `'POST'`, …) |
-| `pm.request.url` | get/set | Request URL (interpolated env values) |
-| `pm.request.body` | get/set | Body object (`{ mode, text, items, ... }`) |
-| `pm.request.headers.add({key, value})` | fn | Add a header |
-| `pm.request.headers.get(key)` | fn | Value of a header (first match) |
-| `pm.request.params` | array | Query params list (array of `{key, value, enabled}`) |
-| `pm.response.code` | number | HTTP status code |
-| `pm.response.status` | string | Status text (e.g. `"OK"`) |
-| `pm.response.responseTime` | number | Total time in ms |
-| `pm.response.headers` | array | Response headers (`{key, value}`) |
-| `pm.response.text()` | fn | Body as a string |
-| `pm.response.json()` | fn | Body parsed as JSON (throws if not JSON) |
-| `pm.test(name, fn)` | fn | Record a test: PASS if `fn` doesn't throw |
-| `pm.expect(actual)` | fn | Assertions (below) |
-| `pm.environment.get(key)` / `set(key, value)` | fn | Read / write the active environment (persisted) |
-| `pm.variables.get(key)` | fn | Read an environment variable (no write) |
-| `fetch(url, init?)` | fn | Standard fetch (Node's implementation); scripts can `await` it, e.g. to fetch a token before the request |
-| `console.log(...)` | fn | Appears in the Console tab next to the results |
+| Member                                        | Type    | Description                                                                                              |
+| --------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `pm.request.method`                           | get/set | HTTP method (`'GET'`, `'POST'`, …)                                                                       |
+| `pm.request.url`                              | get/set | Request URL (interpolated env values)                                                                    |
+| `pm.request.body`                             | get/set | Body object (`{ mode, text, items, ... }`)                                                               |
+| `pm.request.headers.add({key, value})`        | fn      | Add a header                                                                                             |
+| `pm.request.headers.get(key)`                 | fn      | Value of a header (first match)                                                                          |
+| `pm.request.params`                           | array   | Query params list (array of `{key, value, enabled}`)                                                     |
+| `pm.response.code`                            | number  | HTTP status code                                                                                         |
+| `pm.response.status`                          | string  | Status text (e.g. `"OK"`)                                                                                |
+| `pm.response.responseTime`                    | number  | Total time in ms                                                                                         |
+| `pm.response.headers`                         | array   | Response headers (`{key, value}`)                                                                        |
+| `pm.response.text()`                          | fn      | Body as a string                                                                                         |
+| `pm.response.json()`                          | fn      | Body parsed as JSON (throws if not JSON)                                                                 |
+| `pm.test(name, fn)`                           | fn      | Record a test: PASS if `fn` doesn't throw                                                                |
+| `pm.expect(actual)`                           | fn      | Assertions (below)                                                                                       |
+| `pm.environment.get(key)` / `set(key, value)` | fn      | Read / write the active environment (persisted)                                                          |
+| `pm.variables.get(key)`                       | fn      | Read an environment variable (no write)                                                                  |
+| `fetch(url, init?)`                           | fn      | Standard fetch (Node's implementation); scripts can `await` it, e.g. to fetch a token before the request |
+| `console.log(...)`                            | fn      | Appears in the Console tab next to the results                                                           |
 
 > Scripts have a **5 second** total timeout (must `await` all `fetch`es in
 > time). Unawaited fetches may finish after the script already returned.
@@ -228,6 +233,96 @@ of ordinary request fields.
 
 Without a backend URL in settings, sync shows a warning with a shortcut to
 configure it.
+
+## Connect an AI agent (MCP)
+
+RREQUEST can run a local **MCP** server so Claude, Cursor, Copilot or any MCP
+client can read and manage your collections. It is **off by default** and binds
+to **`127.0.0.1` only** — it never listens on the network, requests carrying a
+browser `Origin` header are refused, and `Host` must be loopback.
+
+- Enable it with **`MCP: Enable local MCP server`** (`rrequest.mcpEnabled`);
+  `rrequest.mcpPort` sets the port (default `3333`). The endpoint is
+  `http://127.0.0.1:<port>/mcp`.
+- Run **`RREQUEST: MCP server status`** to see the running URL and copy a
+  ready-made client config (or just the token). The bearer token is generated
+  once and kept in Secret Storage, so a pasted config **keeps working across
+  restarts**. Use **`RREQUEST: MCP copy token`** to copy it again, and
+  **`RREQUEST: MCP regenerate token`** to invalidate the old one (every pasted
+  config then needs updating).
+
+What the agent can do:
+
+- List workspaces, collections, environments, folders and requests. Secret
+  environment values are never returned — only the fact that a variable is
+  secret.
+- Create, rename, move and delete collections, folders and requests; edit
+  method, URL, headers, params, body and auth; and **maintain the request
+  documentation** — the markdown behind the book icon on the request pane, via
+  the `description` field of `create_request` / `update_request`.
+- Nothing happens behind your back: writes go through the same router as your
+  own clicks, so they land on disk immediately and push to sync.
+
+What the agent cannot do:
+
+- **It can never send a request** — there is no send tool, by design. You are
+  the one who presses Send.
+- Nothing is read or written without you. The first access to a resource pops an
+  **Allow / Deny** prompt (with a read-and-write option for manage tools), and
+  grants last only for that server session.
+- **`RREQUEST: MCP revoke access`** lists live grants and lets you drop them one
+  by one or all at once.
+
+### Client configuration
+
+**VS Code** — add to `.vscode/mcp.json` (or run `RREQUEST: MCP server status` →
+_Copy client config_). The snippet below is **safe to commit**: the token is not
+in the file — VS Code prompts for it on first run and remembers it.
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "rrequest-token",
+      "description": "RREQUEST MCP token — run 'RREQUEST: MCP copy token' and paste it here",
+      "password": true
+    }
+  ],
+  "servers": {
+    "rrequest": {
+      "type": "http",
+      "url": "http://127.0.0.1:3333/mcp",
+      "headers": { "Authorization": "Bearer ${input:rrequest-token}" }
+    }
+  }
+}
+```
+
+For a personal (not committed) config you can inline the token instead:
+`"headers": { "Authorization": "Bearer <token>" }`.
+
+**Generic MCP client** (`mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "rrequest": {
+      "url": "http://127.0.0.1:3333/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+Replace `<token>` with the value from `RREQUEST: MCP server status` (or
+`RREQUEST: MCP copy token`), and the port with `rrequest.mcpPort` if you
+changed it.
+
+The token is generated once and kept in Secret Storage, so configs survive
+restarts. To rotate it, run **`RREQUEST: MCP regenerate token`** (or use the
+_Regenerate token_ button in `RREQUEST: MCP server status`) — every client that
+still holds the old token then needs the new one.
 
 ## Keyboard & IDE integration
 

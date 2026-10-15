@@ -57,6 +57,22 @@
       {
         "command": "rrequest.newSse",
         "title": "RREQUEST: New SSE Stream"
+      },
+      {
+        "command": "rrequest.mcpStatus",
+        "title": "RREQUEST: MCP server status"
+      },
+      {
+        "command": "rrequest.mcpCopyToken",
+        "title": "RREQUEST: MCP copy token"
+      },
+      {
+        "command": "rrequest.mcpRegenerateToken",
+        "title": "RREQUEST: MCP regenerate token"
+      },
+      {
+        "command": "rrequest.mcpRevokeAccess",
+        "title": "RREQUEST: MCP revoke access"
       }
     ],
     "menus": {
@@ -103,6 +119,18 @@
           "default": 30000,
           "minimum": 1000,
           "description": "HTTP request timeout in milliseconds (applies to the whole send, headers + body)"
+        },
+        "rrequest.mcpEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run the local MCP server so AI agents (Claude, Cursor, Copilot) can discover and manage your RREQUEST collections. Off by default. The server binds to 127.0.0.1 only and every collection needs your explicit approval."
+        },
+        "rrequest.mcpPort": {
+          "type": "number",
+          "default": 3333,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Port for the local MCP server (http://127.0.0.1:<port>/mcp)."
         }
       }
     },
@@ -149,8 +177,11 @@
     "@aws-sdk/client-dynamodb": "^3.665.0",
     "@aws-sdk/lib-dynamodb": "^3.665.0",
     "@changesets/cli": "^2.31.1",
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@heliosjs/aws": "^10.0.1",
     "@heliosjs/core": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@testing-library/jest-dom": "~6.9.1",
     "@testing-library/react": "^14.2.0",
     "@types/aws-lambda": "^8.10.145",
@@ -178,8 +209,7 @@
     "vite": "^5.1.0",
     "vitest": "^1.4.0",
     "ws": "^8.16.0",
-    "zustand": "^4.5.0",
-    "@grpc/grpc-js": "^1.14.4",
-    "@grpc/proto-loader": "^0.8.1"
+    "zod": "^3.25.0",
+    "zustand": "^4.5.0"
   }
 }

@@ -1,5 +1,21 @@
 # Roadmap
 
+## Phase 09 — MCP server (done)
+
+Goal: ship an opt-in MCP server inside the extension so an AI agent can discover
+and **manage** (create/edit/delete) collections, folders, and requests. The agent
+never sends requests. Off by default; enabled by a checkbox in settings; every
+collection access is explicitly granted per session via a native Allow/Deny modal.
+
+| Plan      | Wave | Contents                                                                           | Status |
+| --------- | ---- | ---------------------------------------------------------------------------------- | ------ |
+| 01-core   | 1    | settings checkbox, McpPort, loopback HTTP (Streamable) transport, lifecycle, token | done   |
+| 02-access | 2    | request_access + modal, session grants, gate, read tools                           | done   |
+| 03-manage | 3    | create/rename/move/delete collection·folder·request, tests, docs                   | done   |
+
+Summaries: `.planning/phases/09-mcp/09-0{1,2,3}-SUMMARY.md`. Remaining: manual
+F5 verification with a real MCP client (needs a running VS Code).
+
 ## Phase 08 — Power user & polish (done)
 
 Goal: close the biggest feature-name gaps vs the 2026 market (OAuth2, SSE,
@@ -7,16 +23,16 @@ GraphQL schema, saved examples, docs) plus security/consistency fixes
 (variables in WS/gRPC, secrets in Secret Storage) and UX polish (custom
 methods, viewer lock, bulk ops, onboarding).
 
-| Plan | Wave | Contents | Status |
-|---|---|---|---|
-| 01-auth | 1 | OAuth2: authorization-code PKCE + client-credentials, token cache in Secret Storage | done |
-| 02-vars | 1 | {{var}} in WS/gRPC, env secrets -> Secret Storage, timeout setting | done |
-| 03-sse | 1 | SSE streaming tab; WS polish (interpolation from 02) | done |
-| 04-examples | 1 | Save response as example, reopen + diff | done |
-| 06-docs | 2 | request/collection descriptions, Docs pane, export includes desc | done |
-| 08-bulk | 2 | multi-select tree ops (delete/duplicate/move) | done |
-| 07-ux | 3 | method combobox, viewer lock, empty states, onboarding sample | done |
-| 05-graphql | 3 | GraphQL introspection + schema explorer/autocomplete (needs 01) | deferred |
+| Plan        | Wave | Contents                                                                            | Status   |
+| ----------- | ---- | ----------------------------------------------------------------------------------- | -------- |
+| 01-auth     | 1    | OAuth2: authorization-code PKCE + client-credentials, token cache in Secret Storage | done     |
+| 02-vars     | 1    | {{var}} in WS/gRPC, env secrets -> Secret Storage, timeout setting                  | done     |
+| 03-sse      | 1    | SSE streaming tab; WS polish (interpolation from 02)                                | done     |
+| 04-examples | 1    | Save response as example, reopen + diff                                             | done     |
+| 06-docs     | 2    | request/collection descriptions, Docs pane, export includes desc                    | done     |
+| 08-bulk     | 2    | multi-select tree ops (delete/duplicate/move)                                       | done     |
+| 07-ux       | 3    | method combobox, viewer lock, empty states, onboarding sample                       | done     |
+| 05-graphql  | 3    | GraphQL introspection + schema explorer/autocomplete (needs 01)                     | deferred |
 
 ## Future (not planned yet)
 

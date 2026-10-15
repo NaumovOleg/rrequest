@@ -16,7 +16,12 @@ import { parseEnvImport, serializeEnvExport } from "./formats/environment";
 import { Hub } from "./hub";
 import { WsManager, type WsFactory } from "./net/ws-manager";
 import { SseClient } from "./net/sse-client";
-import { resolveOAuthToken, fetchOAuthToken, oauthTokenStatus } from "./net/oauth2";
+import { buildMcpPort, type McpPort } from "./mcp/port";
+import {
+  resolveOAuthToken,
+  fetchOAuthToken,
+  oauthTokenStatus,
+} from "./net/oauth2";
 import type { Auth } from "../shared/types";
 import {
   SyncClient,
@@ -106,7 +111,10 @@ type SyncControlPort = {
   syncNow(workspaceId: string): Promise<void>;
   syncAccount(accountId: string): Promise<void>;
   setPolling(workspaceId: string, enabled: boolean): Promise<void>;
-  setSyncMode(workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop'): Promise<void>;
+  setSyncMode(
+    workspaceId: string,
+    mode: "full" | "pull" | "push" | "stop"
+  ): Promise<void>;
   // Connected accounts, so the command-palette path can ask WHICH one to sync
   // to instead of giving up when more than one is signed in.
   accounts(): Account[];
@@ -129,6 +137,12 @@ let onWorkspaceDeletedRef: ((id: string) => Promise<void>) | undefined;
 let pollLoopRef: ReturnType<typeof createPollLoop> | undefined;
 let wsManagerRef: WsManager | undefined;
 let sseClientRef: SseClient | undefined;
+// MCP data/action surface, assigned once the stores + Hub exist in bootstrap.
+// The MCP runtime (src/extension/mcp/runtime.ts) reads it via getMcpPort().
+let mcpPortRef: McpPort | undefined;
+export function getMcpPort(): McpPort | undefined {
+  return mcpPortRef;
+}
 export function deactivateRuntime(): void {
   pollLoopRef?.stop();
   pollLoopRef = undefined;
@@ -167,8 +181,13 @@ export function explainSyncError(e: unknown): string {
 function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
   if (bootstrapPromise) return bootstrapPromise;
   // After a failure, wait before retrying to avoid hammering a broken state.
-  if (bootstrapFailedAt && Date.now() - bootstrapFailedAt < BOOTSTRAP_RETRY_COOLDOWN_MS) {
-    return Promise.reject(new Error('Bootstrap failed recently — retrying soon'));
+  if (
+    bootstrapFailedAt &&
+    Date.now() - bootstrapFailedAt < BOOTSTRAP_RETRY_COOLDOWN_MS
+  ) {
+    return Promise.reject(
+      new Error("Bootstrap failed recently — retrying soon")
+    );
   }
   bootstrapPromise = (async () => {
     const base = context.globalStorageUri.fsPath;
@@ -205,23 +224,41 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
     if (!context.globalState.get<boolean>("rrequest.onboarded")) {
       if ((await collections.list()).length === 0) {
         const ws = list.find(isLocalWs) ?? list[0];
-        const c = await collections.createCollection("RREQUEST examples", ws.id);
+        const c = await collections.createCollection(
+          "RREQUEST examples",
+          ws.id
+        );
         await collections.saveRequest(
           c.id,
           {
-            id: newId(), name: "Fetch a todo", method: "GET",
+            id: newId(),
+            name: "Fetch a todo",
+            method: "GET",
             url: "https://jsonplaceholder.typicode.com/todos/1",
-            params: [], headers: defaultHeaders(), body: { mode: "none" },
+            params: [],
+            headers: defaultHeaders(),
+            body: { mode: "none" },
           },
           null
         );
         await collections.saveRequest(
           c.id,
           {
-            id: newId(), name: "Create a post", method: "POST",
+            id: newId(),
+            name: "Create a post",
+            method: "POST",
             url: "https://jsonplaceholder.typicode.com/posts",
-            params: [], headers: defaultHeaders(),
-            body: { mode: "raw", type: "json", text: JSON.stringify({ title: "foo", body: "bar", userId: 1 }, null, 2) },
+            params: [],
+            headers: defaultHeaders(),
+            body: {
+              mode: "raw",
+              type: "json",
+              text: JSON.stringify(
+                { title: "foo", body: "bar", userId: 1 },
+                null,
+                2
+              ),
+            },
           },
           null
         );
@@ -354,7 +391,9 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
           role: isAuthed() ? syncRuntimeRef?.roleOf(w.id) : undefined,
           synced: isAuthed() ? syncRuntimeRef?.syncedOf(w.id) : undefined,
           pollEnabled: isAuthed() ? syncRuntimeRef?.pollingOf(w.id) : undefined,
-          pushEnabled: isAuthed() ? syncRuntimeRef?.pushEnabledOf(w.id) : undefined,
+          pushEnabled: isAuthed()
+            ? syncRuntimeRef?.pushEnabledOf(w.id)
+            : undefined,
           accountId: st?.accountId,
           accountEmail: accounts.emailOf(st?.accountId),
         };
@@ -470,9 +509,7 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // The "Read docs" button posts openDocs; the same action is also a
       // native command (RREQUEST: Open documentation).
       openDocs: () =>
-        vscode.commands.executeCommand(
-          "rrequest.openDocs"
-        ) as Promise<void>,
+        vscode.commands.executeCommand("rrequest.openDocs") as Promise<void>,
       // Response body in a real editor: search, folding and highlighting for
       // free, instead of the webview's readonly <pre>.
       openTextDocument: async ({ content, language }) => {
@@ -514,17 +551,25 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       trash,
       oauth: {
         resolve: (auth: Auth, requestId: string) =>
-          resolveOAuthToken(auth as Extract<Auth, { type: "oauth2" }>, requestId, {
-            secrets: context.secrets,
-            openExternal: async (url: string) =>
-              vscode.env.openExternal(vscode.Uri.parse(url)),
-          }),
+          resolveOAuthToken(
+            auth as Extract<Auth, { type: "oauth2" }>,
+            requestId,
+            {
+              secrets: context.secrets,
+              openExternal: async (url: string) =>
+                vscode.env.openExternal(vscode.Uri.parse(url)),
+            }
+          ),
         fetch: (auth: Auth, requestId: string) =>
-          fetchOAuthToken(auth as Extract<Auth, { type: "oauth2" }>, requestId, {
-            secrets: context.secrets,
-            openExternal: async (url: string) =>
-              vscode.env.openExternal(vscode.Uri.parse(url)),
-          }),
+          fetchOAuthToken(
+            auth as Extract<Auth, { type: "oauth2" }>,
+            requestId,
+            {
+              secrets: context.secrets,
+              openExternal: async (url: string) =>
+                vscode.env.openExternal(vscode.Uri.parse(url)),
+            }
+          ),
         status: (requestId: string) =>
           oauthTokenStatus(requestId, {
             secrets: context.secrets,
@@ -541,20 +586,22 @@ function ensureBootstrap(context: vscode.ExtensionContext): Promise<Hub> {
       // syncControlPort is built after the sync runtime below (it needs manager/
       // runtime/hub, which don't exist yet at createRouter time), so this is a
       // deferred-closure thunk over syncControlRef — same pattern as isReadOnly.
-syncControl: {
+      syncControl: {
         signIn: () => syncControlRef?.signIn() ?? Promise.resolve(),
         // Forward accountId — dropping it broke per-account sign-out and bound
         // enabled workspaces to the wrong/undefined account (so they never
         // pulled for the account that was actually picked).
-        signOut: (accountId?: string) => syncControlRef?.signOut(accountId) ?? Promise.resolve(),
+        signOut: (accountId?: string) =>
+          syncControlRef?.signOut(accountId) ?? Promise.resolve(),
         enable: (id: string, accountId?: string) =>
           syncControlRef?.enable(id, accountId) ?? Promise.resolve(),
-        syncNow: (id: string) => syncControlRef?.syncNow(id) ?? Promise.resolve(),
+        syncNow: (id: string) =>
+          syncControlRef?.syncNow(id) ?? Promise.resolve(),
         syncAccount: (accountId: string) =>
           syncControlRef?.syncAccount(accountId) ?? Promise.resolve(),
         setPolling: (id: string, enabled: boolean) =>
           syncControlRef?.setPolling(id, enabled) ?? Promise.resolve(),
-        setSyncMode: (id: string, mode: 'full' | 'pull' | 'push' | 'stop') =>
+        setSyncMode: (id: string, mode: "full" | "pull" | "push" | "stop") =>
           syncControlRef?.setSyncMode(id, mode) ?? Promise.resolve(),
       },
       // best-effort: trash the Drive file + server rows for a locally-synced
@@ -566,8 +613,9 @@ syncControl: {
     // Cache snapshot for 200ms so rapid dispatches (e.g. two panels mutating at
     // once) don't repeat five disk reads.  refresh() clears the cache to force
     // fresh data after sync pulls.
-    let snapshotCache: { ts: number; data: Promise<HostMessage[]> } | null = null
-    const SNAPSHOT_CACHE_MS = 200
+    let snapshotCache: { ts: number; data: Promise<HostMessage[]> } | null =
+      null;
+    const SNAPSHOT_CACHE_MS = 200;
 
     const computeSnapshot = async (): Promise<HostMessage[]> => {
       const ws = context.globalState.get<string>(
@@ -609,16 +657,19 @@ syncControl: {
     };
 
     const snapshot = async (): Promise<HostMessage[]> => {
-      const now = Date.now()
-      if (snapshotCache && now - snapshotCache.ts < SNAPSHOT_CACHE_MS) return snapshotCache.data
-      const data = computeSnapshot()
-      snapshotCache = { ts: now, data }
-      return data
+      const now = Date.now();
+      if (snapshotCache && now - snapshotCache.ts < SNAPSHOT_CACHE_MS)
+        return snapshotCache.data;
+      const data = computeSnapshot();
+      snapshotCache = { ts: now, data };
+      return data;
     };
 
     const hub = new Hub(route, snapshot);
     hubRef = hub;
-    hub.setSnapshotCacheClearer(() => { snapshotCache = null })
+    hub.setSnapshotCacheClearer(() => {
+      snapshotCache = null;
+    });
     // Each "open" reply gets its own editor panel (native tab). Requests are keyed
     // by request id so re-opening focuses the existing tab; env/ws are singletons.
     hub.setOpen((m) => {
@@ -658,6 +709,31 @@ syncControl: {
       } else if (m.type === "showMembers") {
         RrequestPanel.openOrReveal(context, "members", "Members", m);
       }
+    });
+
+    // --- MCP data/action surface ---
+    // Writes must go through the SAME router as the webview so the read-only
+    // (viewer) guard, sync push (afterDispatch -> schedulePush), trash, and the
+    // snapshot broadcast all apply. We dispatch as a transient sink and collect
+    // everything posted back to it (the snapshot broadcast reaches every sink),
+    // so MCP tools can read the resulting state after a mutation.
+    const mcpDispatch = async (msg: WebviewMessage): Promise<HostMessage[]> => {
+      const collected: HostMessage[] = [];
+      const id = `mcp:${newId()}`;
+      const un = hub.register(id, (m) => collected.push(m));
+      try {
+        await hub.dispatch(id, msg);
+      } finally {
+        un();
+      }
+      return collected;
+    };
+    mcpPortRef = buildMcpPort({
+      collections,
+      environments,
+      workspaces,
+      getActiveWorkspaceId: activeWsId,
+      dispatch: mcpDispatch,
     });
 
     // --- sync runtime (shares the router's stores + Hub; the account registry +
@@ -890,7 +966,9 @@ syncControl: {
           // duplicate-user-row bug made one email appear as several accounts /
           // Drive folders). Drop the stale ones and mark their workspaces
           // unsynced, exactly like signOut does — their data stays local.
-          for (const dup of accounts.list().filter((a) => a.email === me.email && a.id !== me.id)) {
+          for (const dup of accounts
+            .list()
+            .filter((a) => a.email === me.email && a.id !== me.id)) {
             await accounts.remove(dup.id);
             clientCache.delete(dup.id);
             for (const [wsId, st] of Object.entries(await syncState.all())) {
@@ -1050,7 +1128,10 @@ syncControl: {
         await runtime.refreshRoleCache();
         await runtime.refresh();
       },
-      setSyncMode: async (workspaceId: string, mode: 'full' | 'pull' | 'push' | 'stop') => {
+      setSyncMode: async (
+        workspaceId: string,
+        mode: "full" | "pull" | "push" | "stop"
+      ) => {
         await manager.setSyncMode(workspaceId, mode);
         await runtime.refreshRoleCache();
         await runtime.refresh();
@@ -1107,7 +1188,10 @@ export class RrequestPanel {
       context,
       `req:${req.id}`,
       `${req.method} ${req.name}`,
-      { type: "openInEditor", request: req }
+      {
+        type: "openInEditor",
+        request: req,
+      }
     );
   }
 

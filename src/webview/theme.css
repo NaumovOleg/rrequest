@@ -674,6 +674,7 @@ body {
   border-radius: var(--rm-radius);
   padding: var(--rm-sp-2);
   white-space: pre-wrap;
+  overflow-x: auto;
   margin: var(--rm-sp-2);
   font-family: var(--vscode-editor-font-family, monospace);
 }

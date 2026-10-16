@@ -10,6 +10,16 @@ import {
 } from "./panel";
 import { SidebarViewProvider } from "./sidebar-view";
 import { McpRuntime } from "./mcp/runtime";
+import * as os from "node:os";
+import * as fs from "node:fs/promises";
+import { basename } from "node:path";
+import {
+  MCP_JSON,
+  MCP_TOKEN_ENV,
+  shellProfilePath,
+  upsertMcpJson,
+  upsertShellExport,
+} from "./mcp/client-config";
 
 // Opens the bundled usage guide (docs/usage.md) in the editor — as rendered
 // Markdown preview when the built-in Markdown extension is available (it is by
@@ -157,7 +167,8 @@ export function activate(context: vscode.ExtensionContext) {
         `RREQUEST MCP server: ${info.url}`,
         "Copy client config",
         "Copy token",
-        "Regenerate token"
+        "Regenerate token",
+        "Update .mcp.json"
       );
       if (pick === "Copy client config") {
         await vscode.env.clipboard.writeText(config);
@@ -171,6 +182,8 @@ export function activate(context: vscode.ExtensionContext) {
         );
       } else if (pick === "Regenerate token") {
         await vscode.commands.executeCommand("rrequest.mcpRegenerateToken");
+      } else if (pick === "Update .mcp.json") {
+        await vscode.commands.executeCommand("rrequest.mcpUpdateClientConfig");
       }
     }),
     vscode.commands.registerCommand("rrequest.mcpCopyToken", async () => {
@@ -202,6 +215,67 @@ export function activate(context: vscode.ExtensionContext) {
         }`
       );
     }),
+    // Writes the portable client config: .mcp.json gets the mcpServers.rrequest
+    // entry with ${RREQUEST_MCP_TOKEN} as the bearer token (read by Claude Code
+    // and VS Code/Copilot), and the token itself is exported into the shell
+    // profile — no MCP client reads a project .env for a remote HTTP server.
+    vscode.commands.registerCommand(
+      "rrequest.mcpUpdateClientConfig",
+      async () => {
+        const token = await mcp.readToken();
+        if (!token) {
+          void vscode.window.showInformationMessage(
+            'RREQUEST: no MCP token yet. Turn on "MCP: Enable local MCP server" in Settings first.'
+          );
+          return;
+        }
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (!folder)
+          return void vscode.window.showWarningMessage(
+            "RREQUEST: open a project folder first — .mcp.json is written to the workspace root."
+          );
+        const url = mcp.info()?.url ?? `http://127.0.0.1:${getMcpPort()}/mcp`;
+        const read = async (uri: vscode.Uri): Promise<string | undefined> => {
+          try {
+            return Buffer.from(
+              await vscode.workspace.fs.readFile(uri)
+            ).toString("utf8");
+          } catch {
+            return undefined;
+          }
+        };
+        const profile = shellProfilePath(process.env.SHELL ?? "", os.homedir());
+        const mcpJson = upsertMcpJson(
+          await read(vscode.Uri.joinPath(folder.uri, MCP_JSON)),
+          url
+        );
+        const profileContent = await fs
+          .readFile(profile, "utf8")
+          .catch(() => "");
+        try {
+          await vscode.workspace.fs.writeFile(
+            vscode.Uri.joinPath(folder.uri, MCP_JSON),
+            Buffer.from(mcpJson, "utf8")
+          );
+          await fs.writeFile(
+            profile,
+            upsertShellExport(profileContent, token),
+            "utf8"
+          );
+        } catch (e: any) {
+          return void vscode.window.showErrorMessage(
+            `RREQUEST: failed to write client config: ${e?.message ?? e}`
+          );
+        }
+        void vscode.window.showInformationMessage(
+          `RREQUEST: ${MCP_JSON} updated (token via \${${MCP_TOKEN_ENV}}) and the token exported in ${basename(
+            profile
+          )}. Open a new terminal (or run 'source ~/${basename(
+            profile
+          )}') so agents pick up the variable.`
+        );
+      }
+    ),
     vscode.commands.registerCommand("rrequest.mcpRevokeAccess", async () => {
       const grants = mcp.grants();
       if (grants.length === 0) {
